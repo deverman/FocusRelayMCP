@@ -6,8 +6,11 @@ struct BridgeRequest: Codable {
     let requestId: String
     let op: String
     let timestamp: String
+    let userTimeZone: String?
     let id: String?
     let filter: TaskFilter?
+    let tagFilter: TagFilter?
+    let projectFilter: ProjectFilter?
     let fields: [String]?
     let page: PageRequest?
 }

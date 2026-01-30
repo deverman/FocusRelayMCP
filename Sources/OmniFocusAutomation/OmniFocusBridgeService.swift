@@ -11,33 +11,30 @@ public final class OmniFocusBridgeService: OmniFocusService {
     }
 
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
-        guard filter.inboxOnly == true else {
-            throw AutomationError.executionFailed("Bridge only supports inbox for listTasks in v0.1")
-        }
-        return try client.listInboxTasks(filter: filter, page: page, fields: fields)
+        return try client.listTasks(filter: filter, page: page, fields: fields)
     }
 
     public func getTask(id: String, fields: [String]?) async throws -> TaskItem {
         return try client.getTask(id: id, fields: fields)
     }
 
-    public func listProjects(page: PageRequest, fields: [String]?) async throws -> Page<ProjectItem> {
+    public func listProjects(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool, fields: [String]?) async throws -> Page<ProjectItem> {
         let fieldsKey = (fields ?? []).joined(separator: ",")
         let key = CacheKey(limit: page.limit, cursor: page.cursor, fieldsKey: fieldsKey)
         if let cached = await cache.getProjects(key: key) {
             return cached
         }
-        let pageResult = try client.listProjects(page: page, fields: fields)
+        let pageResult = try client.listProjects(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts, fields: fields)
         await cache.setProjects(pageResult, key: key, ttl: cacheTTL)
         return pageResult
     }
 
-    public func listTags(page: PageRequest) async throws -> Page<TagItem> {
+    public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {
         let key = CacheKey(limit: page.limit, cursor: page.cursor, fieldsKey: "")
         if let cached = await cache.getTags(key: key) {
             return cached
         }
-        let pageResult = try client.listTags(page: page)
+        let pageResult = try client.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
         await cache.setTags(pageResult, key: key, ttl: cacheTTL)
         return pageResult
     }

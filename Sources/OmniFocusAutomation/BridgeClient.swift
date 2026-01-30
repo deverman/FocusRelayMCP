@@ -20,15 +20,18 @@ final class BridgeClient: @unchecked Sendable {
         self.decoder = decoder
     }
 
-    func listInboxTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
+    func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
         let requestId = UUID().uuidString
         let request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
             op: "list_tasks",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: filter,
+            tagFilter: nil,
+            projectFilter: nil,
             fields: fields,
             page: page
         )
@@ -47,6 +50,7 @@ final class BridgeClient: @unchecked Sendable {
                     tagNames: payload.tagNames ?? [],
                     dueDate: payload.dueDate,
                     deferDate: payload.deferDate,
+                    completionDate: payload.completionDate,
                     completed: payload.completed ?? false,
                     flagged: payload.flagged ?? false,
                     estimatedMinutes: payload.estimatedMinutes,
@@ -67,8 +71,11 @@ final class BridgeClient: @unchecked Sendable {
             requestId: requestId,
             op: "ping",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: nil,
+            tagFilter: nil,
+            projectFilter: nil,
             fields: nil,
             page: nil
         )
@@ -76,15 +83,19 @@ final class BridgeClient: @unchecked Sendable {
         return try sendRequest(request, responseType: BridgePing.self)
     }
 
-    func listProjects(page: PageRequest, fields: [String]?) throws -> Page<ProjectItem> {
+    func listProjects(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool, fields: [String]?) throws -> Page<ProjectItem> {
         let requestId = UUID().uuidString
+        let projectFilter = ProjectFilter(statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
         let request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
             op: "list_projects",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: nil,
+            tagFilter: nil,
+            projectFilter: projectFilter,
             fields: fields,
             page: page
         )
@@ -92,12 +103,22 @@ final class BridgeClient: @unchecked Sendable {
         let response: BridgeResponse<Page<ProjectItemPayload>> = try sendRequest(request, responseType: Page<ProjectItemPayload>.self)
         if response.ok, let payloadPage = response.data {
             let items = payloadPage.items.map { payload in
-                ProjectItem(
+                let nextTask = payload.nextTask.map { ProjectTaskSummary(id: $0.id ?? "", name: $0.name ?? "") }
+                return ProjectItem(
                     id: payload.id ?? "",
                     name: payload.name ?? "",
                     note: payload.note,
                     status: payload.status ?? "",
-                    flagged: payload.flagged ?? false
+                    flagged: payload.flagged ?? false,
+                    availableTasks: payload.availableTasks,
+                    remainingTasks: payload.remainingTasks,
+                    completedTasks: payload.completedTasks,
+                    droppedTasks: payload.droppedTasks,
+                    totalTasks: payload.totalTasks,
+                    hasChildren: payload.hasChildren,
+                    nextTask: nextTask,
+                    containsSingletonActions: payload.containsSingletonActions,
+                    isStalled: payload.isStalled
                 )
             }
             return Page(items: items, nextCursor: payloadPage.nextCursor, totalCount: payloadPage.totalCount)
@@ -107,15 +128,19 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed(message)
     }
 
-    func listTags(page: PageRequest) throws -> Page<TagItem> {
+    func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) throws -> Page<TagItem> {
         let requestId = UUID().uuidString
+        let tagFilter = TagFilter(statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
         let request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
             op: "list_tags",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: nil,
+            tagFilter: tagFilter,
+            projectFilter: nil,
             fields: nil,
             page: page
         )
@@ -125,7 +150,11 @@ final class BridgeClient: @unchecked Sendable {
             let items = payloadPage.items.map { payload in
                 TagItem(
                     id: payload.id ?? "",
-                    name: payload.name ?? ""
+                    name: payload.name ?? "",
+                    status: payload.status,
+                    availableTasks: payload.availableTasks,
+                    remainingTasks: payload.remainingTasks,
+                    totalTasks: payload.totalTasks
                 )
             }
             return Page(items: items, nextCursor: payloadPage.nextCursor, totalCount: payloadPage.totalCount)
@@ -142,8 +171,11 @@ final class BridgeClient: @unchecked Sendable {
             requestId: requestId,
             op: "get_task",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: id,
             filter: nil,
+            tagFilter: nil,
+            projectFilter: nil,
             fields: fields,
             page: nil
         )
@@ -160,6 +192,7 @@ final class BridgeClient: @unchecked Sendable {
                 tagNames: payload.tagNames ?? [],
                 dueDate: payload.dueDate,
                 deferDate: payload.deferDate,
+                completionDate: payload.completionDate,
                 completed: payload.completed ?? false,
                 flagged: payload.flagged ?? false,
                 estimatedMinutes: payload.estimatedMinutes,
@@ -178,8 +211,11 @@ final class BridgeClient: @unchecked Sendable {
             requestId: requestId,
             op: "get_task_counts",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: filter,
+            tagFilter: nil,
+            projectFilter: nil,
             fields: nil,
             page: nil
         )
@@ -200,8 +236,11 @@ final class BridgeClient: @unchecked Sendable {
             requestId: requestId,
             op: "get_project_counts",
             timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
             id: nil,
             filter: filter,
+            tagFilter: nil,
+            projectFilter: nil,
             fields: nil,
             page: nil
         )
@@ -223,12 +262,9 @@ final class BridgeClient: @unchecked Sendable {
     }
 
     private func writeRequest(_ request: BridgeRequest, requestId: String) throws {
+        let requestURL = paths.requestsURL.appendingPathComponent("\(requestId).json")
         let data = try encoder.encode(request)
-        let tmpURL = paths.requestsURL.appendingPathComponent("\(requestId).json.tmp")
-        let finalURL = paths.requestsURL.appendingPathComponent("\(requestId).json")
-        try data.write(to: tmpURL, options: .atomic)
-        try? fileManager.removeItem(at: finalURL)
-        try fileManager.moveItem(at: tmpURL, to: finalURL)
+        try data.write(to: requestURL, options: .atomic)
     }
 
     private func triggerOmniFocus(requestId: String) throws {
@@ -273,7 +309,7 @@ final class BridgeClient: @unchecked Sendable {
                 let data = try Data(contentsOf: url)
                 return try decoder.decode(BridgeResponse<T>.self, from: data)
             }
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.05)
         }
         throw AutomationError.executionFailed("Bridge response timed out")
     }

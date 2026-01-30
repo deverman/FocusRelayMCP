@@ -26,28 +26,53 @@ struct FocusRelayMCPMain {
             let tools = [
                 Tool(
                     name: "list_tasks",
-                    description: "List OmniFocus tasks with filters and pagination",
+                    description: "List OmniFocus tasks with time-based and attribute filters. For time-of-day queries, use deferAfter/deferBefore to filter when tasks become available. Morning=06:00-12:00, Afternoon=12:00-18:00, Evening=18:00-22:00. All datetimes are ISO8601 format (YYYY-MM-DDTHH:MM:SSZ). Use availableOnly=true to show only actionable tasks. Use staleThreshold to find avoided tasks: '365days' finds tasks deferred over a year ago (What have I been avoiding?), '7days' finds recently deferred tasks (What am I procrastinating on?)",
                     inputSchema: toolSchema(
                         properties: [
                             "filter": .object([
                                 "type": .string("object"),
+                                "description": .string("Task filters including time periods. For 'morning tasks', use deferAfter=06:00 and deferBefore=12:00 in local timezone converted to UTC."),
                                 "properties": .object([
-                                    "completed": .object(["type": .string("boolean")]),
-                                    "flagged": .object(["type": .string("boolean")]),
-                                    "availableOnly": .object(["type": .string("boolean")]),
-                                    "inboxView": .object(["type": .string("string")]),
-                                    "project": .object(["type": .string("string")]),
+                                    "completed": propertySchema(type: "boolean", description: "Filter by completion status"),
+                                    "flagged": propertySchema(type: "boolean", description: "Filter flagged tasks only"),
+                                    "availableOnly": propertySchema(type: "boolean", description: "Only show tasks that are currently available (not blocked by defer dates)"),
+                                    "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'"),
+                                    "project": propertySchema(type: "string", description: "Filter by project ID or name"),
                                     "tags": .object([
                                         "type": .string("array"),
-                                        "items": .object(["type": .string("string")])
+                                        "description": .string("Filter by tag IDs or names"),
+                                        "items": .object(["type": .string("string")]),
+                                        "examples": .array([.array([.string("work"), .string("urgent")]), .array([.string("personal")])])
                                     ]),
-                                    "dueBefore": .object(["type": .string("string")]),
-                                    "dueAfter": .object(["type": .string("string")]),
-                                    "deferBefore": .object(["type": .string("string")]),
-                                    "deferAfter": .object(["type": .string("string")]),
-                                    "search": .object(["type": .string("string")]),
-                                    "inboxOnly": .object(["type": .string("boolean")]),
-                                    "projectView": .object(["type": .string("string")])
+                                    "dueBefore": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks due before this time. For morning tasks due today, use today's date at 12:00:00Z",
+                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T23:59:59Z")]
+                                    ),
+                                    "dueAfter": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks due after this time",
+                                        examples: [.string("2026-01-30T00:00:00Z")]
+                                    ),
+                                    "deferBefore": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks deferred until before this time. For morning tasks, use today's date at 12:00:00Z",
+                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T18:00:00Z")]
+                                    ),
+                                    "deferAfter": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks deferred until after this time (become available). For morning tasks starting at 6am, use today's date at 06:00:00Z",
+                                        examples: [.string("2026-01-30T06:00:00Z"), .string("2026-01-30T12:00:00Z")]
+                                    ),
+                                    "staleThreshold": .object([
+                                        "type": .string("string"),
+                                        "description": .string("Convenience filter to find stale/avoided tasks. Sets deferBefore to today minus the threshold days. Mutually exclusive with deferBefore. Examples: '7days' for procrastination, '365days' for long-avoided tasks"),
+                                        "enum": .array([.string("7days"), .string("30days"), .string("90days"), .string("180days"), .string("270days"), .string("365days")]),
+                                        "examples": .array([.string("365days"), .string("7days")])
+                                    ]),
+                                    "search": propertySchema(type: "string", description: "Search tasks by name or note content"),
+                                    "inboxOnly": propertySchema(type: "boolean", description: "Only show inbox tasks"),
+                                    "projectView": propertySchema(type: "string", description: "Project view filter: 'active', 'onHold', etc.")
                                 ])
                             ]),
                             "page": .object([
@@ -82,7 +107,7 @@ struct FocusRelayMCPMain {
                 ),
                 Tool(
                     name: "list_projects",
-                    description: "List OmniFocus projects with pagination (use page.limit and nextCursor)",
+                    description: "List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include task counts. Use statusFilter to show only projects with a specific status, and includeTaskCounts to get the number of tasks associated with each project.",
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -91,6 +116,17 @@ struct FocusRelayMCPMain {
                                     "limit": .object(["type": .string("integer")]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
+                            ]),
+                            "statusFilter": .object([
+                                "type": .string("string"),
+                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'"),
+                                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
+                                "default": .string("active")
+                            ]),
+                            "includeTaskCounts": .object([
+                                "type": .string("boolean"),
+                                "description": .string("Include task counts for each project (available, remaining, completed, dropped, total)"),
+                                "default": .bool(false)
                             ]),
                             "fields": .object([
                                 "type": .string("array"),
@@ -102,7 +138,7 @@ struct FocusRelayMCPMain {
                 ),
                 Tool(
                     name: "list_tags",
-                    description: "List OmniFocus tags with pagination (use page.limit and nextCursor)",
+                    description: "List OmniFocus tags with pagination and filtering. Tags have a status (active, onHold, dropped) and can optionally include task counts. Use statusFilter to show only tags with a specific status, and includeTaskCounts to get the number of tasks associated with each tag.",
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -111,6 +147,17 @@ struct FocusRelayMCPMain {
                                     "limit": .object(["type": .string("integer")]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
+                            ]),
+                            "statusFilter": .object([
+                                "type": .string("string"),
+                                "description": .string("Filter tags by status: 'active' (default), 'onHold', 'dropped', or 'all'"),
+                                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("all")]),
+                                "default": .string("active")
+                            ]),
+                            "includeTaskCounts": .object([
+                                "type": .string("boolean"),
+                                "description": .string("Include task counts for each tag (available, remaining, total)"),
+                                "default": .bool(false)
                             ])
                         ]
                     ),
@@ -161,9 +208,23 @@ struct FocusRelayMCPMain {
 
         await server.withMethodHandler(CallTool.self) { params in
             do {
+                let toolStart = Date()
+                defer {
+                    let elapsed = Date().timeIntervalSince(toolStart)
+                    logger.info("Tool \(params.name) completed in \(String(format: "%.3f", elapsed))s")
+                }
+
                 switch params.name {
                 case "list_tasks":
-                    let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
+                    // Debug: Log raw arguments
+                    logger.info("list_tasks called with arguments: \(String(describing: params.arguments))")
+                    let filter: TaskFilter
+                    do {
+                        filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
+                    } catch {
+                        logger.error("Failed to decode filter: \(String(describing: error))")
+                        return .init(content: [.text("Error decoding filter: \(error)")], isError: true)
+                    }
                     let hasPage = params.arguments?["page"] != nil
                     let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 50)) : PageRequest(limit: 50)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
@@ -187,18 +248,23 @@ struct FocusRelayMCPMain {
                 case "list_projects":
                     let hasPage = params.arguments?["page"] != nil
                     let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
+                    let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
+                    let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
-                    let result = try await service.listProjects(page: page, fields: fields)
+                    let result = try await service.listProjects(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts, fields: fields)
                     let fieldSet = Set(fields)
-                    let items = result.items.map { makeProjectOutput(from: $0, fields: fieldSet) }
+                    let items = result.items.map { makeProjectOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_tags":
                     let hasPage = params.arguments?["page"] != nil
                     let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
-                    let result = try await service.listTags(page: page)
-                    let items = result.items.map { TagOutput(id: $0.id, name: $0.name) }
+                    let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
+                    let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
+                    let result = try await service.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
+                    let fieldSet = Set(["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"])
+                    let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "get_task_counts":
@@ -255,16 +321,31 @@ private func toolSchema(properties: [String: Value], required: [String] = []) ->
     return .object(schema)
 }
 
+private func propertySchema(type: String, description: String = "", examples: [Value]? = nil) -> Value {
+    var schema: [String: Value] = ["type": .string(type)]
+    if !description.isEmpty {
+        schema["description"] = .string(description)
+    }
+    if let examples = examples {
+        schema["examples"] = .array(examples)
+    }
+    return .object(schema)
+}
+
 private func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
     guard let value = args?[key] else { return nil }
     let data = try JSONEncoder().encode(value)
-    return try JSONDecoder().decode(T.self, from: data)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(T.self, from: data)
 }
 
 private func decodeStringArray(_ value: Value?) -> [String]? {
     guard let value else { return nil }
     let data = try? JSONEncoder().encode(value)
     guard let data else { return nil }
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
     return try? JSONDecoder().decode([String].self, from: data)
 }
 
@@ -285,6 +366,7 @@ private struct TaskOutput: Encodable {
     let tagNames: [String]?
     let dueDate: Date?
     let deferDate: Date?
+    let completionDate: Date?
     let completed: Bool?
     let flagged: Bool?
     let estimatedMinutes: Int?
@@ -303,11 +385,24 @@ private struct ProjectOutput: Encodable {
     let note: String?
     let status: String?
     let flagged: Bool?
+    let availableTasks: Int?
+    let remainingTasks: Int?
+    let completedTasks: Int?
+    let droppedTasks: Int?
+    let totalTasks: Int?
+    let hasChildren: Bool?
+    let nextTask: ProjectTaskSummary?
+    let containsSingletonActions: Bool?
+    let isStalled: Bool?
 }
 
 private struct TagOutput: Encodable {
     let id: String
     let name: String
+    let status: String?
+    let availableTasks: Int?
+    let remainingTasks: Int?
+    let totalTasks: Int?
 }
 
 private func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOutput {
@@ -321,6 +416,7 @@ private func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOut
         tagNames: fields.contains("tagNames") ? task.tagNames : nil,
         dueDate: fields.contains("dueDate") ? task.dueDate : nil,
         deferDate: fields.contains("deferDate") ? task.deferDate : nil,
+        completionDate: fields.contains("completionDate") ? task.completionDate : nil,
         completed: fields.contains("completed") ? task.completed : nil,
         flagged: fields.contains("flagged") ? task.flagged : nil,
         estimatedMinutes: fields.contains("estimatedMinutes") ? task.estimatedMinutes : nil,
@@ -328,12 +424,32 @@ private func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOut
     )
 }
 
-private func makeProjectOutput(from project: ProjectItem, fields: Set<String>) -> ProjectOutput {
+private func makeProjectOutput(from project: ProjectItem, fields: Set<String>, includeTaskCounts: Bool) -> ProjectOutput {
     ProjectOutput(
         id: fields.contains("id") ? project.id : nil,
         name: fields.contains("name") ? project.name : nil,
         note: fields.contains("note") ? project.note : nil,
         status: fields.contains("status") ? project.status : nil,
-        flagged: fields.contains("flagged") ? project.flagged : nil
+        flagged: fields.contains("flagged") ? project.flagged : nil,
+        availableTasks: includeTaskCounts ? project.availableTasks : nil,
+        remainingTasks: includeTaskCounts ? project.remainingTasks : nil,
+        completedTasks: includeTaskCounts ? project.completedTasks : nil,
+        droppedTasks: includeTaskCounts ? project.droppedTasks : nil,
+        totalTasks: includeTaskCounts ? project.totalTasks : nil,
+        hasChildren: fields.contains("hasChildren") ? project.hasChildren : nil,
+        nextTask: fields.contains("nextTask") ? project.nextTask : nil,
+        containsSingletonActions: fields.contains("containsSingletonActions") ? project.containsSingletonActions : nil,
+        isStalled: fields.contains("isStalled") ? project.isStalled : nil
+    )
+}
+
+private func makeTagOutput(from tag: TagItem, fields: Set<String>, includeTaskCounts: Bool) -> TagOutput {
+    TagOutput(
+        id: tag.id,
+        name: tag.name,
+        status: fields.contains("status") ? tag.status : nil,
+        availableTasks: includeTaskCounts ? tag.availableTasks : nil,
+        remainingTasks: includeTaskCounts ? tag.remainingTasks : nil,
+        totalTasks: includeTaskCounts ? tag.totalTasks : nil
     )
 }

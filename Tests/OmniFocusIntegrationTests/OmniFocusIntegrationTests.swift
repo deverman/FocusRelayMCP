@@ -52,7 +52,7 @@ func bridgeListInboxLive() throws {
     let client = BridgeClient()
     let filter = TaskFilter(inboxOnly: true)
     let page = PageRequest(limit: 5)
-    let result = try client.listInboxTasks(filter: filter, page: page, fields: ["id", "name"])
+    let result = try client.listTasks(filter: filter, page: page, fields: ["id", "name"])
     #expect(result.items.count <= 5)
 }
 
@@ -89,11 +89,11 @@ func bridgeProjectsPagingLive() throws {
     }
 
     let client = BridgeClient()
-    let first = try client.listProjects(page: PageRequest(limit: 2), fields: ["id", "name"])
+    let first = try client.listProjects(page: PageRequest(limit: 2), statusFilter: "active", includeTaskCounts: false, fields: ["id", "name"])
     #expect(first.items.count <= 2)
     #expect((first.totalCount ?? 0) >= first.items.count)
     if let cursor = first.nextCursor {
-        let second = try client.listProjects(page: PageRequest(limit: 2, cursor: cursor), fields: ["id", "name"])
+        let second = try client.listProjects(page: PageRequest(limit: 2, cursor: cursor), statusFilter: "active", includeTaskCounts: false, fields: ["id", "name"])
         #expect(second.items.count <= 2)
     }
 }
@@ -106,11 +106,11 @@ func bridgeTagsPagingLive() throws {
     }
 
     let client = BridgeClient()
-    let first = try client.listTags(page: PageRequest(limit: 2))
+    let first = try client.listTags(page: PageRequest(limit: 2), statusFilter: nil, includeTaskCounts: false)
     #expect(first.items.count <= 2)
     #expect((first.totalCount ?? 0) >= first.items.count)
     if let cursor = first.nextCursor {
-        let second = try client.listTags(page: PageRequest(limit: 2, cursor: cursor))
+        let second = try client.listTags(page: PageRequest(limit: 2, cursor: cursor), statusFilter: nil, includeTaskCounts: false)
         #expect(second.items.count <= 2)
     }
 }

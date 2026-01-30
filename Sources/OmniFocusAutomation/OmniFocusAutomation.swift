@@ -94,8 +94,8 @@ public final class OmniAutomationService: OmniFocusService {
         throw AutomationError.notImplemented
     }
 
-    public func listProjects(page: PageRequest, fields: [String]?) async throws -> Page<ProjectItem> {
-        let request = ListProjectsRequest(page: page, fields: fields)
+    public func listProjects(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool, fields: [String]?) async throws -> Page<ProjectItem> {
+        let request = ListProjectsRequest(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts, fields: fields)
         let requestData = try JSONEncoder().encode(request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
             throw AutomationError.executionFailed("Failed to encode request JSON")
@@ -106,18 +106,26 @@ public final class OmniAutomationService: OmniFocusService {
         let data = Data(output.utf8)
         let payloadPage = try decoder.decode(Page<ProjectItemPayload>.self, from: data)
         let items = payloadPage.items.map { payload in
-            ProjectItem(
+            let nextTask = payload.nextTask.map { ProjectTaskSummary(id: $0.id ?? "", name: $0.name ?? "") }
+            return ProjectItem(
                 id: payload.id ?? "",
                 name: payload.name ?? "",
                 note: payload.note,
                 status: payload.status ?? "",
-                flagged: payload.flagged ?? false
+                flagged: payload.flagged ?? false,
+                availableTasks: payload.availableTasks,
+                remainingTasks: payload.remainingTasks,
+                completedTasks: payload.completedTasks,
+                droppedTasks: payload.droppedTasks,
+                totalTasks: payload.totalTasks,
+                hasChildren: payload.hasChildren,
+                nextTask: nextTask
             )
         }
         return Page(items: items, nextCursor: payloadPage.nextCursor)
     }
 
-    public func listTags(page: PageRequest) async throws -> Page<TagItem> {
+    public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {
         _ = runner
         throw AutomationError.notImplemented
     }
@@ -156,6 +164,8 @@ private struct ListTasksRequest: Codable {
 
 private struct ListProjectsRequest: Codable {
     let page: PageRequest
+    let statusFilter: String?
+    let includeTaskCounts: Bool
     let fields: [String]?
 }
 
