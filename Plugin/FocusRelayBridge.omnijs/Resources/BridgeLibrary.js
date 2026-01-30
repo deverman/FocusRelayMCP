@@ -165,6 +165,117 @@
             tasks = tasks.filter(t => isTaskAvailable(t));
           }
 
+          // Date range filters
+          // Robust date parsing helper that handles ISO8601 strings from Swift
+          function parseFilterDate(dateString, warnings) {
+            if (!dateString || typeof dateString !== "string") return null;
+            const parsed = new Date(dateString);
+            if (isNaN(parsed.getTime())) {
+              warnings.push("Invalid date filter value: " + dateString);
+              return null;
+            }
+            return parsed;
+          }
+
+          // Helper to get task date safely and convert to timestamp for comparison
+          function getTaskDateTimestamp(task, dateGetter) {
+            const date = safe(() => dateGetter(task));
+            if (!date) return null;
+            // Ensure it's a valid Date object with getTime method
+            if (typeof date.getTime !== "function") return null;
+            const ts = date.getTime();
+            if (isNaN(ts)) return null;
+            return ts;
+          }
+
+          if (filter.dueBefore) {
+            const dueBeforeDate = parseFilterDate(filter.dueBefore, response.warnings);
+            if (dueBeforeDate) {
+              const cutoff = dueBeforeDate.getTime();
+              tasks = tasks.filter(t => {
+                const dueTs = getTaskDateTimestamp(t, task => task.dueDate);
+                return dueTs !== null && dueTs <= cutoff;
+              });
+            }
+          }
+          if (filter.dueAfter) {
+            const dueAfterDate = parseFilterDate(filter.dueAfter, response.warnings);
+            if (dueAfterDate) {
+              const cutoff = dueAfterDate.getTime();
+              tasks = tasks.filter(t => {
+                const dueTs = getTaskDateTimestamp(t, task => task.dueDate);
+                return dueTs !== null && dueTs >= cutoff;
+              });
+            }
+          }
+          if (filter.deferBefore) {
+            const deferBeforeDate = parseFilterDate(filter.deferBefore, response.warnings);
+            if (deferBeforeDate) {
+              const cutoff = deferBeforeDate.getTime();
+              tasks = tasks.filter(t => {
+                const deferTs = getTaskDateTimestamp(t, task => task.deferDate);
+                return deferTs !== null && deferTs <= cutoff;
+              });
+            }
+          }
+          if (filter.deferAfter) {
+            const deferAfterDate = parseFilterDate(filter.deferAfter, response.warnings);
+            if (deferAfterDate) {
+              const cutoff = deferAfterDate.getTime();
+              tasks = tasks.filter(t => {
+                const deferTs = getTaskDateTimestamp(t, task => task.deferDate);
+                return deferTs !== null && deferTs >= cutoff;
+              });
+            }
+          }
+          if (filter.completedBefore) {
+            const completedBeforeDate = parseFilterDate(filter.completedBefore, response.warnings);
+            if (completedBeforeDate) {
+              const cutoff = completedBeforeDate.getTime();
+              tasks = tasks.filter(t => {
+                const completedTs = getTaskDateTimestamp(t, task => task.completionDate);
+                return completedTs !== null && completedTs <= cutoff;
+              });
+            }
+          }
+          if (filter.completedAfter) {
+            const completedAfterDate = parseFilterDate(filter.completedAfter, response.warnings);
+            if (completedAfterDate) {
+              const cutoff = completedAfterDate.getTime();
+              tasks = tasks.filter(t => {
+                const completedTs = getTaskDateTimestamp(t, task => task.completionDate);
+                return completedTs !== null && completedTs >= cutoff;
+              });
+            }
+          }
+
+          // Duration filters
+          if (typeof filter.maxEstimatedMinutes === "number") {
+            tasks = tasks.filter(t => {
+              const minutes = safe(() => t.estimatedMinutes);
+              return minutes !== null && minutes !== undefined && minutes <= filter.maxEstimatedMinutes;
+            });
+          }
+          if (typeof filter.minEstimatedMinutes === "number") {
+            tasks = tasks.filter(t => {
+              const minutes = safe(() => t.estimatedMinutes);
+              return minutes !== null && minutes !== undefined && minutes >= filter.minEstimatedMinutes;
+            });
+          }
+
+          // Tag filtering
+          if (Array.isArray(filter.tags) && filter.tags.length > 0) {
+            const tagFilter = filter.tags;
+            tasks = tasks.filter(t => {
+              const tags = safe(() => t.tags) || [];
+              return tags.some(tag => {
+                const tagId = String(safe(() => tag.id.primaryKey) || "");
+                const tagName = String(safe(() => tag.name) || "");
+                return tagFilter.some(filterTag => tagId === filterTag || tagName === filterTag);
+              });
+            });
+          }
+
           const limit = request.page && request.page.limit ? request.page.limit : 50;
           let offset = 0;
           if (request.page && request.page.cursor) {

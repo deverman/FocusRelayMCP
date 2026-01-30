@@ -119,9 +119,13 @@ public struct TaskFilter: Codable, Sendable {
     public var dueAfter: Date?
     public var deferBefore: Date?
     public var deferAfter: Date?
+    public var completedBefore: Date?
+    public var completedAfter: Date?
     public var search: String?
     public var inboxOnly: Bool?
     public var projectView: String?
+    public var maxEstimatedMinutes: Int?
+    public var minEstimatedMinutes: Int?
 
     public init(
         completed: Bool? = nil,
@@ -134,9 +138,13 @@ public struct TaskFilter: Codable, Sendable {
         dueAfter: Date? = nil,
         deferBefore: Date? = nil,
         deferAfter: Date? = nil,
+        completedBefore: Date? = nil,
+        completedAfter: Date? = nil,
         search: String? = nil,
-        inboxOnly: Bool? = nil
-        , projectView: String? = nil
+        inboxOnly: Bool? = nil,
+        projectView: String? = nil,
+        maxEstimatedMinutes: Int? = nil,
+        minEstimatedMinutes: Int? = nil
     ) {
         self.completed = completed
         self.flagged = flagged
@@ -148,9 +156,13 @@ public struct TaskFilter: Codable, Sendable {
         self.dueAfter = dueAfter
         self.deferBefore = deferBefore
         self.deferAfter = deferAfter
+        self.completedBefore = completedBefore
+        self.completedAfter = completedAfter
         self.search = search
         self.inboxOnly = inboxOnly
         self.projectView = projectView
+        self.maxEstimatedMinutes = maxEstimatedMinutes
+        self.minEstimatedMinutes = minEstimatedMinutes
     }
 }
 
