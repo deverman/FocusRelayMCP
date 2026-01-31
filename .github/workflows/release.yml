@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2"
+          
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+            
+      - name: Build Release
+        run: swift build -c release -v
+        
+      - name: Package Release
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          if [ -z "$VERSION" ]; then
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          
+          # Create release directory
+          mkdir -p "focus-relay-mcp-${VERSION}"
+          
+          # Copy binary
+          cp .build/release/focus-relay-mcp "focus-relay-mcp-${VERSION}/"
+          
+          # Copy plugin
+          cp -r Plugin/FocusRelayBridge.omnijs "focus-relay-mcp-${VERSION}/"
+          
+          # Copy install script
+          cp scripts/install-plugin.sh "focus-relay-mcp-${VERSION}/"
+          
+          # Create tarball
+          tar -czf "focus-relay-mcp-${VERSION}.tar.gz" "focus-relay-mcp-${VERSION}"
+          
+          # Calculate SHA256
+          shasum -a 256 "focus-relay-mcp-${VERSION}.tar.gz" > "focus-relay-mcp-${VERSION}.sha256"
+          
+          echo "✅ Packaged: focus-relay-mcp-${VERSION}.tar.gz"
+          cat "focus-relay-mcp-${VERSION}.sha256"
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: |
+            focus-relay-mcp-*.tar.gz
+            focus-relay-mcp-*.sha256
+          body: |
+            ## Installation
+
+            ### Homebrew (Recommended)
+            ```bash
+            brew tap deverman/focus-relay
+            brew install focus-relay-mcp
+            ```
+
+            ### Manual Installation
+            1. Download `focus-relay-mcp-X.X.X.tar.gz` from this release
+            2. Extract: `tar -xzf focus-relay-mcp-X.X.X.tar.gz`
+            3. Install binary to PATH: `cp focus-relay-mcp-X.X.X/focus-relay-mcp /usr/local/bin/`
+            4. Install plugin: `./focus-relay-mcp-X.X.X/install-plugin.sh`
+            5. Restart OmniFocus
+
+            ### First Time Setup
+            ⚠️ When you run your first query, OmniFocus will show a security dialog.
+            You **MUST** click "Run Script" to allow the automation to work.
+
+            ## SHA256 Checksum
+            ```
+            ${{ steps.package.outputs.sha256 }}
+            ```
+
+            ## Changes
+            See [CHANGELOG.md](../CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
