@@ -82,30 +82,45 @@ git tag -a vX.X.X -m "Release vX.X.X: Description of changes"
 git push origin vX.X.X
 ```
 
-### 2. Update Homebrew Formula (CRITICAL)
-The Homebrew tap must be updated with the new SHA256:
+### 2. Update Homebrew Formula (⚠️ CRITICAL - MUST DO AFTER EVERY RELEASE!)
 
-1. **Get the new SHA256** from the release:
-   ```bash
-   curl -sL https://github.com/deverman/FocusRelayMCP/releases/download/vX.X.X/focus-relay-mcp-X.X.X.sha256
-   ```
+**⚠️ WARNING: You MUST update the SHA256 after EVERY release, even for the same version!**
 
-2. **Update the formula** in `deverman/homebrew-focus-relay`:
-   ```bash
-   cd ~/homebrew-focus-relay  # or wherever you cloned it
-   # Edit focus-relay-mcp.rb and update:
-   # - version number in URL
-   # - sha256 value
-   git add focus-relay-mcp.rb
-   git commit -m "Update formula to vX.X.X"
-   git push origin main
-   ```
+Every time you create or re-create a release, GitHub rebuilds the tarball and the SHA256 changes. If you skip this step, Homebrew installations will fail with checksum errors.
 
-3. **Verify the tap works**:
-   ```bash
-   brew update
-   brew install focus-relay-mcp
-   ```
+**Step 1: Get the new SHA256 from the release**
+```bash
+curl -sL https://github.com/deverman/FocusRelayMCP/releases/download/vX.X.X/focus-relay-mcp-X.X.X.sha256
+```
+
+**Step 2: Update the formula in `deverman/homebrew-focus-relay`**
+```bash
+cd ~/homebrew-focus-relay  # or wherever you cloned it
+
+# Edit focus-relay-mcp.rb and update BOTH:
+# - version number in the URL (if changed)
+# - sha256 value (MUST be updated every time!)
+# 
+# Example: Change this line:
+# sha256 "OLD_SHA256_HERE"
+# To:
+# sha256 "NEW_SHA256_FROM_STEP_1"
+
+# Then commit and push:
+git add focus-relay-mcp.rb
+git commit -m "Update SHA256 for vX.X.X"
+git push origin main
+```
+
+**Step 3: Verify the tap works**
+```bash
+brew update
+brew install focus-relay-mcp
+# OR if reinstalling:
+brew reinstall focus-relay-mcp
+```
+
+**🔴 COMMON MISTAKE:** Forgetting to update the SHA256 when re-releasing the same version (e.g., fixing a bug and re-tagging v0.9.0-beta). The tarball is rebuilt every time, so the SHA256 will change even if the version number stays the same.
 
 ### 3. GitHub Release Notes
 The GitHub Actions workflow auto-generates release notes, but add:
