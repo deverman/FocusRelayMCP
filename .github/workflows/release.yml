@@ -92,7 +92,7 @@ jobs:
                - Go to Automation > Plug-Ins > Show Plug-In Folder in Finder
                - Copy the plugin to that folder:
                  ```bash
-                 cp -r focus-relay-mcp-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/OmniFocus/Plug-Ins/
+                 cp -r focus-relay-mcp-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/Plug-Ins/
                  ```
                - Or if using iCloud: `~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins/`
             5. **Restart OmniFocus completely** (Cmd+Q, then reopen)

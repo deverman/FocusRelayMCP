@@ -23,7 +23,7 @@ fi
 
 # Priority 2: Check for OmniFocus 4 sandbox directory (most common)
 if [ -z "${PLUGIN_DIR:-}" ]; then
-    SANDBOX_DIR="$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/OmniFocus/Plug-Ins"
+    SANDBOX_DIR="$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
     if [ -d "$SANDBOX_DIR" ]; then
         PLUGIN_DIR="$SANDBOX_DIR"
         echo "✅ Found OmniFocus 4 sandbox plugin directory"
