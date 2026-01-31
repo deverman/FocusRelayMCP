@@ -54,8 +54,8 @@ jobs:
           # Copy plugin
           cp -r Plugin/FocusRelayBridge.omnijs "focus-relay-mcp-${VERSION}/"
           
-          # Copy install script
-          cp scripts/install-plugin.sh "focus-relay-mcp-${VERSION}/"
+          # Copy README with installation instructions
+          cp README.md "focus-relay-mcp-${VERSION}/"
           
           # Create tarball
           tar -czf "focus-relay-mcp-${VERSION}.tar.gz" "focus-relay-mcp-${VERSION}"
@@ -88,9 +88,20 @@ jobs:
             ### Manual Installation
             1. Download `focus-relay-mcp-X.X.X.tar.gz` from this release
             2. Extract: `tar -xzf focus-relay-mcp-X.X.X.tar.gz`
-            3. Install binary to PATH: `cp focus-relay-mcp-X.X.X/focus-relay-mcp /usr/local/bin/`
-            4. Install plugin: `./focus-relay-mcp-X.X.X/install-plugin.sh`
-            5. Restart OmniFocus
+            3. Install the MCP server binary:
+               ```bash
+               sudo cp focus-relay-mcp-X.X.X/focus-relay-mcp /usr/local/bin/
+               ```
+            4. Install the OmniFocus plugin:
+               - Open OmniFocus
+               - Go to Automation > Plug-Ins > Show Plug-In Folder in Finder
+               - Copy the plugin to that folder:
+                 ```bash
+                 cp -r focus-relay-mcp-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/OmniFocus/Plug-Ins/
+                 ```
+               - Or if using iCloud: `~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins/`
+            5. **Restart OmniFocus completely** (Cmd+Q, then reopen)
+            6. Configure your MCP client (see README.md in the package)
 
             ### First Time Setup
             ⚠️ When you run your first query, OmniFocus will show a security dialog.
