@@ -217,6 +217,7 @@
             const threshold = filter.staleThreshold;
             let days = 30; // default
             switch (threshold) {
+              case "1days": days = 1; break;
               case "7days": days = 7; break;
               case "30days": days = 30; break;
               case "90days": days = 90; break;
