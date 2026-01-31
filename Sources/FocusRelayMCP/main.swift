@@ -26,14 +26,17 @@ struct FocusRelayMCPMain {
             let tools = [
                 Tool(
                     name: "list_tasks",
-                    description: "List OmniFocus tasks with time-based and attribute filters. For time-of-day queries, use deferAfter/deferBefore to filter when tasks become available. Morning=06:00-12:00, Afternoon=12:00-18:00, Evening=18:00-22:00. All datetimes are ISO8601 format (YYYY-MM-DDTHH:MM:SSZ). Use availableOnly=true to show only actionable tasks. Use staleThreshold to find avoided tasks: '365days' finds tasks deferred over a year ago (What have I been avoiding?), '7days' finds recently deferred tasks (What am I procrastinating on?)",
+                    description: "Query OmniFocus tasks with powerful filtering. IMPORTANT: Default fields only return 'id' and 'name'. To see completion dates, due dates, or other fields, you MUST explicitly request them in the 'fields' parameter.\n\nCRITICAL FILTERING HINTS:\n- To find tasks completed TODAY: Use completed=true AND staleThreshold='1days' AND request fields=['completionDate', 'completed', 'name']\n- To find available tasks: Use availableOnly=true\n- For time-of-day: Morning=06:00-12:00, Afternoon=12:00-18:00, Evening=18:00-22:00 (convert to ISO8601 UTC)\n\nTime formats are ISO8601 (YYYY-MM-DDTHH:MM:SSZ). All datetimes must be in UTC.",
                     inputSchema: toolSchema(
                         properties: [
                             "filter": .object([
                                 "type": .string("object"),
                                 "description": .string("Task filters including time periods. For 'morning tasks', use deferAfter=06:00 and deferBefore=12:00 in local timezone converted to UTC."),
                                 "properties": .object([
-                                    "completed": propertySchema(type: "boolean", description: "Filter by completion status"),
+                                    "completed": propertySchema(
+                                        type: "boolean",
+                                        description: "Filter by completion status. CRITICAL: When true, combine with staleThreshold='1days' to get today's completions, and ALWAYS request 'completionDate' in fields"
+                                    ),
                                     "flagged": propertySchema(type: "boolean", description: "Filter flagged tasks only"),
                                     "availableOnly": propertySchema(type: "boolean", description: "Only show tasks that are currently available (not blocked by defer dates)"),
                                     "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'"),
@@ -66,9 +69,9 @@ struct FocusRelayMCPMain {
                                     ),
                                     "staleThreshold": .object([
                                         "type": .string("string"),
-                                        "description": .string("Convenience filter to find stale/avoided tasks. Sets deferBefore to today minus the threshold days. Mutually exclusive with deferBefore. Examples: '7days' for procrastination, '365days' for long-avoided tasks"),
-                                        "enum": .array([.string("7days"), .string("30days"), .string("90days"), .string("180days"), .string("270days"), .string("365days")]),
-                                        "examples": .array([.string("365days"), .string("7days")])
+                                        "description": .string("Convenience filter for relative date filtering. For completed tasks, finds tasks completed within the threshold. For incomplete tasks, finds tasks deferred before (threshold days ago). Examples: '1days' for today, '7days' for this week, '365days' for stale tasks"),
+                                        "enum": .array([.string("1days"), .string("7days"), .string("30days"), .string("90days"), .string("180days"), .string("270days"), .string("365days")]),
+                                        "examples": .array([.string("1days"), .string("7days"), .string("365days")])
                                     ]),
                                     "search": propertySchema(type: "string", description: "Search tasks by name or note content"),
                                     "inboxOnly": propertySchema(type: "boolean", description: "Only show inbox tasks"),
@@ -84,7 +87,13 @@ struct FocusRelayMCPMain {
                             ]),
                             "fields": .object([
                                 "type": .string("array"),
-                                "items": .object(["type": .string("string")])
+                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'. Common fields: 'completionDate' (when task was completed), 'dueDate', 'deferDate', 'completed', 'projectName', 'tagNames', 'available', 'flagged'. ALWAYS include fields you need to answer the user's question."),
+                                "items": .object(["type": .string("string")]),
+                                "examples": .array([
+                                    .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
+                                    .array([.string("id"), .string("name"), .string("dueDate"), .string("deferDate"), .string("available")]),
+                                    .array([.string("id"), .string("name"), .string("tagNames"), .string("projectName")])
+                                ])
                             ])
                         ]
                     ),
