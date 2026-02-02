@@ -3,7 +3,7 @@
   "mcp": {
     "focus-relay-mcp": {
       "type": "local",
-      "command": [".build/release/focus-relay-mcp"],
+      "command": ["/usr/local/bin/focus-relay-mcp"],
       "enabled": true
     }
   }
