@@ -6,9 +6,24 @@ import OmniFocusCore
 import FocusRelayOutput
 
 public enum FocusRelayServer {
+    enum LogOutputTarget {
+        case standardOutput
+        case standardError
+    }
+
+    static var mcpLogOutputTarget: LogOutputTarget {
+        .standardError
+    }
+
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
-            var handler = StreamLogHandler.standardOutput(label: label)
+            var handler: StreamLogHandler
+            switch mcpLogOutputTarget {
+            case .standardOutput:
+                handler = StreamLogHandler.standardOutput(label: label)
+            case .standardError:
+                handler = StreamLogHandler.standardError(label: label)
+            }
             handler.logLevel = .info
             return handler
         }
