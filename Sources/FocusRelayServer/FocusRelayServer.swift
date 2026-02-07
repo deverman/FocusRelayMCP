@@ -8,7 +8,7 @@ import FocusRelayOutput
 public enum FocusRelayServer {
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
-            var handler = StreamLogHandler.standardOutput(label: label)
+            var handler = StreamLogHandler.standardError(label: label)
             handler.logLevel = .info
             return handler
         }
