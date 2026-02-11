@@ -41,60 +41,60 @@ jobs:
           fi
           
           # Create release directory
-          mkdir -p "focus-relay-mcp-${VERSION}"
+          mkdir -p "focusrelay-${VERSION}"
           
           # Copy binary
-          cp .build/release/focus-relay-mcp "focus-relay-mcp-${VERSION}/"
+          cp .build/release/focusrelay "focusrelay-${VERSION}/"
           
           # Copy plugin
-          cp -r Plugin/FocusRelayBridge.omnijs "focus-relay-mcp-${VERSION}/"
+          cp -r Plugin/FocusRelayBridge.omnijs "focusrelay-${VERSION}/"
           
           # Copy README with installation instructions
-          cp README.md "focus-relay-mcp-${VERSION}/"
+          cp README.md "focusrelay-${VERSION}/"
           
           # Create tarball
-          tar -czf "focus-relay-mcp-${VERSION}.tar.gz" "focus-relay-mcp-${VERSION}"
+          tar -czf "focusrelay-${VERSION}.tar.gz" "focusrelay-${VERSION}"
           
           # Calculate SHA256
-          shasum -a 256 "focus-relay-mcp-${VERSION}.tar.gz" > "focus-relay-mcp-${VERSION}.sha256"
+          shasum -a 256 "focusrelay-${VERSION}.tar.gz" > "focusrelay-${VERSION}.sha256"
           
-          echo "✅ Packaged: focus-relay-mcp-${VERSION}.tar.gz"
-          cat "focus-relay-mcp-${VERSION}.sha256"
+          echo "✅ Packaged: focusrelay-${VERSION}.tar.gz"
+          cat "focusrelay-${VERSION}.sha256"
           
           # Set output for release notes
-          echo "sha256=$(cat focus-relay-mcp-${VERSION}.sha256)" >> $GITHUB_OUTPUT
+          echo "sha256=$(cat focusrelay-${VERSION}.sha256)" >> $GITHUB_OUTPUT
           
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           files: |
-            focus-relay-mcp-*.tar.gz
-            focus-relay-mcp-*.sha256
+            focusrelay-*.tar.gz
+            focusrelay-*.sha256
           body: |
             ## Installation
 
             ### Homebrew (Recommended)
             ```bash
             brew tap deverman/focus-relay
-            brew install focus-relay-mcp
+            brew install focusrelay
             ```
 
             ### Manual Installation
-            1. Download `focus-relay-mcp-X.X.X.tar.gz` from this release
-            2. Extract: `tar -xzf focus-relay-mcp-X.X.X.tar.gz`
+            1. Download `focusrelay-X.X.X.tar.gz` from this release
+            2. Extract: `tar -xzf focusrelay-X.X.X.tar.gz`
             3. Install the MCP server binary:
                ```bash
-               sudo cp focus-relay-mcp-X.X.X/focus-relay-mcp /usr/local/bin/
+               sudo cp focusrelay-X.X.X/focusrelay /usr/local/bin/
                ```
             4. Install the OmniFocus plugin:
-               - Open OmniFocus
-               - Go to Automation > Plug-Ins > Show Plug-In Folder in Finder
-               - Copy the plugin to that folder:
-                 ```bash
-                 cp -r focus-relay-mcp-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/Plug-Ins/
-                 ```
-               - Or if using iCloud: `~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins/`
+                - Open OmniFocus
+                - Go to Automation > Plug-Ins > Show Plug-In Folder in Finder
+                - Copy the plugin to that folder:
+                  ```bash
+                  cp -r focusrelay-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/Plug-Ins/
+                  ```
+                - Or if using iCloud: `~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins/`
             5. **Restart OmniFocus completely** (Cmd+Q, then reopen)
             6. Configure your MCP client (see README.md in the package)
 
