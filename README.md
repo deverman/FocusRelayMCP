@@ -107,6 +107,20 @@ The plugin JavaScript changes frequently and must stay in sync with the binary.
 
 Add to your opencode.json or Claude Desktop config:
 
+**For Homebrew installations (recommended):**
+```json
+{
+  "mcp": {
+    "focusrelay": {
+      "type": "local",
+      "command": ["/opt/homebrew/bin/focusrelay", "serve"],
+      "enabled": true
+    }
+  }
+}
+```
+
+**For developer installations (build from source):**
 ```json
 {
   "mcp": {
