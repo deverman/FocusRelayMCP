@@ -681,11 +681,32 @@
             inbox.apply(task => tasks.push(task));
           }
 
+          const inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
+          const isEverything = inboxView === "everything";
+          const isRemaining = inboxView === "remaining";
+
+          if (typeof filter.completed === "boolean") {
+            tasks = tasks.filter(t => Boolean(t.completed) === filter.completed);
+          } else if (!isEverything) {
+            tasks = tasks.filter(t => !Boolean(t.completed));
+          }
+
+          if (!isEverything) {
+            tasks = tasks.filter(t => !t.dropDate);
+            tasks = tasks.filter(t => {
+              const parent = safe(() => t.parent);
+              if (!parent) { return true; }
+              if (safe(() => parent.dropDate)) { return false; }
+              if (Boolean(safe(() => parent.completed))) { return false; }
+              return true;
+            });
+          }
+
           // Parse filter dates
           const filterState = {
             completed: filter.completed,
             flagged: filter.flagged,
-            availableOnly: filter.availableOnly,
+            availableOnly: (typeof filter.availableOnly === "boolean") ? filter.availableOnly : (!isRemaining && !isEverything),
             projectFilter: filter.project,
             dueBefore: filter.dueBefore ? parseFilterDate(filter.dueBefore, response.warnings) : null,
             dueAfter: filter.dueAfter ? parseFilterDate(filter.dueAfter, response.warnings) : null,

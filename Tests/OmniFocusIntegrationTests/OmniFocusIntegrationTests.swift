@@ -69,6 +69,23 @@ func bridgeTaskCountsLive() throws {
 }
 
 @Test
+func bridgeInboxViewCountsMatchListTasksLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let views = ["remaining", "available", "everything"]
+    for view in views {
+        let filter = TaskFilter(inboxView: view, inboxOnly: true, includeTotalCount: true)
+        let counts = try client.getTaskCounts(filter: filter)
+        let page = try client.listTasks(filter: filter, page: PageRequest(limit: 50), fields: ["id"])
+        #expect(counts.total == (page.totalCount ?? -1))
+    }
+}
+
+@Test
 func bridgeProjectCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
