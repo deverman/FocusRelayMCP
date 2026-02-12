@@ -90,14 +90,14 @@ Every time you create or re-create a release, GitHub rebuilds the tarball and th
 
 **Step 1: Get the new SHA256 from the release**
 ```bash
-curl -sL https://github.com/deverman/FocusRelayMCP/releases/download/vX.X.X/focus-relay-mcp-X.X.X.sha256
+curl -sL https://github.com/deverman/FocusRelayMCP/releases/download/vX.X.X/focusrelay-X.X.X.sha256
 ```
 
 **Step 2: Update the formula in `deverman/homebrew-focus-relay`**
 ```bash
 cd ~/homebrew-focus-relay  # or wherever you cloned it
 
-# Edit focus-relay-mcp.rb and update BOTH:
+# Edit focusrelay.rb and update BOTH:
 # - version number in the URL (if changed)
 # - sha256 value (MUST be updated every time!)
 # 
@@ -107,7 +107,7 @@ cd ~/homebrew-focus-relay  # or wherever you cloned it
 # sha256 "NEW_SHA256_FROM_STEP_1"
 
 # Then commit and push:
-git add focus-relay-mcp.rb
+git add focusrelay.rb
 git commit -m "Update SHA256 for vX.X.X"
 git push origin main
 ```
@@ -115,9 +115,9 @@ git push origin main
 **Step 3: Verify the tap works**
 ```bash
 brew update
-brew install focus-relay-mcp
+brew install focusrelay
 # OR if reinstalling:
-brew reinstall focus-relay-mcp
+brew reinstall focusrelay
 ```
 
 **🔴 COMMON MISTAKE:** Forgetting to update the SHA256 when re-releasing the same version (e.g., fixing a bug and re-tagging v0.9.0-beta). The tarball is rebuilt every time, so the SHA256 will change even if the version number stays the same.
@@ -126,7 +126,16 @@ brew reinstall focus-relay-mcp
 ```bash
 rm -rf /opt/homebrew/Library/Taps/deverman/homebrew-focus-relay
 brew tap deverman/focus-relay
-brew install focus-relay-mcp
+brew install focusrelay
+```
+
+**🔴 MIGRATION FROM OLD NAME:** If you have the old `focus-relay-mcp` installed:
+```bash
+brew uninstall focus-relay-mcp
+brew untap deverman/focus-relay
+rm -rf /opt/homebrew/Library/Taps/deverman/homebrew-focus-relay
+brew tap deverman/focus-relay
+brew install focusrelay
 ```
 
 ### 3. GitHub Release Notes

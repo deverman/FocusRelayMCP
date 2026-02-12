@@ -53,7 +53,7 @@ If you have [Homebrew](https://brew.sh) installed, this is the easiest method:
 brew tap deverman/focus-relay
 
 # Install the MCP server and OmniFocus plugin
-brew install focus-relay-mcp
+brew install focusrelay
 ```
 
 Then continue with **Step 3: Restart OmniFocus** below.
