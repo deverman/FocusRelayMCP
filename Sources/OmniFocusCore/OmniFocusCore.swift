@@ -296,6 +296,18 @@ public struct TaskFilter: Codable, Sendable {
         self.completedBefore = completedBefore
         self.completedAfter = completedAfter
     }
+
+    /// Date-range and full-text filters can force OmniFocus to scan much larger
+    /// data sets, so callers may need a longer bridge timeout budget.
+    public var requiresExtendedBridgeTimeout: Bool {
+        dueBefore != nil ||
+        dueAfter != nil ||
+        deferBefore != nil ||
+        deferAfter != nil ||
+        completedBefore != nil ||
+        completedAfter != nil ||
+        (search?.isEmpty == false)
+    }
 }
 
 public struct PageRequest: Codable, Sendable {

@@ -2,6 +2,11 @@ import Foundation
 import OmniFocusCore
 
 final class BridgeClient: @unchecked Sendable {
+    private enum TimeoutPolicy {
+        static let standard: TimeInterval = 10.0
+        static let extendedForHeavyFilters: TimeInterval = 25.0
+    }
+
     private let paths: IPCPaths
     private let fileManager: FileManager
     private let encoder: JSONEncoder
@@ -36,7 +41,14 @@ final class BridgeClient: @unchecked Sendable {
             page: page
         )
 
-        let response: BridgeResponse<Page<TaskItemPayload>> = try sendRequest(request, responseType: Page<TaskItemPayload>.self)
+        let responseTimeout = filter.requiresExtendedBridgeTimeout
+            ? TimeoutPolicy.extendedForHeavyFilters
+            : TimeoutPolicy.standard
+        let response: BridgeResponse<Page<TaskItemPayload>> = try sendRequest(
+            request,
+            responseType: Page<TaskItemPayload>.self,
+            timeout: responseTimeout
+        )
 
         if response.ok, let payloadPage = response.data {
             let items = payloadPage.items.map { payload in
@@ -80,7 +92,11 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
-        return try sendRequest(request, responseType: BridgePing.self)
+        return try sendRequest(
+            request,
+            responseType: BridgePing.self,
+            timeout: TimeoutPolicy.standard
+        )
     }
 
     func listProjects(
@@ -120,7 +136,11 @@ final class BridgeClient: @unchecked Sendable {
             page: page
         )
 
-        let response: BridgeResponse<Page<ProjectItemPayload>> = try sendRequest(request, responseType: Page<ProjectItemPayload>.self)
+        let response: BridgeResponse<Page<ProjectItemPayload>> = try sendRequest(
+            request,
+            responseType: Page<ProjectItemPayload>.self,
+            timeout: TimeoutPolicy.standard
+        )
         if response.ok, let payloadPage = response.data {
             let items = payloadPage.items.map { payload in
                 let nextTask = payload.nextTask.map { ProjectTaskSummary(id: $0.id ?? "", name: $0.name ?? "") }
@@ -170,7 +190,11 @@ final class BridgeClient: @unchecked Sendable {
             page: page
         )
 
-        let response: BridgeResponse<Page<TagItemPayload>> = try sendRequest(request, responseType: Page<TagItemPayload>.self)
+        let response: BridgeResponse<Page<TagItemPayload>> = try sendRequest(
+            request,
+            responseType: Page<TagItemPayload>.self,
+            timeout: TimeoutPolicy.standard
+        )
         if response.ok, let payloadPage = response.data {
             let items = payloadPage.items.map { payload in
                 TagItem(
@@ -205,7 +229,11 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
-        let response: BridgeResponse<TaskItemPayload> = try sendRequest(request, responseType: TaskItemPayload.self)
+        let response: BridgeResponse<TaskItemPayload> = try sendRequest(
+            request,
+            responseType: TaskItemPayload.self,
+            timeout: TimeoutPolicy.standard
+        )
         if response.ok, let payload = response.data {
             return TaskItem(
                 id: payload.id ?? "",
@@ -245,7 +273,11 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
-        let response: BridgeResponse<TaskCounts> = try sendRequest(request, responseType: TaskCounts.self)
+        let response: BridgeResponse<TaskCounts> = try sendRequest(
+            request,
+            responseType: TaskCounts.self,
+            timeout: TimeoutPolicy.standard
+        )
         if response.ok, let counts = response.data {
             return counts
         }
@@ -270,7 +302,11 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
-        let response: BridgeResponse<ProjectCounts> = try sendRequest(request, responseType: ProjectCounts.self)
+        let response: BridgeResponse<ProjectCounts> = try sendRequest(
+            request,
+            responseType: ProjectCounts.self,
+            timeout: TimeoutPolicy.standard
+        )
         if response.ok, let counts = response.data {
             return counts
         }
@@ -310,7 +346,11 @@ final class BridgeClient: @unchecked Sendable {
         try process.run()
     }
 
-    private func sendRequest<T: Decodable>(_ request: BridgeRequest, responseType: T.Type) throws -> BridgeResponse<T> {
+    private func sendRequest<T: Decodable>(
+        _ request: BridgeRequest,
+        responseType: T.Type,
+        timeout: TimeInterval
+    ) throws -> BridgeResponse<T> {
         try ensureDirectories()
         try writeRequest(request, requestId: request.requestId)
         try triggerOmniFocus(requestId: request.requestId)
@@ -319,7 +359,7 @@ final class BridgeClient: @unchecked Sendable {
         let requestURL = paths.requestsURL.appendingPathComponent("\(request.requestId).json")
         let lockURL = paths.locksURL.appendingPathComponent("\(request.requestId).lock")
         do {
-            return try waitForResponse(at: responseURL, timeout: 10.0, responseType: responseType)
+            return try waitForResponse(at: responseURL, timeout: timeout, responseType: responseType)
         } catch {
             removeIfExists(url: requestURL)
             removeIfExists(url: lockURL)
