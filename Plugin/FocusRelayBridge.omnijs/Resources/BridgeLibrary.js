@@ -475,32 +475,14 @@
             return true;
           }
           
-          // Check if total count is requested
           const includeTotalCount = filter.includeTotalCount === true;
-          
-          // Calculate total count if requested (requires scanning all tasks)
-          let totalCount = null;
-          if (includeTotalCount) {
-            totalCount = 0;
-            for (const t of tasks) {
-              if (taskMatchesFilters(t)) {
-                totalCount++;
-              }
-            }
-          }
-          
-          // Single-pass filter with pagination (only collect up to limit)
-          const filteredTasks = [];
           const limit = request.page && request.page.limit ? request.page.limit : 50;
-          
-          for (let i = 0; i < tasks.length && filteredTasks.length < limit; i++) {
-            const t = tasks[i];
-            if (taskMatchesFilters(t)) {
-              filteredTasks.push(t);
-            }
-          }
-          
-          tasks = filteredTasks;
+          const offset = request.page && request.page.cursor ? parseInt(request.page.cursor, 10) : 0;
+
+          // Filter first, then apply pagination. Cursor semantics are based on the
+          // filtered/sorted result set, not the original OmniFocus flattened list.
+          tasks = tasks.filter(taskMatchesFilters);
+          const totalCount = includeTotalCount ? tasks.length : null;
 
           // Sort by completion date descending when filtering by completed tasks
           // This matches OmniFocus Completed perspective behavior
@@ -512,17 +494,17 @@
             });
           }
 
-          // Apply offset for pagination (tasks already limited to page size during filtering)
-          const offset = request.page && request.page.cursor ? parseInt(request.page.cursor, 10) : 0;
-          const pageTasks = offset > 0 ? tasks.slice(offset) : tasks;
+          // Apply offset + limit to the filtered/sorted task list.
+          const safeOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
+          const pageTasks = tasks.slice(safeOffset, safeOffset + limit);
           const items = pageTasks.map(t => taskToPayload(t, fields));
           
           // Calculate returned count (actual items in this response)
           const returnedCount = items.length;
           
           // Calculate pagination cursor
-          const hasMore = items.length === limit;
-          const nextCursor = hasMore ? String(offset + items.length) : null;
+          const hasMore = (safeOffset + items.length) < tasks.length;
+          const nextCursor = hasMore ? String(safeOffset + items.length) : null;
           
           // Build response with both counts
           response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount };
