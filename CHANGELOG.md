@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2-beta] - 2026-02-19
+
+### Fixed
+- **Task count reliability/performance**: `get_task_counts` now prefers native OmniFocus task collections before falling back to full flattened scans, reducing timeout risk on larger databases.
+- **Project task count mapping**: Ensured `list_projects(includeTaskCounts=true)` consistently returns numeric `availableTasks`, `remainingTasks`, `completedTasks`, `droppedTasks`, and `totalTasks`.
+
+### Added
+- **Regression coverage**: Added live integration tests for default/completed count parity between `get_task_counts` and `list_tasks(includeTotalCount=true)`.
+- **Schema guidance improvements**: Clarified `inboxView` vs `inboxOnly` scope behavior and documented `includeTotalCount` in MCP tool schema metadata.
+
 ## [0.9.1-beta] - 2026-02-11
 
 ### Fixed

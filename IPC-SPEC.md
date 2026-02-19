@@ -70,9 +70,11 @@ The plug-in removes the lock after writing the response.
     "completed": false,
     "availableOnly": false,
     "inboxView": "available",
+    "inboxOnly": false,
     "projectView": "remaining",
     "project": "Project Name or ID",
-    "tags": ["Tag A", "Tag B"]
+    "tags": ["Tag A", "Tag B"],
+    "includeTotalCount": true
   },
   "fields": ["id", "name"],
   "page": { "limit": 50, "cursor": "0" }
@@ -88,6 +90,8 @@ The plug-in removes the lock after writing the response.
   "ok": true,
   "data": {
     "items": [ { "id": "...", "name": "..." } ],
+    "returnedCount": 1,
+    "totalCount": 123,
     "nextCursor": "50"
   },
   "timingMs": 82,

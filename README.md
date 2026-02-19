@@ -241,6 +241,8 @@ Query tasks with various filters:
 - `project`: Filter by project
 - `flagged`: Show only flagged tasks
 - `completed`: Show completed or remaining tasks
+- `inboxView`: View mode (`available`/`remaining`/`everything`). Use with `inboxOnly: true` for inbox-scoped queries.
+- `inboxOnly`: Scope query to inbox tasks only
 - `includeTotalCount`: Set to `true` to include total count of all matching tasks (see Response Counts below)
 - **Sorting**: When filtering by completion, results are automatically sorted by `completionDate` descending (most recent first) to match OmniFocus Completed perspective
 
@@ -279,6 +281,7 @@ Get aggregate counts for any filter combination. Supports full task filtering in
 - All task filters: completed, completedAfter/Before, tags, project, availableOnly, etc.
 - **Time-window counts**: Get counts of completed tasks in specific date ranges (e.g., "completed today", "completed last 30 days")
 - **Sorting**: When filtering by completion, applies same sorting as list_tasks
+- **Performance**: Uses native OmniFocus task collections where possible for faster/reliable counts on larger databases
 
 Example: Get count of tasks completed today without listing them
 
@@ -335,7 +338,7 @@ This is the most common issue. Several causes:
 ### "Tasks not appearing"
 - Check that tasks have proper defer/due dates set
 - Verify task is not marked as completed or dropped
-- Try querying with `inboxView: "available"` for available tasks
+- For inbox-specific results, use `inboxOnly: true` (for example: `inboxOnly: true, inboxView: "available"`)
 
 ### Cache Issues
 - Projects/Tags cache for 5 minutes

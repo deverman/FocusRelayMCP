@@ -43,3 +43,9 @@ This file tracks planned work and completion status.
   - Problem: OmniFocus collection counts (especially tag/task aggregate counts) can be stale immediately after edits unless the database is cleaned up.
   - Candidate fix: document escalation path (detect suspected stale counts -> optionally run `cleanUp()` manually/off critical path -> re-query), and add a debug endpoint/checklist.
   - Acceptance: stale-count reports have a deterministic runbook; no automatic `cleanUp()` on normal read paths.
+
+- [ ] Add `focusrelay --version` command and versioning workflow
+  - Problem: users cannot quickly verify installed binary version; release version currently comes from Git tags.
+  - Candidate fix: add top-level `--version` output wired to build metadata, and define release-time injection strategy (e.g., compile-time constant from tag or generated source during CI).
+  - Research: review how popular Swift CLI tools handle semantic version reporting with tag-based releases.
+  - Acceptance: `focusrelay --version` returns a predictable value for local builds and release builds, with documented behavior.
