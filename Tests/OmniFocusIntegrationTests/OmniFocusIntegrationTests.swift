@@ -57,6 +57,25 @@ func bridgeListInboxLive() throws {
 }
 
 @Test
+func bridgeListInboxPagingCursorAdvancesLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(inboxOnly: true)
+    let first = try client.listTasks(filter: filter, page: PageRequest(limit: 5), fields: ["id", "name"])
+
+    guard first.items.count == 5, let cursor = first.nextCursor else {
+        return
+    }
+
+    let second = try client.listTasks(filter: filter, page: PageRequest(limit: 5, cursor: cursor), fields: ["id", "name"])
+    #expect(!second.items.isEmpty, "Expected non-empty second page when first page is full and returned nextCursor")
+}
+
+@Test
 func bridgeTaskCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
