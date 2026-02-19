@@ -86,6 +86,150 @@ func bridgeInboxViewCountsMatchListTasksLive() throws {
 }
 
 @Test
+func bridgeTaskCountsRespectsProjectViewLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(
+        completed: false,
+        availableOnly: false,
+        projectView: "active",
+        includeTotalCount: true
+    )
+
+    let counts = try client.getTaskCounts(filter: filter)
+    #expect(counts.total >= 0)
+}
+
+@Test
+func bridgeCompletedInboxFilterDoesNotDefaultToAvailableOnlyLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+
+    // Get a stable baseline of completed inbox items.
+    let everythingCounts = try client.getTaskCounts(filter: TaskFilter(inboxView: "everything", inboxOnly: true))
+    guard everythingCounts.completed > 0 else {
+        return
+    }
+
+    // This query previously defaulted availableOnly=true and incorrectly returned zero.
+    let completedDefault = try client.getTaskCounts(filter: TaskFilter(completed: true, inboxOnly: true))
+    #expect(completedDefault.total == everythingCounts.completed)
+
+    let completedPage = try client.listTasks(
+        filter: TaskFilter(completed: true, inboxOnly: true, includeTotalCount: true),
+        page: PageRequest(limit: 100),
+        fields: ["id", "completed", "completionDate"]
+    )
+    #expect((completedPage.totalCount ?? -1) == everythingCounts.completed)
+}
+
+@Test
+func bridgeCompletedFalseRetainsAvailableDefaultLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(completed: false, inboxOnly: true, includeTotalCount: true)
+    let page = try client.listTasks(filter: filter, page: PageRequest(limit: 100), fields: ["id", "completed", "available"])
+
+    #expect(page.items.allSatisfy { $0.completed == false })
+    #expect(page.items.allSatisfy { $0.available == true })
+
+    let counts = try client.getTaskCounts(filter: filter)
+    if let totalCount = page.totalCount {
+        #expect(counts.total == totalCount)
+    }
+}
+
+@Test
+func bridgeCompletedTasksRespectDateRangeAndSortLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(
+        completed: true,
+        completedAfter: Date(timeIntervalSince1970: 0),
+        includeTotalCount: true
+    )
+    let page = try client.listTasks(
+        filter: filter,
+        page: PageRequest(limit: 100),
+        fields: ["id", "completed", "completionDate"]
+    )
+
+    #expect(page.items.allSatisfy { $0.completed == true })
+    #expect(page.items.allSatisfy { $0.completionDate != nil })
+
+    if page.items.count > 1 {
+        for index in 1..<page.items.count {
+            let previous = page.items[index - 1].completionDate ?? .distantPast
+            let current = page.items[index].completionDate ?? .distantFuture
+            #expect(previous >= current, "Completed tasks should be sorted newest-first")
+        }
+    }
+}
+
+@Test
+func bridgeCompletedInboxTasksRespectDateRangeAndSortLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(
+        completed: true,
+        completedAfter: Date(timeIntervalSince1970: 0),
+        inboxOnly: true,
+        includeTotalCount: true
+    )
+    let page = try client.listTasks(
+        filter: filter,
+        page: PageRequest(limit: 100),
+        fields: ["id", "completed", "completionDate"]
+    )
+
+    #expect(page.items.allSatisfy { $0.completed == true })
+    #expect(page.items.allSatisfy { $0.completionDate != nil })
+
+    if page.items.count > 1 {
+        for index in 1..<page.items.count {
+            let previous = page.items[index - 1].completionDate ?? .distantPast
+            let current = page.items[index].completionDate ?? .distantFuture
+            #expect(previous >= current, "Completed inbox tasks should be sorted newest-first")
+        }
+    }
+}
+
+@Test
+func bridgeInboxViewWithoutInboxOnlyIsNotInboxScopedLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let inboxScoped = try client.getTaskCounts(filter: TaskFilter(inboxView: "available", inboxOnly: true))
+    let globalView = try client.getTaskCounts(filter: TaskFilter(inboxView: "available"))
+
+    // Contract for current behavior: inboxView controls view mode, inboxOnly controls scope.
+    #expect(globalView.total >= inboxScoped.total)
+}
+
+@Test
 func bridgeProjectCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -157,6 +301,39 @@ func bridgeProjectsPagingLive() throws {
         )
         #expect(second.items.count <= 2)
     }
+}
+
+@Test
+func bridgeProjectTaskCountsIncludedLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    // Emulate server default field behavior (id/name) while includeTaskCounts is enabled.
+    let page = try client.listProjects(
+        page: PageRequest(limit: 10),
+        statusFilter: "active",
+        includeTaskCounts: true,
+        reviewDueBefore: nil,
+        reviewDueAfter: nil,
+        reviewPerspective: false,
+        completed: nil,
+        completedBefore: nil,
+        completedAfter: nil,
+        fields: ["id", "name"]
+    )
+
+    guard !page.items.isEmpty else {
+        return
+    }
+
+    #expect(page.items.allSatisfy { $0.availableTasks != nil })
+    #expect(page.items.allSatisfy { $0.remainingTasks != nil })
+    #expect(page.items.allSatisfy { $0.completedTasks != nil })
+    #expect(page.items.allSatisfy { $0.droppedTasks != nil })
+    #expect(page.items.allSatisfy { $0.totalTasks != nil })
 }
 
 @Test

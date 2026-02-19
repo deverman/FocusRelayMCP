@@ -329,7 +329,9 @@
             tasks = tasks.filter(t => isRemainingStatus(t));
           }
 
-          const availableOnly = (typeof filter.availableOnly === "boolean") ? filter.availableOnly : !isRemaining && !isEverything;
+          const availableOnly = (typeof filter.availableOnly === "boolean")
+            ? filter.availableOnly
+            : (filter.completed === true ? false : !isRemaining && !isEverything);
           if (availableOnly) {
             tasks = tasks.filter(t => isTaskAvailable(t));
           }
@@ -687,13 +689,11 @@
                 }
               }
               
-              item.taskCounts = {
-                available: available,
-                remaining: remaining,
-                completed: completed,
-                dropped: dropped,
-                total: flattenedTasks.length
-              };
+              item.availableTasks = available;
+              item.remainingTasks = remaining;
+              item.completedTasks = completed;
+              item.droppedTasks = dropped;
+              item.totalTasks = flattenedTasks.length;
 
             }
             
@@ -830,11 +830,28 @@
             inbox.apply(task => tasks.push(task));
           }
 
+          const inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
+          const isEverything = inboxView === "everything";
+          const isRemaining = inboxView === "remaining";
+
+          if (typeof filter.completed === "boolean") {
+            tasks = tasks.filter(t => Boolean(t.completed) === filter.completed);
+          } else if (!isEverything) {
+            tasks = tasks.filter(t => isRemainingStatus(t));
+          }
+
+          const availableOnly = (typeof filter.availableOnly === "boolean")
+            ? filter.availableOnly
+            : (filter.completed === true ? false : !isRemaining && !isEverything);
+          if (availableOnly) {
+            tasks = tasks.filter(t => isTaskAvailable(t));
+          }
+
           // Parse filter dates
           const filterState = {
             completed: filter.completed,
             flagged: filter.flagged,
-            availableOnly: filter.availableOnly,
+            availableOnly: availableOnly,
             projectFilter: filter.project,
             dueBefore: filter.dueBefore ? parseFilterDate(filter.dueBefore, response.warnings) : null,
             dueAfter: filter.dueAfter ? parseFilterDate(filter.dueAfter, response.warnings) : null,
@@ -848,22 +865,17 @@
             minEstimatedMinutes: filter.minEstimatedMinutes
           };
 
-          const view = (typeof filter.projectView === "string") ? filter.projectView.toLowerCase() : "remaining";
-          const isEverything = view === "everything";
-          const isAvailableView = view === "available";
-
-          if (filterState.completed === undefined && !isEverything) {
-            tasks = tasks.filter(t => isRemainingStatus(t));
-          }
-          if (isAvailableView) {
-            tasks = tasks.filter(t => isAvailableStatus(t));
-          }
+          const projectView = (typeof filter.projectView === "string") ? filter.projectView.toLowerCase() : null;
 
           // Apply filters
           tasks = tasks.filter(t => {
+            const project = safe(() => t.containingProject);
+
             if (filterState.completed !== undefined) {
               const taskCompleted = Boolean(t.completed);
               if (taskCompleted !== filterState.completed) return false;
+            } else if (!isEverything) {
+              if (!isRemainingStatus(t)) return false;
             }
             if (filterState.flagged !== undefined) {
               const taskFlagged = Boolean(t.flagged);
@@ -873,11 +885,13 @@
               if (!isTaskAvailable(t)) return false;
             }
             if (filterState.projectFilter) {
-              const project = safe(() => t.containingProject);
               if (!project) return false;
               const pid = String(safe(() => project.id.primaryKey) || "");
               const pname = String(safe(() => project.name) || "");
               if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return false;
+            }
+            if (projectView) {
+              if (!projectMatchesView(project, projectView, true)) return false;
             }
             if (filterState.dueBefore) {
               const due = getTaskDateTimestamp(t, task => task.dueDate);
@@ -945,7 +959,7 @@
           });
 
           response.data = counts;
-        } else if (request.op === "get_project_counts") {
+} else if (request.op === "get_project_counts") {
           const filter = request.filter || {};
           
           // Check if this is a completion date query
