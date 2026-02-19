@@ -41,7 +41,7 @@ public enum FocusRelayServer {
             let tools = [
                 Tool(
                     name: "list_tasks",
-                    description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
+                    description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
                     inputSchema: toolSchema(
                         properties: [
                             "filter": .object([
@@ -64,7 +64,7 @@ public enum FocusRelayServer {
                                     ),
                                     "flagged": propertySchema(type: "boolean", description: "Filter flagged tasks only"),
                                     "availableOnly": propertySchema(type: "boolean", description: "Only show tasks that are currently available (not blocked by defer dates)"),
-                                    "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'"),
+                                    "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'. NOTE: this controls view mode only; use inboxOnly=true to scope to inbox."),
                                     "project": propertySchema(type: "string", description: "Filter by project ID or name"),
                                     "tags": .object([
                                         "type": .string("array"),
@@ -95,7 +95,8 @@ public enum FocusRelayServer {
 
                                     "search": propertySchema(type: "string", description: "Search tasks by name or note content"),
                                     "inboxOnly": propertySchema(type: "boolean", description: "Only show inbox tasks"),
-                                    "projectView": propertySchema(type: "string", description: "Project view filter: 'active', 'onHold', etc.")
+                                    "projectView": propertySchema(type: "string", description: "Project view filter: 'active', 'onHold', etc."),
+                                    "includeTotalCount": propertySchema(type: "boolean", description: "Include totalCount for all tasks matching filter (before pagination). Recommended when comparing with get_task_counts.")
                                 ])
                             ]),
                             "page": .object([
@@ -225,7 +226,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "get_task_counts",
-                    description: "Get task counts for a filter",
+                    description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
                         properties: [
                             "filter": .object(["type": .string("object")])

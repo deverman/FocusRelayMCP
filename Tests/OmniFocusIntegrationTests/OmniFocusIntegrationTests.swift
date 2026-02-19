@@ -500,7 +500,7 @@ func bridgeTaskStatusValuesAreValidLive() throws {
     for task in result.items {
         if task.available == true {
             // Available tasks should not be completed
-            #expect(task.completed != true, "Available task should not be completed: \(task.name ?? "unnamed")")
+            #expect(task.completed != true, "Available task should not be completed: \(task.name)")
         }
     }
 }
@@ -531,4 +531,47 @@ func bridgeAvailableTasksCountConsistencyLive() throws {
         #expect(counts.total == totalCount, 
                 "Available task count (\(counts.total)) should match listTasks total (\(totalCount))")
     }
+}
+
+@Test
+func bridgeDefaultTaskCountsMatchDefaultListTasksLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let counts = try client.getTaskCounts(filter: TaskFilter())
+    let page = try client.listTasks(
+        filter: TaskFilter(includeTotalCount: true),
+        page: PageRequest(limit: 50),
+        fields: ["id"]
+    )
+
+    if let totalCount = page.totalCount {
+        #expect(counts.total == totalCount)
+    }
+    #expect(counts.available == counts.total)
+    #expect(counts.completed == 0)
+}
+
+@Test
+func bridgeCompletedTaskCountsMatchCompletedListTasksLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let counts = try client.getTaskCounts(filter: TaskFilter(completed: true))
+    let page = try client.listTasks(
+        filter: TaskFilter(completed: true, includeTotalCount: true),
+        page: PageRequest(limit: 50),
+        fields: ["id", "completed"]
+    )
+
+    if let totalCount = page.totalCount {
+        #expect(counts.total == totalCount)
+    }
+    #expect(page.items.allSatisfy { $0.completed == true })
 }

@@ -38,3 +38,8 @@ This file tracks planned work and completion status.
   - Problem: intermittent timeouts and IPC/URL dispatch failures in live test mode.
   - Details: see `docs/timeout-concurrency-investigation-2026-02-19.md`.
   - Acceptance: repeatable live bridge test runs with materially reduced timeout and interrupted-system-call failures.
+
+- [ ] Add guidance for OmniFocus count freshness (`cleanUp()` caveat)
+  - Problem: OmniFocus collection counts (especially tag/task aggregate counts) can be stale immediately after edits unless the database is cleaned up.
+  - Candidate fix: document escalation path (detect suspected stale counts -> optionally run `cleanUp()` manually/off critical path -> re-query), and add a debug endpoint/checklist.
+  - Acceptance: stale-count reports have a deterministic runbook; no automatic `cleanUp()` on normal read paths.

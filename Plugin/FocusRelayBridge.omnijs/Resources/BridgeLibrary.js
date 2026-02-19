@@ -279,6 +279,28 @@
       return ts;
     }
 
+    // Normalize OmniFocus collections to plain arrays.
+    function toTaskArray(collection) {
+      if (!collection) { return []; }
+      if (Array.isArray(collection)) { return collection; }
+      if (typeof collection.apply === "function") {
+        const tasks = [];
+        collection.apply(task => tasks.push(task));
+        return tasks;
+      }
+      try {
+        return Array.from(collection);
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function inboxTasksArray() {
+      const tasks = [];
+      inbox.apply(task => tasks.push(task));
+      return tasks;
+    }
+
       const start = Date.now();
       const response = { schemaVersion: 1, requestId: requestId, ok: true, data: null, timingMs: null, warnings: [] };
 
@@ -803,18 +825,77 @@
         } else if (request.op === "get_task_counts") {
           const filter = request.filter || {};
 
-          // Use same filtering logic as list_tasks for consistency
-          let tasks = flattenedTasks;
-
-          // Filter by inbox only if specified
-          if (filter.inboxOnly === true) {
-            tasks = [];
-            inbox.apply(task => tasks.push(task));
-          }
-
           const inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
           const isEverything = inboxView === "everything";
           const isRemaining = inboxView === "remaining";
+          const projectView = (typeof filter.projectView === "string") ? filter.projectView.toLowerCase() : null;
+
+          const availableOnly = (typeof filter.availableOnly === "boolean")
+            ? filter.availableOnly
+            : (filter.completed === true ? false : !isRemaining && !isEverything);
+
+          function resolveProject(projectFilter) {
+            if (!projectFilter || typeof projectFilter !== "string") { return null; }
+            return (safe(() => flattenedProjects.find(p => {
+              const pid = String(safe(() => p.id.primaryKey) || "");
+              const pname = String(safe(() => p.name) || "");
+              return pid === projectFilter || pname === projectFilter;
+            })) || null);
+          }
+
+          function selectTaskPool() {
+            // Inbox scope uses native inbox collection and is naturally bounded.
+            if (filter.inboxOnly === true) {
+              return inboxTasksArray();
+            }
+
+            // Project scope can use the project's native collections.
+            const project = resolveProject(filter.project);
+            if (project) {
+              if (filter.completed === true) {
+                const projectCompleted = safe(() => project.completedTasks);
+                if (projectCompleted !== null && projectCompleted !== undefined) { return toTaskArray(projectCompleted); }
+              }
+              if (availableOnly) {
+                const projectAvailable = safe(() => project.availableTasks);
+                if (projectAvailable !== null && projectAvailable !== undefined) { return toTaskArray(projectAvailable); }
+              }
+              if (filter.completed === false || isRemaining) {
+                const projectRemaining = safe(() => project.remainingTasks);
+                if (projectRemaining !== null && projectRemaining !== undefined) { return toTaskArray(projectRemaining); }
+              }
+              return toTaskArray(safe(() => project.flattenedTasks));
+            }
+
+            // Global scope: prefer native collections before full flattenedTasks.
+            if (filter.completed === true) {
+              const completed = safe(() => completedTasks);
+              if (completed !== null && completed !== undefined) { return toTaskArray(completed); }
+            }
+
+            if (availableOnly) {
+              const available = safe(() => availableTasks);
+              if (available !== null && available !== undefined) { return toTaskArray(available); }
+            }
+
+            if (filter.completed === false || isRemaining) {
+              const remaining = safe(() => remainingTasks);
+              if (remaining !== null && remaining !== undefined) { return toTaskArray(remaining); }
+            }
+
+            if (isEverything) {
+              return toTaskArray(safe(() => flattenedTasks));
+            }
+
+            const fallbackRemaining = safe(() => remainingTasks);
+            if (fallbackRemaining !== null && fallbackRemaining !== undefined) { return toTaskArray(fallbackRemaining); }
+            return toTaskArray(safe(() => flattenedTasks));
+          }
+
+          // Use same filtering logic as list_tasks for consistency.
+          // Task pool is selected from native OmniFocus collections first,
+          // then filtered with the same semantics as list_tasks.
+          let tasks = selectTaskPool();
 
           if (typeof filter.completed === "boolean") {
             tasks = tasks.filter(t => Boolean(t.completed) === filter.completed);
@@ -822,9 +903,6 @@
             tasks = tasks.filter(t => isRemainingStatus(t));
           }
 
-          const availableOnly = (typeof filter.availableOnly === "boolean")
-            ? filter.availableOnly
-            : (filter.completed === true ? false : !isRemaining && !isEverything);
           if (availableOnly) {
             tasks = tasks.filter(t => isTaskAvailable(t));
           }
@@ -846,8 +924,6 @@
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
             minEstimatedMinutes: filter.minEstimatedMinutes
           };
-
-          const projectView = (typeof filter.projectView === "string") ? filter.projectView.toLowerCase() : null;
 
           // Apply filters
           tasks = tasks.filter(t => {
