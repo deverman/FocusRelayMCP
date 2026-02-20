@@ -62,6 +62,8 @@ This file tracks planned work and completion status.
 - [ ] Add custom perspective support (query saved OmniFocus perspectives directly)
   - Issue: `#10` https://github.com/deverman/FocusRelayMCP/issues/10
   - Why this category: custom perspectives are a primary power-user workflow (Today/Next/Errands/Waiting/Someday patterns) and reduce prompt complexity.
+  - Preferred design: minimize new tools by adding one discovery tool (`list_perspectives`) and reusing existing query tools (`list_tasks`, `list_projects`, `get_task_counts`) with an optional `perspective` filter.
+  - Native approach: use OmniAutomation `Perspective.Custom/BuiltIn` APIs for listing/resolution and execute queries in perspective context (no custom rule parser for MVP).
   - User stories:
     - As a user, I want to list my saved custom perspectives and query one by name/id.
     - As a user, I want perspective task counts that match what I see in OmniFocus.
