@@ -73,6 +73,19 @@ This file tracks planned work and completion status.
     - "Get counts for my `Waiting` perspective."
     - "Show first 20 tasks from `On-The-Go` with dueDate and tagNames."
 
+- [ ] Return OmniFocus deep links (`Copy as Link` style URL) for tasks/projects in query outputs
+  - Issue: `#11` https://github.com/deverman/FocusRelayMCP/issues/11
+  - Why this category: links make AI output actionable by letting users jump directly into OmniFocus items.
+  - Preferred design: no new tools; add optional `url` field support to existing tools (`list_tasks`, `get_task`, `list_projects`).
+  - Native approach: use OmniAutomation `DatabaseObject.url` directly (fallback to `null`, not guessed link templates).
+  - User stories:
+    - As a user, I want task/project query results to include clickable links back to OmniFocus.
+    - As a user, I want summaries to include links so follow-up is one click.
+  - Likely prompts:
+    - "List 10 available tasks with name and url."
+    - "Show active projects with name and url."
+    - "Summarize overdue tasks and include links."
+
 - [ ] Add task status filter support (`Next`, `Blocked`, `DueSoon`, `Overdue`, `Available`, `Completed`, `Dropped`)
   - Why this category: common daily planning and triage workflows rely on status-specific views.
   - User stories:
