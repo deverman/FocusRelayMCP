@@ -59,3 +59,16 @@ func taskFilterJSONRoundTrip() throws {
         Issue.record("decoded.dueBefore should not be nil")
     }
 }
+
+@Test
+func extendedBridgeTimeoutPolicy() {
+    #expect(TaskFilter().requiresExtendedBridgeTimeout == false)
+    #expect(TaskFilter(dueBefore: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(dueAfter: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(deferBefore: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(deferAfter: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(completedBefore: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(completedAfter: Date()).requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(search: "inbox").requiresExtendedBridgeTimeout == true)
+    #expect(TaskFilter(search: "").requiresExtendedBridgeTimeout == false)
+}
