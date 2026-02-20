@@ -59,6 +59,18 @@ This file tracks planned work and completion status.
 
 ### High Usage
 
+- [ ] Add custom perspective support (query saved OmniFocus perspectives directly)
+  - Issue: `#10` https://github.com/deverman/FocusRelayMCP/issues/10
+  - Why this category: custom perspectives are a primary power-user workflow (Today/Next/Errands/Waiting/Someday patterns) and reduce prompt complexity.
+  - User stories:
+    - As a user, I want to list my saved custom perspectives and query one by name/id.
+    - As a user, I want perspective task counts that match what I see in OmniFocus.
+  - Likely prompts:
+    - "List my custom perspectives."
+    - "Show tasks from my `Today` perspective."
+    - "Get counts for my `Waiting` perspective."
+    - "Show first 20 tasks from `On-The-Go` with dueDate and tagNames."
+
 - [ ] Add task status filter support (`Next`, `Blocked`, `DueSoon`, `Overdue`, `Available`, `Completed`, `Dropped`)
   - Why this category: common daily planning and triage workflows rely on status-specific views.
   - User stories:
