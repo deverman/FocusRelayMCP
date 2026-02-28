@@ -9,6 +9,7 @@ public struct TaskItem: Codable, Sendable {
     public let tagIDs: [String]
     public let tagNames: [String]
     public let dueDate: Date?
+    public let plannedDate: Date?
     public let deferDate: Date?
     public let completionDate: Date?
     public let completed: Bool
@@ -25,6 +26,7 @@ public struct TaskItem: Codable, Sendable {
         tagIDs: [String] = [],
         tagNames: [String] = [],
         dueDate: Date? = nil,
+        plannedDate: Date? = nil,
         deferDate: Date? = nil,
         completionDate: Date? = nil,
         completed: Bool,
@@ -40,6 +42,7 @@ public struct TaskItem: Codable, Sendable {
         self.tagIDs = tagIDs
         self.tagNames = tagNames
         self.dueDate = dueDate
+        self.plannedDate = plannedDate
         self.deferDate = deferDate
         self.completionDate = completionDate
         self.completed = completed
@@ -248,6 +251,8 @@ public struct TaskFilter: Codable, Sendable {
     public var dueAfter: Date?
     public var deferBefore: Date?
     public var deferAfter: Date?
+    public var plannedBefore: Date?
+    public var plannedAfter: Date?
     public var completedBefore: Date?
     public var completedAfter: Date?
     public var search: String?
@@ -268,6 +273,8 @@ public struct TaskFilter: Codable, Sendable {
         dueAfter: Date? = nil,
         deferBefore: Date? = nil,
         deferAfter: Date? = nil,
+        plannedBefore: Date? = nil,
+        plannedAfter: Date? = nil,
         completedBefore: Date? = nil,
         completedAfter: Date? = nil,
         search: String? = nil,
@@ -293,6 +300,8 @@ public struct TaskFilter: Codable, Sendable {
         self.includeTotalCount = includeTotalCount
         self.deferBefore = deferBefore
         self.deferAfter = deferAfter
+        self.plannedBefore = plannedBefore
+        self.plannedAfter = plannedAfter
         self.completedBefore = completedBefore
         self.completedAfter = completedAfter
     }

@@ -575,3 +575,46 @@ func bridgeCompletedTaskCountsMatchCompletedListTasksLive() throws {
     }
     #expect(page.items.allSatisfy { $0.completed == true })
 }
+
+@Test
+func bridgePlannedDateFieldCanBeRequestedLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let page = try client.listTasks(
+        filter: TaskFilter(includeTotalCount: true),
+        page: PageRequest(limit: 20),
+        fields: ["id", "name", "plannedDate"]
+    )
+
+    #expect(page.items.count <= 20)
+    // plannedDate is optional; verify field can be requested without bridge/model failures.
+    _ = page.items.map(\.plannedDate)
+}
+
+@Test
+func bridgePlannedDateFiltersReturnOnlyPlannedTasksLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(
+        plannedAfter: Date(timeIntervalSince1970: 0),
+        includeTotalCount: true
+    )
+    let page = try client.listTasks(
+        filter: filter,
+        page: PageRequest(limit: 50),
+        fields: ["id", "name", "plannedDate"]
+    )
+
+    // If there are planned tasks, all returned rows must include plannedDate.
+    if !page.items.isEmpty {
+        #expect(page.items.allSatisfy { $0.plannedDate != nil })
+    }
+}

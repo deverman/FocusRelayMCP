@@ -104,6 +104,7 @@
       const project = hasField("projectID") || hasField("projectName") ? safe(() => t.containingProject) : null;
       const tags = (hasField("tagIDs") || hasField("tagNames")) ? (safe(() => t.tags) || []) : [];
       const dueDate = hasField("dueDate") ? safe(() => t.dueDate) : null;
+      const plannedDate = hasField("plannedDate") ? safe(() => t.plannedDate) : null;
       const deferDate = hasField("deferDate") ? safe(() => t.deferDate) : null;
 
       return {
@@ -115,6 +116,7 @@
         tagIDs: hasField("tagIDs") ? tags.map(tag => String(safe(() => tag.id.primaryKey) || "")) : null,
         tagNames: hasField("tagNames") ? tags.map(tag => String(safe(() => tag.name) || "")) : null,
         dueDate: hasField("dueDate") && dueDate ? dueDate.toISOString() : null,
+        plannedDate: hasField("plannedDate") && plannedDate ? plannedDate.toISOString() : null,
         deferDate: hasField("deferDate") && deferDate ? deferDate.toISOString() : null,
         completionDate: hasField("completionDate") ? (safe(() => t.completionDate) ? t.completionDate.toISOString() : null) : null,
         completed: hasField("completed") ? Boolean(t.completed) : null,
@@ -399,6 +401,8 @@
             // Date filters (pre-parsed)
             dueBefore: filter.dueBefore ? parseFilterDate(filter.dueBefore, response.warnings) : null,
             dueAfter: filter.dueAfter ? parseFilterDate(filter.dueAfter, response.warnings) : null,
+            plannedBefore: filter.plannedBefore ? parseFilterDate(filter.plannedBefore, response.warnings) : null,
+            plannedAfter: filter.plannedAfter ? parseFilterDate(filter.plannedAfter, response.warnings) : null,
             deferBefore: filter.deferBefore ? parseFilterDate(filter.deferBefore, response.warnings) : null,
             deferAfter: filter.deferAfter ? parseFilterDate(filter.deferAfter, response.warnings) : null,
             completedBefore: filter.completedBefore ? parseFilterDate(filter.completedBefore, response.warnings) : null,
@@ -459,6 +463,14 @@
             if (filterState.deferAfter) {
               const defer = getTaskDateTimestamp(t, task => task.deferDate);
               if (defer === null || defer < filterState.deferAfter.getTime()) return false;
+            }
+            if (filterState.plannedBefore) {
+              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+              if (planned === null || planned > filterState.plannedBefore.getTime()) return false;
+            }
+            if (filterState.plannedAfter) {
+              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+              if (planned === null || planned < filterState.plannedAfter.getTime()) return false;
             }
             
             // Completion date checks
@@ -915,6 +927,8 @@
             projectFilter: filter.project,
             dueBefore: filter.dueBefore ? parseFilterDate(filter.dueBefore, response.warnings) : null,
             dueAfter: filter.dueAfter ? parseFilterDate(filter.dueAfter, response.warnings) : null,
+            plannedBefore: filter.plannedBefore ? parseFilterDate(filter.plannedBefore, response.warnings) : null,
+            plannedAfter: filter.plannedAfter ? parseFilterDate(filter.plannedAfter, response.warnings) : null,
             deferBefore: filter.deferBefore ? parseFilterDate(filter.deferBefore, response.warnings) : null,
             deferAfter: filter.deferAfter ? parseFilterDate(filter.deferAfter, response.warnings) : null,
             completedBefore: filter.completedBefore ? parseFilterDate(filter.completedBefore, response.warnings) : null,
@@ -966,6 +980,14 @@
             if (filterState.deferAfter) {
               const defer = getTaskDateTimestamp(t, task => task.deferDate);
               if (defer === null || defer < filterState.deferAfter.getTime()) return false;
+            }
+            if (filterState.plannedBefore) {
+              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+              if (planned === null || planned > filterState.plannedBefore.getTime()) return false;
+            }
+            if (filterState.plannedAfter) {
+              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+              if (planned === null || planned < filterState.plannedAfter.getTime()) return false;
             }
             if (filterState.completedBefore) {
               const completed = getTaskDateTimestamp(t, task => task.completionDate);

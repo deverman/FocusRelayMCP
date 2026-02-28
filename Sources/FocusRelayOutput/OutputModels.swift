@@ -10,6 +10,7 @@ public struct TaskOutput: Encodable {
     public let tagIDs: [String]?
     public let tagNames: [String]?
     public let dueDate: Date?
+    public let plannedDate: Date?
     public let deferDate: Date?
     public let completionDate: Date?
     public let completed: Bool?
@@ -26,6 +27,7 @@ public struct TaskOutput: Encodable {
         tagIDs: [String]?,
         tagNames: [String]?,
         dueDate: Date?,
+        plannedDate: Date?,
         deferDate: Date?,
         completionDate: Date?,
         completed: Bool?,
@@ -41,6 +43,7 @@ public struct TaskOutput: Encodable {
         self.tagIDs = tagIDs
         self.tagNames = tagNames
         self.dueDate = dueDate
+        self.plannedDate = plannedDate
         self.deferDate = deferDate
         self.completionDate = completionDate
         self.completed = completed
@@ -160,6 +163,7 @@ public func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOutp
         tagIDs: fields.contains("tagIDs") ? task.tagIDs : nil,
         tagNames: fields.contains("tagNames") ? task.tagNames : nil,
         dueDate: fields.contains("dueDate") ? task.dueDate : nil,
+        plannedDate: fields.contains("plannedDate") ? task.plannedDate : nil,
         deferDate: fields.contains("deferDate") ? task.deferDate : nil,
         completionDate: fields.contains("completionDate") ? task.completionDate : nil,
         completed: fields.contains("completed") ? task.completed : nil,

@@ -41,7 +41,7 @@ public enum FocusRelayServer {
             let tools = [
                 Tool(
                     name: "list_tasks",
-                    description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
+                    description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, planned dates, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
                     inputSchema: toolSchema(
                         properties: [
                             "filter": .object([
@@ -82,6 +82,16 @@ public enum FocusRelayServer {
                                         description: "ISO8601 datetime. Tasks due after this time",
                                         examples: [.string("2026-01-30T00:00:00Z")]
                                     ),
+                                    "plannedBefore": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks planned before this time.",
+                                        examples: [.string("2026-01-30T23:59:59Z")]
+                                    ),
+                                    "plannedAfter": propertySchema(
+                                        type: "string",
+                                        description: "ISO8601 datetime. Tasks planned after this time.",
+                                        examples: [.string("2026-01-30T00:00:00Z")]
+                                    ),
                                     "deferBefore": propertySchema(
                                         type: "string",
                                         description: "ISO8601 datetime. Tasks deferred until before this time. For morning tasks, use today's date at 12:00:00Z",
@@ -108,11 +118,11 @@ public enum FocusRelayServer {
                             ]),
                             "fields": .object([
                                 "type": .string("array"),
-                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether task is flagged\n\nALWAYS include the fields you need to answer the user's question."),
+                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether task is flagged\n\nALWAYS include the fields you need to answer the user's question."),
                                 "items": .object(["type": .string("string")]),
                                 "examples": .array([
                                     .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
-                                    .array([.string("id"), .string("name"), .string("dueDate"), .string("deferDate"), .string("available")]),
+                                    .array([.string("id"), .string("name"), .string("dueDate"), .string("plannedDate"), .string("deferDate"), .string("available")]),
                                     .array([.string("id"), .string("name"), .string("tagNames"), .string("projectName")])
                                 ])
                             ])

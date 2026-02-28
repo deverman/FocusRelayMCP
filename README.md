@@ -244,6 +244,7 @@ All completion queries match the OmniFocus Completed perspective:
 ### list_tasks
 Query tasks with various filters:
 - `dueBefore`, `dueAfter`: Filter by due dates
+- `plannedBefore`, `plannedAfter`: Filter by planned dates
 - `deferBefore`, `deferAfter`: Filter by defer dates
 - `completedBefore`, `completedAfter`: Filter by completion dates (implies `completed: true`)
 - `tags`: Filter by specific tags
@@ -254,6 +255,12 @@ Query tasks with various filters:
 - `inboxOnly`: Scope query to inbox tasks only
 - `includeTotalCount`: Set to `true` to include total count of all matching tasks (see Response Counts below)
 - **Sorting**: When filtering by completion, results are automatically sorted by `completionDate` descending (most recent first) to match OmniFocus Completed perspective
+
+Useful task date fields you can request:
+- `dueDate`
+- `plannedDate`
+- `deferDate`
+- `completionDate`
 
 **Response Counts:**
 All list operations now include automatic counting to prevent errors:

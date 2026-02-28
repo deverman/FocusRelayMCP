@@ -75,6 +75,12 @@ struct TaskFilterOptions: ParsableArguments {
     @Option(name: .customLong("due-after"), help: "ISO8601 datetime. Tasks due after this time.")
     var dueAfter: String? = nil
 
+    @Option(name: .customLong("planned-before"), help: "ISO8601 datetime. Tasks planned before this time.")
+    var plannedBefore: String? = nil
+
+    @Option(name: .customLong("planned-after"), help: "ISO8601 datetime. Tasks planned after this time.")
+    var plannedAfter: String? = nil
+
     @Option(name: .customLong("defer-before"), help: "ISO8601 datetime. Tasks deferred until before this time.")
     var deferBefore: String? = nil
 
@@ -118,6 +124,8 @@ struct TaskFilterOptions: ParsableArguments {
             dueAfter: try ISO8601DateParser.parseOptional(dueAfter, argumentName: "--due-after"),
             deferBefore: try ISO8601DateParser.parseOptional(deferBefore, argumentName: "--defer-before"),
             deferAfter: try ISO8601DateParser.parseOptional(deferAfter, argumentName: "--defer-after"),
+            plannedBefore: try ISO8601DateParser.parseOptional(plannedBefore, argumentName: "--planned-before"),
+            plannedAfter: try ISO8601DateParser.parseOptional(plannedAfter, argumentName: "--planned-after"),
             completedBefore: try ISO8601DateParser.parseOptional(completedBefore, argumentName: "--completed-before"),
             completedAfter: try ISO8601DateParser.parseOptional(completedAfter, argumentName: "--completed-after"),
             search: search,

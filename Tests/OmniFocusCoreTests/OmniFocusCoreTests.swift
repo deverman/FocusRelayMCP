@@ -13,6 +13,7 @@ func taskItemRoundTrip() throws {
         tagIDs: ["tag1"],
         tagNames: ["Tag"],
         dueDate: Date(timeIntervalSince1970: 1_700_000_000),
+        plannedDate: Date(timeIntervalSince1970: 1_700_000_100),
         deferDate: nil,
         completed: false,
         flagged: true,
@@ -30,6 +31,7 @@ func taskItemRoundTrip() throws {
 
     #expect(decoded.id == task.id)
     #expect(decoded.name == task.name)
+    #expect(decoded.plannedDate == task.plannedDate)
     #expect(decoded.flagged == task.flagged)
     #expect(decoded.estimatedMinutes == task.estimatedMinutes)
 }

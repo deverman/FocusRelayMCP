@@ -14,6 +14,8 @@ func taskFilterWithDateRanges() throws {
         dueAfter: yesterday,
         deferBefore: tomorrow,
         deferAfter: yesterday,
+        plannedBefore: tomorrow,
+        plannedAfter: yesterday,
         completedBefore: now,
         completedAfter: yesterday,
         maxEstimatedMinutes: 60,
@@ -23,6 +25,8 @@ func taskFilterWithDateRanges() throws {
     #expect(filter.completed == false)
     #expect(filter.dueBefore == tomorrow)
     #expect(filter.dueAfter == yesterday)
+    #expect(filter.plannedBefore == tomorrow)
+    #expect(filter.plannedAfter == yesterday)
     #expect(filter.deferBefore == tomorrow)
     #expect(filter.deferAfter == yesterday)
     #expect(filter.completedBefore == now)

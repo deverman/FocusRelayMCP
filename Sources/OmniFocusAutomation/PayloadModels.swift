@@ -9,6 +9,7 @@ struct TaskItemPayload: Codable {
     let tagIDs: [String]?
     let tagNames: [String]?
     let dueDate: Date?
+    let plannedDate: Date?
     let deferDate: Date?
     let completionDate: Date?
     let completed: Bool?
