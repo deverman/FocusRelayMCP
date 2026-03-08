@@ -1113,6 +1113,17 @@
           response.data = counts;
 } else if (request.op === "get_project_counts") {
           const filter = request.filter || {};
+          const debugProjectCounts = filter.search === "__debug_project_counts__";
+          const projectCountsDebug = debugProjectCounts ? {
+            requestId: requestId,
+            op: request.op,
+            marks: []
+          } : null;
+          const markProjectCounts = (label, extra) => {
+            if (!projectCountsDebug) { return; }
+            const entry = Object.assign({ label: label, ms: Date.now() - start }, extra || {});
+            projectCountsDebug.marks.push(entry);
+          };
           
           // Check if this is a completion date query
           const completedAfter = filter.completedAfter ? parseFilterDate(filter.completedAfter, response.warnings) : null;
@@ -1121,6 +1132,7 @@
           
           if (completedOnly || completedAfter || completedBefore) {
             // Count completed projects by completion date
+            const completedProjectsStart = Date.now();
             let projects = flattenedProjects.filter(p => {
               const status = safe(() => p.status);
               // Only include completed projects (status = Done), exclude dropped
@@ -1134,27 +1146,36 @@
               
               return true;
             });
+            markProjectCounts("selected_completed_projects", {
+              count: projects.length,
+              durationMs: Date.now() - completedProjectsStart
+            });
             
             const projectCount = projects.length;
             
             // Count completed tasks in those projects
             const projectIds = new Set(projects.map(p => String(safe(() => p.id.primaryKey) || "")));
             let completedTaskCount = 0;
+            const completedTaskCountStart = Date.now();
             
             flattenedTasks.forEach(t => {
               const project = safe(() => t.containingProject);
-              if (!project) return;
+              if (!project) { return; }
               const pid = String(safe(() => project.id.primaryKey) || "");
               if (projectIds.has(pid) && isCompletedStatus(t)) {
                 const taskCompletionDate = getTaskDateTimestamp(t, task => task.completionDate);
-                if (taskCompletionDate !== null) {
-                  // Only count tasks completed in the same window
-                  if ((!completedAfter || taskCompletionDate >= completedAfter.getTime()) &&
-                      (!completedBefore || taskCompletionDate < completedBefore.getTime())) {
-                    completedTaskCount++;
-                  }
+                if (taskCompletionDate === null) { return; }
+                // Only count tasks completed in the same window
+                if ((!completedAfter || taskCompletionDate >= completedAfter.getTime()) &&
+                    (!completedBefore || taskCompletionDate < completedBefore.getTime())) {
+                  completedTaskCount++;
                 }
               }
+            });
+            markProjectCounts("counted_completed_tasks", {
+              durationMs: Date.now() - completedTaskCountStart,
+              projectCount: projectCount,
+              actionCount: completedTaskCount
             });
             
             response.data = { projects: projectCount, actions: completedTaskCount };
@@ -1192,9 +1213,27 @@
             if (filter.project && !project) {
               tasks = [];
             } else if (project) {
+              const poolStart = Date.now();
               tasks = toTaskArray(safe(() => project.flattenedTasks));
+              markProjectCounts("selected_base_pool", {
+                count: tasks.length,
+                durationMs: Date.now() - poolStart,
+                projectFilter: filter.project,
+                projectView: rawProjectView,
+                availableOnly: derivedAvailableOnly,
+                completed: derivedCompleted
+              });
             } else {
+              const poolStart = Date.now();
               tasks = toTaskArray(safe(() => flattenedTasks));
+              markProjectCounts("selected_base_pool", {
+                count: tasks.length,
+                durationMs: Date.now() - poolStart,
+                projectFilter: null,
+                projectView: rawProjectView,
+                availableOnly: derivedAvailableOnly,
+                completed: derivedCompleted
+              });
             }
 
             const filterState = {
@@ -1217,97 +1256,105 @@
               minEstimatedMinutes: filter.minEstimatedMinutes
             };
 
-            tasks = tasks.filter(t => {
+            const projectIds = new Set();
+            let actionCount = 0;
+            const countPassStart = Date.now();
+            tasks.forEach(t => {
               const project = safe(() => t.containingProject);
-              if (!project) { return false; }
+              if (!project) { return; }
 
               if (filterState.completed !== undefined) {
-                if (isCompletedStatus(t) !== filterState.completed) return false;
+                if (isCompletedStatus(t) !== filterState.completed) return;
               } else if (rawProjectView !== "everything") {
-                if (!isRemainingStatus(t)) return false;
+                if (!isRemainingStatus(t)) return;
               }
 
               if (filterState.flagged !== undefined) {
-                if (Boolean(t.flagged) !== filterState.flagged) return false;
+                if (Boolean(t.flagged) !== filterState.flagged) return;
               }
               if (filterState.availableOnly) {
-                if (!isTaskAvailable(t)) return false;
+                if (!isTaskAvailable(t)) return;
               }
               if (filterState.projectFilter) {
                 const pid = String(safe(() => project.id.primaryKey) || "");
                 const pname = String(safe(() => project.name) || "");
-                if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return false;
+                if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return;
               }
               if (filterState.projectView) {
-                if (!projectMatchesView(project, filterState.projectView, true)) return false;
+                if (!projectMatchesView(project, filterState.projectView, true)) return;
               }
               if (filterState.dueBefore) {
                 const due = getTaskDateTimestamp(t, task => task.dueDate);
-                if (due === null || due > filterState.dueBefore.getTime()) return false;
+                if (due === null || due > filterState.dueBefore.getTime()) return;
               }
               if (filterState.dueAfter) {
                 const due = getTaskDateTimestamp(t, task => task.dueDate);
-                if (due === null || due < filterState.dueAfter.getTime()) return false;
+                if (due === null || due < filterState.dueAfter.getTime()) return;
               }
               if (filterState.deferBefore) {
                 const defer = getTaskDateTimestamp(t, task => task.deferDate);
-                if (defer === null || defer > filterState.deferBefore.getTime()) return false;
+                if (defer === null || defer > filterState.deferBefore.getTime()) return;
               }
               if (filterState.deferAfter) {
                 const defer = getTaskDateTimestamp(t, task => task.deferDate);
-                if (defer === null || defer < filterState.deferAfter.getTime()) return false;
+                if (defer === null || defer < filterState.deferAfter.getTime()) return;
               }
               if (filterState.plannedBefore) {
                 const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-                if (planned === null || planned > filterState.plannedBefore.getTime()) return false;
+                if (planned === null || planned > filterState.plannedBefore.getTime()) return;
               }
               if (filterState.plannedAfter) {
                 const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-                if (planned === null || planned < filterState.plannedAfter.getTime()) return false;
+                if (planned === null || planned < filterState.plannedAfter.getTime()) return;
               }
               if (filterState.completedBefore) {
                 const completed = getTaskDateTimestamp(t, task => task.completionDate);
-                if (completed === null || completed > filterState.completedBefore.getTime()) return false;
+                if (completed === null || completed > filterState.completedBefore.getTime()) return;
               }
               if (filterState.completedAfter) {
                 const completed = getTaskDateTimestamp(t, task => task.completionDate);
-                if (completed === null || completed < filterState.completedAfter.getTime()) return false;
+                if (completed === null || completed < filterState.completedAfter.getTime()) return;
               }
               if (filterState.maxEstimatedMinutes !== undefined) {
                 const minutes = safe(() => t.estimatedMinutes);
-                if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return false;
+                if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return;
               }
               if (filterState.minEstimatedMinutes !== undefined) {
                 const minutes = safe(() => t.estimatedMinutes);
-                if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return false;
+                if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
               }
               if (filterState.tags) {
                 const tags = safe(() => t.tags) || [];
                 if (filterState.untaggedOnly) {
-                  if (tags.length > 0) return false;
+                  if (tags.length > 0) return;
                 } else {
                   const hasMatchingTag = tags.some(tag => {
                     const tagId = String(safe(() => tag.id.primaryKey) || "");
                     const tagName = String(safe(() => tag.name) || "");
                     return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
                   });
-                  if (!hasMatchingTag) return false;
+                  if (!hasMatchingTag) return;
                 }
               }
-              return true;
-            });
-
-            const projectIds = new Set();
-            let actionCount = 0;
-            tasks.forEach(t => {
-              const project = safe(() => t.containingProject);
-              if (!project) { return; }
               const pid = String(safe(() => project.id.primaryKey) || "");
               if (pid) { projectIds.add(pid); }
               actionCount += 1;
             });
+            markProjectCounts("after_count_pass", {
+              durationMs: Date.now() - countPassStart,
+              count: actionCount,
+              projectCount: projectIds.size,
+              actionCount: actionCount
+            });
 
             response.data = { projects: projectIds.size, actions: actionCount };
+          }
+          if (projectCountsDebug) {
+            projectCountsDebug.totalTimingMs = Date.now() - start;
+            projectCountsDebug.responseData = response.data;
+            try {
+              writeJSON(basePath + "/logs/get_project_counts_debug_" + requestId + ".json", projectCountsDebug);
+            } catch (debugError) {}
           }
         } else {
           response.ok = false;
