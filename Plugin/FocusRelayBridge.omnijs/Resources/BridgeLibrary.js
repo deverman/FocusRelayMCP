@@ -880,6 +880,16 @@
         } else if (request.op === "get_task_counts") {
           const filter = request.filter || {};
           const debugTaskCounts = filter.search === "__debug_task_counts__";
+          const taskCountsDebug = debugTaskCounts ? {
+            requestId: requestId,
+            op: request.op,
+            marks: []
+          } : null;
+          const markTaskCounts = (label, extra) => {
+            if (!taskCountsDebug) { return; }
+            const entry = Object.assign({ label: label, ms: Date.now() - start }, extra || {});
+            taskCountsDebug.marks.push(entry);
+          };
 
           const inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
           const isEverything = inboxView === "everything";
@@ -918,6 +928,7 @@
           // Use same filtering logic as list_tasks for consistency.
           // Task pool is selected from native OmniFocus collections first,
           // then filtered with the same semantics as list_tasks.
+          const poolStart = Date.now();
           let tasks = selectTaskPool();
           const debugInfo = debugTaskCounts ? {
             requestId: requestId,
@@ -926,38 +937,26 @@
             projectView: projectView,
             initialPoolCount: tasks.length
           } : null;
+          markTaskCounts("selected_base_pool", {
+            count: tasks.length,
+            durationMs: Date.now() - poolStart,
+            inboxOnly: filter.inboxOnly === true,
+            projectFilter: filter.project || null,
+            projectView: projectView,
+            availableOnly: availableOnly
+          });
 
-          function sampleTasks(list) {
-            return list.slice(0, 5).map(task => {
-              const project = safe(() => task.containingProject);
-              const parent = safe(() => task.parent);
-              return {
-                id: String(safe(() => task.id.primaryKey) || ""),
-                name: String(safe(() => task.name) || ""),
-                taskStatus: String(taskStatus(task)),
-                available: isTaskAvailable(task),
-                projectStatus: project ? String(safe(() => project.status) || "") : null,
-                parentStatus: parent ? String(taskStatus(parent)) : null
-              };
-            });
-          }
-
-          if (typeof filter.completed === "boolean") {
-            tasks = tasks.filter(t => isCompletedStatus(t) === filter.completed);
-          } else if (!isEverything) {
-            tasks = tasks.filter(t => isRemainingStatus(t));
-          }
-          if (debugInfo) {
-            debugInfo.afterCompletedFilterCount = tasks.length;
-            debugInfo.afterCompletedFilterSample = sampleTasks(tasks);
-          }
-
-          if (availableOnly) {
-            tasks = tasks.filter(t => isTaskAvailable(t));
-          }
-          if (debugInfo) {
-            debugInfo.afterAvailableFilterCount = tasks.length;
-            debugInfo.afterAvailableFilterSample = sampleTasks(tasks);
+          function sampleTask(task) {
+            const project = safe(() => task.containingProject);
+            const parent = safe(() => task.parent);
+            return {
+              id: String(safe(() => task.id.primaryKey) || ""),
+              name: String(safe(() => task.name) || ""),
+              taskStatus: String(taskStatus(task)),
+              available: isTaskAvailable(task),
+              projectStatus: project ? String(safe(() => project.status) || "") : null,
+              parentStatus: parent ? String(taskStatus(parent)) : null
+            };
           }
 
           // Parse filter dates
@@ -980,112 +979,134 @@
             minEstimatedMinutes: filter.minEstimatedMinutes
           };
 
-          // Apply filters
-          tasks = tasks.filter(t => {
+          const statusGateSample = [];
+          const availableGateSample = [];
+          const finalSample = [];
+          let afterStatusGateCount = 0;
+          let afterAvailableGateCount = 0;
+
+          const counts = { total: 0, completed: 0, available: 0, flagged: 0 };
+          const countPassStart = Date.now();
+          tasks.forEach(t => {
             const project = safe(() => t.containingProject);
+            const taskCompleted = isCompletedStatus(t);
+            const taskDropped = isDroppedStatus(t);
+            const taskRemaining = !taskCompleted && !taskDropped;
+            const taskAvailable = isTaskAvailable(t);
+            const taskFlagged = Boolean(t.flagged);
 
             if (filterState.completed !== undefined) {
-              const taskCompleted = isCompletedStatus(t);
-              if (taskCompleted !== filterState.completed) return false;
+              if (taskCompleted !== filterState.completed) return;
             } else if (!isEverything) {
-              if (!isRemainingStatus(t)) return false;
+              if (!taskRemaining) return;
             }
+            afterStatusGateCount += 1;
+            if (debugInfo && statusGateSample.length < 5) {
+              statusGateSample.push(sampleTask(t));
+            }
+
             if (filterState.flagged !== undefined) {
-              const taskFlagged = Boolean(t.flagged);
-              if (taskFlagged !== filterState.flagged) return false;
+              if (taskFlagged !== filterState.flagged) return;
             }
             if (filterState.availableOnly) {
-              if (!isTaskAvailable(t)) return false;
+              if (!taskAvailable) return;
             }
+            afterAvailableGateCount += 1;
+            if (debugInfo && availableGateSample.length < 5) {
+              availableGateSample.push(sampleTask(t));
+            }
+
             if (filterState.projectFilter) {
-              if (!project) return false;
+              if (!project) return;
               const pid = String(safe(() => project.id.primaryKey) || "");
               const pname = String(safe(() => project.name) || "");
-              if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return false;
+              if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return;
             }
             if (projectView) {
-              if (!projectMatchesView(project, projectView, true)) return false;
+              if (!projectMatchesView(project, projectView, true)) return;
             }
             if (filterState.dueBefore) {
               const due = getTaskDateTimestamp(t, task => task.dueDate);
-              if (due === null || due > filterState.dueBefore.getTime()) return false;
+              if (due === null || due > filterState.dueBefore.getTime()) return;
             }
             if (filterState.dueAfter) {
               const due = getTaskDateTimestamp(t, task => task.dueDate);
-              if (due === null || due < filterState.dueAfter.getTime()) return false;
+              if (due === null || due < filterState.dueAfter.getTime()) return;
             }
             if (filterState.deferBefore) {
               const defer = getTaskDateTimestamp(t, task => task.deferDate);
-              if (defer === null || defer > filterState.deferBefore.getTime()) return false;
+              if (defer === null || defer > filterState.deferBefore.getTime()) return;
             }
             if (filterState.deferAfter) {
               const defer = getTaskDateTimestamp(t, task => task.deferDate);
-              if (defer === null || defer < filterState.deferAfter.getTime()) return false;
+              if (defer === null || defer < filterState.deferAfter.getTime()) return;
             }
             if (filterState.plannedBefore) {
               const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-              if (planned === null || planned > filterState.plannedBefore.getTime()) return false;
+              if (planned === null || planned > filterState.plannedBefore.getTime()) return;
             }
             if (filterState.plannedAfter) {
               const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-              if (planned === null || planned < filterState.plannedAfter.getTime()) return false;
+              if (planned === null || planned < filterState.plannedAfter.getTime()) return;
             }
             if (filterState.completedBefore) {
               const completed = getTaskDateTimestamp(t, task => task.completionDate);
-              if (completed === null || completed > filterState.completedBefore.getTime()) return false;
+              if (completed === null || completed > filterState.completedBefore.getTime()) return;
             }
             if (filterState.completedAfter) {
               const completed = getTaskDateTimestamp(t, task => task.completionDate);
-              if (completed === null || completed < filterState.completedAfter.getTime()) return false;
+              if (completed === null || completed < filterState.completedAfter.getTime()) return;
             }
             if (filterState.maxEstimatedMinutes !== undefined) {
               const minutes = safe(() => t.estimatedMinutes);
-              if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return false;
+              if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return;
             }
             if (filterState.minEstimatedMinutes !== undefined) {
               const minutes = safe(() => t.estimatedMinutes);
-              if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return false;
+              if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
             }
             if (filterState.tags) {
               const tags = safe(() => t.tags) || [];
               if (filterState.untaggedOnly) {
-                if (tags.length > 0) return false;
+                if (tags.length > 0) return;
               } else {
                 const hasMatchingTag = tags.some(tag => {
                   const tagId = String(safe(() => tag.id.primaryKey) || "");
                   const tagName = String(safe(() => tag.name) || "");
                   return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
                 });
-                if (!hasMatchingTag) return false;
+                if (!hasMatchingTag) return;
               }
             }
-            return true;
+            counts.total += 1;
+            if (taskCompleted) { counts.completed += 1; }
+            if (taskAvailable) { counts.available += 1; }
+            if (taskFlagged) { counts.flagged += 1; }
+            if (debugInfo && finalSample.length < 5) {
+              finalSample.push(sampleTask(t));
+            }
+          });
+          markTaskCounts("after_count_pass", {
+            count: counts.total,
+            durationMs: Date.now() - countPassStart,
+            afterStatusGateCount: afterStatusGateCount,
+            afterAvailableGateCount: afterAvailableGateCount,
+            counts: counts
           });
           if (debugInfo) {
-            debugInfo.afterAllFiltersCount = tasks.length;
-            debugInfo.afterAllFiltersSample = sampleTasks(tasks);
+            debugInfo.afterCompletedFilterCount = afterStatusGateCount;
+            debugInfo.afterCompletedFilterSample = statusGateSample;
+            debugInfo.afterAvailableFilterCount = afterAvailableGateCount;
+            debugInfo.afterAvailableFilterSample = availableGateSample;
+            debugInfo.afterAllFiltersCount = counts.total;
+            debugInfo.afterAllFiltersSample = finalSample;
           }
-
-          // Sort by completion date descending when filtering by completion
-          if (filterState.completed === true || filterState.completedAfter || filterState.completedBefore) {
-            tasks.sort((a, b) => {
-              const dateA = getTaskDateTimestamp(a, t => t.completionDate) || 0;
-              const dateB = getTaskDateTimestamp(b, t => t.completionDate) || 0;
-              return dateB - dateA;
-            });
-          }
-
-          const counts = { total: 0, completed: 0, available: 0, flagged: 0 };
-          tasks.forEach(t => {
-            counts.total += 1;
-            if (isCompletedStatus(t)) { counts.completed += 1; }
-            if (isTaskAvailable(t)) { counts.available += 1; }
-            if (Boolean(t.flagged)) { counts.flagged += 1; }
-          });
           if (debugInfo) {
             debugInfo.counts = counts;
+            taskCountsDebug.debugInfo = debugInfo;
+            taskCountsDebug.totalTimingMs = Date.now() - start;
             try {
-              writeJSON(basePath + "/logs/get_task_counts_debug_" + requestId + ".json", debugInfo);
+              writeJSON(basePath + "/logs/get_task_counts_debug_" + requestId + ".json", taskCountsDebug);
             } catch (debugError) {}
           }
 
