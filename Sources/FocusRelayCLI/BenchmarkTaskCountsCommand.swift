@@ -60,7 +60,8 @@ struct BenchmarkTaskCounts: AsyncParsableCommand {
         let rawURL = directoryURL.appendingPathComponent("raw.jsonl")
         let memoryURL = directoryURL.appendingPathComponent("memory.csv")
         let summaryURL = directoryURL.appendingPathComponent("summary.md")
-        try initializeBenchmarkArtifacts(rawURL: rawURL, memoryURL: memoryURL)
+        let timeoutDiagnosticsURL = directoryURL.appendingPathComponent("timeout-diagnostics.jsonl")
+        try initializeBenchmarkArtifacts(rawURL: rawURL, memoryURL: memoryURL, timeoutDiagnosticsURL: timeoutDiagnosticsURL)
 
         print("Benchmark output directory: \(directoryURL.path)")
         print("Scenarios: \(scenarios.map(\.name).joined(separator: ", "))")
@@ -105,6 +106,7 @@ struct BenchmarkTaskCounts: AsyncParsableCommand {
                 pluginService: pluginService,
                 jxaService: jxaService,
                 rawURL: rawURL,
+                timeoutDiagnosticsURL: timeoutDiagnosticsURL,
                 intervalMS: intervalMS,
                 cooldownMS: cooldownMS,
                 callIndex: &callIndex
@@ -126,6 +128,7 @@ struct BenchmarkTaskCounts: AsyncParsableCommand {
                 scenario: scenario,
                 phase: "measured",
                 service: pluginService,
+                timeoutDiagnosticsURL: timeoutDiagnosticsURL,
                 intervalMS: intervalMS,
                 cooldownMS: cooldownMS,
                 callIndex: &callIndex
@@ -141,6 +144,7 @@ struct BenchmarkTaskCounts: AsyncParsableCommand {
                 scenario: scenario,
                 phase: "measured",
                 service: jxaService,
+                timeoutDiagnosticsURL: timeoutDiagnosticsURL,
                 intervalMS: intervalMS,
                 cooldownMS: cooldownMS,
                 callIndex: &callIndex
@@ -174,6 +178,7 @@ struct BenchmarkTaskCounts: AsyncParsableCommand {
             intervalMS: intervalMS,
             cooldownMS: cooldownMS,
             memoryIntervalSeconds: memoryIntervalSeconds,
+            timeoutDiagnosticsURL: timeoutDiagnosticsURL,
             scenarios: scenarios,
             statsByTransport: statsByTransport,
             statsByScenarioTransport: statsByScenarioTransport,
@@ -249,12 +254,52 @@ private struct ParityMismatch: Codable {
     let jxa: TaskCountsModel
 }
 
+private struct TimeoutQueueSnapshot: Codable {
+    let basePath: String
+    let requestsCount: Int
+    let locksCount: Int
+    let responsesCount: Int
+    let requestExists: Bool?
+    let lockExists: Bool?
+    let responseExists: Bool?
+    let sampleRequests: [String]
+    let sampleLocks: [String]
+    let sampleResponses: [String]
+}
+
+private struct TimeoutProcessSnapshot: Codable {
+    let process: String
+    let pid: Int32?
+    let rssKB: Int?
+}
+
+private struct TimeoutBridgeHealthSnapshot: Codable {
+    let ok: Bool
+    let detail: String
+}
+
+private struct TaskTimeoutDiagnostic: Codable {
+    let timestamp: String
+    let transport: String
+    let scenario: String
+    let phase: String
+    let callIndex: Int
+    let latencyMs: Double
+    let error: String
+    let requestId: String?
+    let queue: TimeoutQueueSnapshot
+    let omniFocus: TimeoutProcessSnapshot
+    let focusrelay: TimeoutProcessSnapshot
+    let bridgeHealth: TimeoutBridgeHealthSnapshot?
+}
+
 private func runWarmup(
     warmupCalls: Int,
     scenarios: [BenchmarkScenario],
     pluginService: OmniFocusBridgeService,
     jxaService: OmniAutomationService,
     rawURL: URL,
+    timeoutDiagnosticsURL: URL,
     intervalMS: Int,
     cooldownMS: Int,
     callIndex: inout Int
@@ -268,6 +313,7 @@ private func runWarmup(
             scenario: scenario,
             phase: "warmup",
             service: pluginService,
+            timeoutDiagnosticsURL: timeoutDiagnosticsURL,
             intervalMS: intervalMS,
             cooldownMS: cooldownMS,
             callIndex: &callIndex
@@ -283,6 +329,7 @@ private func runWarmup(
             scenario: scenario,
             phase: "warmup",
             service: jxaService,
+            timeoutDiagnosticsURL: timeoutDiagnosticsURL,
             intervalMS: intervalMS,
             cooldownMS: cooldownMS,
             callIndex: &callIndex
@@ -296,6 +343,7 @@ private func runBenchCall(
     scenario: BenchmarkScenario,
     phase: String,
     service: any OmniFocusService,
+    timeoutDiagnosticsURL: URL,
     intervalMS: Int,
     cooldownMS: Int,
     callIndex: inout Int
@@ -325,6 +373,17 @@ private func runBenchCall(
         try await enforceInterval(start: start, intervalMS: intervalMS)
         if cooldownMS > 0 {
             try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
+        }
+        if isTimeout {
+            let diagnostic = captureTaskTimeoutDiagnostic(
+                transport: transport,
+                scenario: scenario,
+                phase: phase,
+                callIndex: callIndex,
+                latencyMs: elapsed * 1000,
+                errorMessage: message
+            )
+            try? appendJSONLine(diagnostic, to: timeoutDiagnosticsURL)
         }
         return BenchEvent(
             timestamp: iso8601Now(),
@@ -399,9 +458,10 @@ private func benchmarkOutputDirectory(customPath: String?) throws -> URL {
     return url
 }
 
-private func initializeBenchmarkArtifacts(rawURL: URL, memoryURL: URL) throws {
+private func initializeBenchmarkArtifacts(rawURL: URL, memoryURL: URL, timeoutDiagnosticsURL: URL) throws {
     FileManager.default.createFile(atPath: rawURL.path, contents: nil)
     FileManager.default.createFile(atPath: memoryURL.path, contents: nil)
+    FileManager.default.createFile(atPath: timeoutDiagnosticsURL.path, contents: nil)
     try appendLine("timestamp,process,pid,rss_kb\n", to: memoryURL)
 }
 
@@ -538,6 +598,121 @@ private func runProcess(executable: String, arguments: [String], timeout: TimeIn
     return output
 }
 
+private func captureTaskTimeoutDiagnostic(
+    transport: Transport,
+    scenario: BenchmarkScenario,
+    phase: String,
+    callIndex: Int,
+    latencyMs: Double,
+    errorMessage: String
+) -> TaskTimeoutDiagnostic {
+    let requestID = extractRequestID(from: errorMessage)
+    let baseURL = defaultIPCBaseURL()
+    let requestsURL = baseURL.appendingPathComponent("requests", isDirectory: true)
+    let locksURL = baseURL.appendingPathComponent("locks", isDirectory: true)
+    let responsesURL = baseURL.appendingPathComponent("responses", isDirectory: true)
+    let queue = TimeoutQueueSnapshot(
+        basePath: baseURL.path,
+        requestsCount: directoryEntryCount(requestsURL),
+        locksCount: directoryEntryCount(locksURL),
+        responsesCount: directoryEntryCount(responsesURL),
+        requestExists: requestID.map { FileManager.default.fileExists(atPath: requestsURL.appendingPathComponent("\($0).json").path) },
+        lockExists: requestID.map { FileManager.default.fileExists(atPath: locksURL.appendingPathComponent("\($0).lock").path) },
+        responseExists: requestID.map { FileManager.default.fileExists(atPath: responsesURL.appendingPathComponent("\($0).json").path) },
+        sampleRequests: directoryEntrySamples(requestsURL),
+        sampleLocks: directoryEntrySamples(locksURL),
+        sampleResponses: directoryEntrySamples(responsesURL)
+    )
+    let omniPID = currentOmniFocusPID()
+    let benchmarkPID = ProcessInfo.processInfo.processIdentifier
+    let bridgeHealth: TimeoutBridgeHealthSnapshot?
+    if transport == .plugin {
+        if let result = try? OmniFocusBridgeService().healthCheck() {
+            bridgeHealth = TimeoutBridgeHealthSnapshot(
+                ok: result.ok,
+                detail: "plugin=\(result.plugin ?? "unknown") version=\(result.version ?? "unknown")"
+            )
+        } else {
+            bridgeHealth = TimeoutBridgeHealthSnapshot(
+                ok: false,
+                detail: "bridge-health-check failed after timeout"
+            )
+        }
+    } else {
+        bridgeHealth = nil
+    }
+
+    return TaskTimeoutDiagnostic(
+        timestamp: iso8601Now(),
+        transport: transport.rawValue,
+        scenario: scenario.name,
+        phase: phase,
+        callIndex: callIndex,
+        latencyMs: latencyMs,
+        error: errorMessage,
+        requestId: requestID,
+        queue: queue,
+        omniFocus: TimeoutProcessSnapshot(
+            process: "OmniFocus",
+            pid: omniPID,
+            rssKB: omniPID.flatMap(readRSSKilobytes(pid:))
+        ),
+        focusrelay: TimeoutProcessSnapshot(
+            process: "focusrelay",
+            pid: benchmarkPID,
+            rssKB: readRSSKilobytes(pid: benchmarkPID)
+        ),
+        bridgeHealth: bridgeHealth
+    )
+}
+
+private func extractRequestID(from message: String) -> String? {
+    let pattern = #"requestId=([A-F0-9-]+)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        return nil
+    }
+    let range = NSRange(message.startIndex..<message.endIndex, in: message)
+    guard let match = regex.firstMatch(in: message, range: range),
+          let matchRange = Range(match.range(at: 1), in: message) else {
+        return nil
+    }
+    return String(message[matchRange])
+}
+
+private func directoryEntryCount(_ url: URL) -> Int {
+    guard let contents = try? FileManager.default.contentsOfDirectory(atPath: url.path) else {
+        return 0
+    }
+    return contents.count
+}
+
+private func directoryEntrySamples(_ url: URL, limit: Int = 5) -> [String] {
+    guard let contents = try? FileManager.default.contentsOfDirectory(atPath: url.path) else {
+        return []
+    }
+    return Array(contents.sorted().prefix(limit))
+}
+
+private func defaultIPCBaseURL() -> URL {
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    let container = home
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Containers", isDirectory: true)
+        .appendingPathComponent("com.omnigroup.OmniFocus4", isDirectory: true)
+        .appendingPathComponent("Data", isDirectory: true)
+        .appendingPathComponent("Documents", isDirectory: true)
+        .appendingPathComponent("FocusRelayIPC", isDirectory: true)
+
+    if FileManager.default.fileExists(atPath: container.deletingLastPathComponent().path) {
+        return container
+    }
+
+    return home
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Caches", isDirectory: true)
+        .appendingPathComponent("focusrelay", isDirectory: true)
+}
+
 private func writeSummary(
     to url: URL,
     startedAt: Date,
@@ -548,12 +723,14 @@ private func writeSummary(
     intervalMS: Int,
     cooldownMS: Int,
     memoryIntervalSeconds: Int,
+    timeoutDiagnosticsURL: URL,
     scenarios: [BenchmarkScenario],
     statsByTransport: [Transport: StatsAccumulator],
     statsByScenarioTransport: [String: [Transport: StatsAccumulator]],
     parityMismatches: [ParityMismatch]
 ) async throws {
     let memorySummary = loadMemorySummary(from: memoryURL)
+    let timeoutDiagnosticCount = countLines(in: timeoutDiagnosticsURL)
     var lines: [String] = []
     lines.append("# get_task_counts Benchmark Summary")
     lines.append("")
@@ -617,6 +794,7 @@ private func writeSummary(
     lines.append("")
     lines.append("- `memory.csv` contains RSS samples for `focusrelay` and `OmniFocus`.")
     lines.append("- Memory growth slope is estimated in KB/min from sampled RSS values.")
+    lines.append("- `timeout-diagnostics.jsonl` contains timeout queue/process snapshots for this benchmark.")
     lines.append("")
     lines.append("### Memory Growth")
     for process in ["focusrelay", "OmniFocus"] {
@@ -626,6 +804,11 @@ private func writeSummary(
             lines.append("- \(process): no samples")
         }
     }
+
+    lines.append("")
+    lines.append("## Timeout Diagnostics")
+    lines.append("")
+    lines.append("- Diagnostic entries: \(timeoutDiagnosticCount)")
 
     try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
 }
@@ -733,6 +916,13 @@ private func linearSlopeKBPerMinute(samples: [MemorySample]) -> Double {
 private func percentage(part: Int, total: Int) -> Double {
     guard total > 0 else { return .nan }
     return (Double(part) / Double(total)) * 100.0
+}
+
+private func countLines(in url: URL) -> Int {
+    guard let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty else {
+        return 0
+    }
+    return max(0, content.split(separator: "\n").count)
 }
 
 private func iso8601Now() -> String {

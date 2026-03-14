@@ -149,16 +149,22 @@
       return safe(() => task.taskStatus);
     }
 
-    function isCompletedStatus(task) {
-      const st = taskStatus(task);
+    function isCompletedStatusValue(st) {
       if (st === Task.Status.Completed) { return true; }
       return String(st).includes("Completed");
     }
 
-    function isDroppedStatus(task) {
-      const st = taskStatus(task);
+    function isCompletedStatus(task) {
+      return isCompletedStatusValue(taskStatus(task));
+    }
+
+    function isDroppedStatusValue(st) {
       if (st === Task.Status.Dropped) { return true; }
       return String(st).includes("Dropped");
+    }
+
+    function isDroppedStatus(task) {
+      return isDroppedStatusValue(taskStatus(task));
     }
 
     /**
@@ -167,7 +173,8 @@
      * @returns {boolean} True if task is remaining
      */
     function isRemainingStatus(task) {
-      return !isCompletedStatus(task) && !isDroppedStatus(task);
+      const st = taskStatus(task);
+      return !isCompletedStatusValue(st) && !isDroppedStatusValue(st);
     }
 
     /**
@@ -176,12 +183,15 @@
      * @param {Task} task - OmniFocus task object
      * @returns {boolean} True if task has an available status
      */
-    function isAvailableStatus(task) {
-      const st = taskStatus(task);
+    function isAvailableStatusValue(st) {
       return st === Task.Status.Available ||
         st === Task.Status.DueSoon ||
         st === Task.Status.Next ||
         st === Task.Status.Overdue;
+    }
+
+    function isAvailableStatus(task) {
+      return isAvailableStatusValue(taskStatus(task));
     }
 
     /**
@@ -226,8 +236,8 @@
      * @param {Task} task - OmniFocus task object
      * @returns {boolean} True if task is available for action
      */
-    function isTaskAvailable(task) {
-      const project = safe(() => task.containingProject);
+    function isTaskAvailableWithStatus(task, taskStatusValue, knownProject) {
+      const project = knownProject === undefined ? safe(() => task.containingProject) : knownProject;
       if (project) {
         const status = safe(() => project.status);
         if (status === Project.Status.OnHold) { return false; }
@@ -247,7 +257,11 @@
         if (isDroppedStatus(parent)) { return false; }
       }
 
-      return isAvailableStatus(task);
+      return isAvailableStatusValue(taskStatusValue);
+    }
+
+    function isTaskAvailable(task) {
+      return isTaskAvailableWithStatus(task, taskStatus(task), undefined);
     }
 
     // ============================================================
@@ -965,14 +979,14 @@
             flagged: filter.flagged,
             availableOnly: availableOnly,
             projectFilter: filter.project,
-            dueBefore: filter.dueBefore ? parseFilterDate(filter.dueBefore, response.warnings) : null,
-            dueAfter: filter.dueAfter ? parseFilterDate(filter.dueAfter, response.warnings) : null,
-            plannedBefore: filter.plannedBefore ? parseFilterDate(filter.plannedBefore, response.warnings) : null,
-            plannedAfter: filter.plannedAfter ? parseFilterDate(filter.plannedAfter, response.warnings) : null,
-            deferBefore: filter.deferBefore ? parseFilterDate(filter.deferBefore, response.warnings) : null,
-            deferAfter: filter.deferAfter ? parseFilterDate(filter.deferAfter, response.warnings) : null,
-            completedBefore: filter.completedBefore ? parseFilterDate(filter.completedBefore, response.warnings) : null,
-            completedAfter: filter.completedAfter ? parseFilterDate(filter.completedAfter, response.warnings) : null,
+            dueBeforeTs: filter.dueBefore ? safe(() => parseFilterDate(filter.dueBefore, response.warnings).getTime()) : null,
+            dueAfterTs: filter.dueAfter ? safe(() => parseFilterDate(filter.dueAfter, response.warnings).getTime()) : null,
+            plannedBeforeTs: filter.plannedBefore ? safe(() => parseFilterDate(filter.plannedBefore, response.warnings).getTime()) : null,
+            plannedAfterTs: filter.plannedAfter ? safe(() => parseFilterDate(filter.plannedAfter, response.warnings).getTime()) : null,
+            deferBeforeTs: filter.deferBefore ? safe(() => parseFilterDate(filter.deferBefore, response.warnings).getTime()) : null,
+            deferAfterTs: filter.deferAfter ? safe(() => parseFilterDate(filter.deferAfter, response.warnings).getTime()) : null,
+            completedBeforeTs: filter.completedBefore ? safe(() => parseFilterDate(filter.completedBefore, response.warnings).getTime()) : null,
+            completedAfterTs: filter.completedAfter ? safe(() => parseFilterDate(filter.completedAfter, response.warnings).getTime()) : null,
             tags: Array.isArray(filter.tags) ? filter.tags : null,
             untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
@@ -985,107 +999,225 @@
           let afterStatusGateCount = 0;
           let afterAvailableGateCount = 0;
 
+          const hasProjectScopedFilters = Boolean(filterState.projectFilter) || Boolean(projectView);
+          const hasScheduleFilters =
+            filterState.dueBeforeTs !== null ||
+            filterState.dueAfterTs !== null ||
+            filterState.deferBeforeTs !== null ||
+            filterState.deferAfterTs !== null ||
+            filterState.plannedBeforeTs !== null ||
+            filterState.plannedAfterTs !== null;
+          const hasTagOrEstimateFilters =
+            Boolean(filterState.tags) ||
+            filterState.maxEstimatedMinutes !== undefined ||
+            filterState.minEstimatedMinutes !== undefined;
+          const useSimpleAvailableFastPath =
+            filterState.availableOnly &&
+            filterState.completed !== true &&
+            !hasProjectScopedFilters &&
+            !hasScheduleFilters &&
+            filterState.completedBeforeTs === null &&
+            filterState.completedAfterTs === null &&
+            !hasTagOrEstimateFilters;
+          const useSimpleCompletedFastPath =
+            filterState.completed === true &&
+            !filterState.availableOnly &&
+            !hasProjectScopedFilters &&
+            !hasScheduleFilters &&
+            !hasTagOrEstimateFilters;
+
           const counts = { total: 0, completed: 0, available: 0, flagged: 0 };
           const countPassStart = Date.now();
-          tasks.forEach(t => {
-            const project = safe(() => t.containingProject);
-            const taskCompleted = isCompletedStatus(t);
-            const taskDropped = isDroppedStatus(t);
-            const taskRemaining = !taskCompleted && !taskDropped;
-            const taskAvailable = isTaskAvailable(t);
-            const taskFlagged = Boolean(t.flagged);
-
-            if (filterState.completed !== undefined) {
-              if (taskCompleted !== filterState.completed) return;
-            } else if (!isEverything) {
-              if (!taskRemaining) return;
-            }
-            afterStatusGateCount += 1;
-            if (debugInfo && statusGateSample.length < 5) {
-              statusGateSample.push(sampleTask(t));
-            }
-
-            if (filterState.flagged !== undefined) {
-              if (taskFlagged !== filterState.flagged) return;
-            }
-            if (filterState.availableOnly) {
-              if (!taskAvailable) return;
-            }
-            afterAvailableGateCount += 1;
-            if (debugInfo && availableGateSample.length < 5) {
-              availableGateSample.push(sampleTask(t));
-            }
-
-            if (filterState.projectFilter) {
-              if (!project) return;
-              const pid = String(safe(() => project.id.primaryKey) || "");
-              const pname = String(safe(() => project.name) || "");
-              if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return;
-            }
-            if (projectView) {
-              if (!projectMatchesView(project, projectView, true)) return;
-            }
-            if (filterState.dueBefore) {
-              const due = getTaskDateTimestamp(t, task => task.dueDate);
-              if (due === null || due > filterState.dueBefore.getTime()) return;
-            }
-            if (filterState.dueAfter) {
-              const due = getTaskDateTimestamp(t, task => task.dueDate);
-              if (due === null || due < filterState.dueAfter.getTime()) return;
-            }
-            if (filterState.deferBefore) {
-              const defer = getTaskDateTimestamp(t, task => task.deferDate);
-              if (defer === null || defer > filterState.deferBefore.getTime()) return;
-            }
-            if (filterState.deferAfter) {
-              const defer = getTaskDateTimestamp(t, task => task.deferDate);
-              if (defer === null || defer < filterState.deferAfter.getTime()) return;
-            }
-            if (filterState.plannedBefore) {
-              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-              if (planned === null || planned > filterState.plannedBefore.getTime()) return;
-            }
-            if (filterState.plannedAfter) {
-              const planned = getTaskDateTimestamp(t, task => task.plannedDate);
-              if (planned === null || planned < filterState.plannedAfter.getTime()) return;
-            }
-            if (filterState.completedBefore) {
-              const completed = getTaskDateTimestamp(t, task => task.completionDate);
-              if (completed === null || completed > filterState.completedBefore.getTime()) return;
-            }
-            if (filterState.completedAfter) {
-              const completed = getTaskDateTimestamp(t, task => task.completionDate);
-              if (completed === null || completed < filterState.completedAfter.getTime()) return;
-            }
-            if (filterState.maxEstimatedMinutes !== undefined) {
-              const minutes = safe(() => t.estimatedMinutes);
-              if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return;
-            }
-            if (filterState.minEstimatedMinutes !== undefined) {
-              const minutes = safe(() => t.estimatedMinutes);
-              if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
-            }
-            if (filterState.tags) {
-              const tags = safe(() => t.tags) || [];
-              if (filterState.untaggedOnly) {
-                if (tags.length > 0) return;
-              } else {
-                const hasMatchingTag = tags.some(tag => {
-                  const tagId = String(safe(() => tag.id.primaryKey) || "");
-                  const tagName = String(safe(() => tag.name) || "");
-                  return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
-                });
-                if (!hasMatchingTag) return;
+          if (useSimpleAvailableFastPath) {
+            tasks.forEach(t => {
+              const taskStatusValue = taskStatus(t);
+              const taskCompleted = isCompletedStatusValue(taskStatusValue);
+              const taskDropped = isDroppedStatusValue(taskStatusValue);
+              if (taskCompleted || taskDropped) { return; }
+              afterStatusGateCount += 1;
+              if (debugInfo && statusGateSample.length < 5) {
+                statusGateSample.push(sampleTask(t));
               }
-            }
-            counts.total += 1;
-            if (taskCompleted) { counts.completed += 1; }
-            if (taskAvailable) { counts.available += 1; }
-            if (taskFlagged) { counts.flagged += 1; }
-            if (debugInfo && finalSample.length < 5) {
-              finalSample.push(sampleTask(t));
-            }
-          });
+              if (!isAvailableStatusValue(taskStatusValue)) { return; }
+
+              let taskFlagged = null;
+              if (filterState.flagged !== undefined) {
+                taskFlagged = Boolean(t.flagged);
+                if (taskFlagged !== filterState.flagged) { return; }
+              }
+
+              if (!isTaskAvailableWithStatus(t, taskStatusValue, undefined)) { return; }
+              afterAvailableGateCount += 1;
+              if (debugInfo && availableGateSample.length < 5) {
+                availableGateSample.push(sampleTask(t));
+              }
+
+              counts.total += 1;
+              counts.available += 1;
+              if (taskFlagged === null) {
+                taskFlagged = Boolean(t.flagged);
+              }
+              if (taskFlagged) { counts.flagged += 1; }
+              if (debugInfo && finalSample.length < 5) {
+                finalSample.push(sampleTask(t));
+              }
+            });
+          } else if (useSimpleCompletedFastPath) {
+            tasks.forEach(t => {
+              const taskStatusValue = taskStatus(t);
+              if (!isCompletedStatusValue(taskStatusValue)) { return; }
+              afterStatusGateCount += 1;
+              if (debugInfo && statusGateSample.length < 5) {
+                statusGateSample.push(sampleTask(t));
+              }
+
+              if (filterState.completedBeforeTs !== null) {
+                const completed = getTaskDateTimestamp(t, task => task.completionDate);
+                if (completed === null || completed > filterState.completedBeforeTs) return;
+              }
+              if (filterState.completedAfterTs !== null) {
+                const completed = getTaskDateTimestamp(t, task => task.completionDate);
+                if (completed === null || completed < filterState.completedAfterTs) return;
+              }
+
+              let taskFlagged = null;
+              if (filterState.flagged !== undefined) {
+                taskFlagged = Boolean(t.flagged);
+                if (taskFlagged !== filterState.flagged) { return; }
+              }
+
+              afterAvailableGateCount += 1;
+              if (debugInfo && availableGateSample.length < 5) {
+                availableGateSample.push(sampleTask(t));
+              }
+
+              counts.total += 1;
+              counts.completed += 1;
+              if (taskFlagged === null) {
+                taskFlagged = Boolean(t.flagged);
+              }
+              if (taskFlagged) { counts.flagged += 1; }
+              if (debugInfo && finalSample.length < 5) {
+                finalSample.push(sampleTask(t));
+              }
+            });
+          } else {
+            tasks.forEach(t => {
+              const taskStatusValue = taskStatus(t);
+              const taskCompleted = isCompletedStatusValue(taskStatusValue);
+              const taskDropped = isDroppedStatusValue(taskStatusValue);
+              const taskRemaining = !taskCompleted && !taskDropped;
+              let taskFlagged = null;
+
+              if (filterState.completed !== undefined) {
+                if (taskCompleted !== filterState.completed) return;
+              } else if (!isEverything) {
+                if (!taskRemaining) return;
+              }
+              afterStatusGateCount += 1;
+              if (debugInfo && statusGateSample.length < 5) {
+                statusGateSample.push(sampleTask(t));
+              }
+
+              if (filterState.flagged !== undefined) {
+                taskFlagged = Boolean(t.flagged);
+                if (taskFlagged !== filterState.flagged) return;
+              }
+              let project = null;
+              if (filterState.projectFilter) {
+                project = safe(() => t.containingProject);
+                if (!project) return;
+                const pid = String(safe(() => project.id.primaryKey) || "");
+                const pname = String(safe(() => project.name) || "");
+                if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return;
+              }
+              if (projectView) {
+                if (project === null) {
+                  project = safe(() => t.containingProject);
+                }
+                if (!projectMatchesView(project, projectView, true)) return;
+              }
+              if (filterState.dueBeforeTs !== null) {
+                const due = getTaskDateTimestamp(t, task => task.dueDate);
+                if (due === null || due > filterState.dueBeforeTs) return;
+              }
+              if (filterState.dueAfterTs !== null) {
+                const due = getTaskDateTimestamp(t, task => task.dueDate);
+                if (due === null || due < filterState.dueAfterTs) return;
+              }
+              if (filterState.deferBeforeTs !== null) {
+                const defer = getTaskDateTimestamp(t, task => task.deferDate);
+                if (defer === null || defer > filterState.deferBeforeTs) return;
+              }
+              if (filterState.deferAfterTs !== null) {
+                const defer = getTaskDateTimestamp(t, task => task.deferDate);
+                if (defer === null || defer < filterState.deferAfterTs) return;
+              }
+              if (filterState.plannedBeforeTs !== null) {
+                const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+                if (planned === null || planned > filterState.plannedBeforeTs) return;
+              }
+              if (filterState.plannedAfterTs !== null) {
+                const planned = getTaskDateTimestamp(t, task => task.plannedDate);
+                if (planned === null || planned < filterState.plannedAfterTs) return;
+              }
+              if (filterState.completedBeforeTs !== null) {
+                const completed = getTaskDateTimestamp(t, task => task.completionDate);
+                if (completed === null || completed > filterState.completedBeforeTs) return;
+              }
+              if (filterState.completedAfterTs !== null) {
+                const completed = getTaskDateTimestamp(t, task => task.completionDate);
+                if (completed === null || completed < filterState.completedAfterTs) return;
+              }
+              if (filterState.maxEstimatedMinutes !== undefined) {
+                const minutes = safe(() => t.estimatedMinutes);
+                if (minutes === null || minutes === undefined || minutes > filterState.maxEstimatedMinutes) return;
+              }
+              if (filterState.minEstimatedMinutes !== undefined) {
+                const minutes = safe(() => t.estimatedMinutes);
+                if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
+              }
+              if (filterState.tags) {
+                const tags = safe(() => t.tags) || [];
+                if (filterState.untaggedOnly) {
+                  if (tags.length > 0) return;
+                } else {
+                  const hasMatchingTag = tags.some(tag => {
+                    const tagId = String(safe(() => tag.id.primaryKey) || "");
+                    const tagName = String(safe(() => tag.name) || "");
+                    return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
+                  });
+                  if (!hasMatchingTag) return;
+                }
+              }
+
+              let taskAvailable = false;
+              if (filterState.availableOnly || isAvailableStatusValue(taskStatusValue)) {
+                taskAvailable = isTaskAvailableWithStatus(t, taskStatusValue, project === null ? undefined : project);
+              }
+              if (filterState.availableOnly && !taskAvailable) return;
+
+              afterAvailableGateCount += 1;
+              if (debugInfo && availableGateSample.length < 5) {
+                availableGateSample.push(sampleTask(t));
+              }
+
+              counts.total += 1;
+              if (taskCompleted) { counts.completed += 1; }
+              if (filterState.availableOnly) {
+                counts.available += 1;
+              } else if (taskAvailable) {
+                counts.available += 1;
+              }
+              if (taskFlagged === null) {
+                taskFlagged = Boolean(t.flagged);
+              }
+              if (taskFlagged) { counts.flagged += 1; }
+              if (debugInfo && finalSample.length < 5) {
+                finalSample.push(sampleTask(t));
+              }
+            });
+          }
           markTaskCounts("after_count_pass", {
             count: counts.total,
             durationMs: Date.now() - countPassStart,
