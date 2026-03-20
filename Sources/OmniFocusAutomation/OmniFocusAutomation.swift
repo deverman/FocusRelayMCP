@@ -441,7 +441,6 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
       function hasField(name) {
         return fields.length === 0 || fields.indexOf(name) !== -1;
       }
-
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
       }
@@ -823,6 +822,9 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
       function hasField(name) {
         return fields.length === 0 || fields.indexOf(name) !== -1;
       }
+      function hasExplicitField(name) {
+        return fields.indexOf(name) !== -1;
+      }
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
       }
@@ -947,7 +949,7 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
           var completionDate = getProjectDateTimestamp(project, function(item) { return item.completionDate; });
           if (completionDate === null) { return false; }
           if (completedAfter && completionDate < completedAfter.getTime()) { return false; }
-          if (completedBefore && completionDate > completedBefore.getTime()) { return false; }
+          if (completedBefore && completionDate >= completedBefore.getTime()) { return false; }
           return true;
         });
 
@@ -987,7 +989,7 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
           completionDate: hasField("completionDate") && completionDate ? completionDate.toISOString() : null
         };
 
-        if (includeTaskCounts || hasField("hasChildren") || hasField("nextTask") || hasField("isStalled")) {
+        if (includeTaskCounts || hasExplicitField("hasChildren") || hasExplicitField("nextTask") || hasExplicitField("isStalled")) {
           var flattenedTasks = toArray(safe(function() { return p.flattenedTasks; }) || safe(function() { return p.flattenedTasks(); }));
           if (includeTaskCounts) {
             var available = 0;
@@ -1013,12 +1015,12 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
             item.droppedTasks = dropped;
             item.totalTasks = flattenedTasks.length;
           }
-          if (hasField("hasChildren")) {
+          if (hasExplicitField("hasChildren")) {
             item.hasChildren = flattenedTasks.length > 0;
           }
           var nextTaskValue = null;
           var nextTaskResolved = false;
-          if (hasField("nextTask")) {
+          if (hasExplicitField("nextTask")) {
             var nextTask = requireDefinedProjectField("nextTask", function() { return p.nextTask; });
             nextTaskValue = nextTask;
             nextTaskResolved = true;
@@ -1027,14 +1029,14 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
               name: String(safe(function() { return nextTask.name; }) || "")
             } : null;
           }
-          if (hasField("isStalled")) {
+          if (hasExplicitField("isStalled")) {
             var nextTaskForStall = nextTaskResolved ? nextTaskValue : requireDefinedProjectField("nextTask", function() { return p.nextTask; });
             var singletonRawForStall = requireBooleanProjectField("containsSingletonActions", function() { return p.containsSingletonActions; });
             var isSingleActionsForStall = Boolean(singletonRawForStall);
             item.isStalled = flattenedTasks.length > 0 && !nextTaskForStall && !isSingleActionsForStall;
           }
         }
-        if (hasField("containsSingletonActions")) {
+        if (hasExplicitField("containsSingletonActions")) {
           item.containsSingletonActions = Boolean(requireBooleanProjectField("containsSingletonActions", function() { return p.containsSingletonActions; }));
         }
 

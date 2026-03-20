@@ -86,3 +86,49 @@ func listProjectsScriptRejectsUndefinedHealthFields() async throws {
     #expect(source.contains("function requireBooleanProjectField(label, fn)"))
     #expect(source.contains("requireBooleanProjectField"))
 }
+
+@Test
+func listProjectsScriptKeepsBestEffortProjectFieldsExplicitWhenFieldsOmitted() async throws {
+    let (service, box) = makeAutomationServiceForScriptCapture()
+
+    _ = try await service.listProjects(
+        page: PageRequest(limit: 10),
+        statusFilter: "active",
+        includeTaskCounts: false,
+        reviewDueBefore: nil,
+        reviewDueAfter: nil,
+        reviewPerspective: false,
+        completed: nil,
+        completedBefore: nil,
+        completedAfter: nil,
+        fields: nil
+    )
+
+    let source = try #require(box.lastSource)
+    #expect(source.contains("function hasExplicitField(name)"))
+    #expect(source.contains("includeTaskCounts || hasExplicitField"))
+    #expect(source.contains("hasExplicitField(\\\"containsSingletonActions\\\")"))
+    #expect(!source.contains("includeTaskCounts || hasField"))
+}
+
+@Test
+func listProjectsScriptKeepsCompletedBeforeExclusive() async throws {
+    let (service, box) = makeAutomationServiceForScriptCapture()
+
+    _ = try await service.listProjects(
+        page: PageRequest(limit: 10),
+        statusFilter: "done",
+        includeTaskCounts: false,
+        reviewDueBefore: nil,
+        reviewDueAfter: nil,
+        reviewPerspective: false,
+        completed: true,
+        completedBefore: Date(timeIntervalSince1970: 1_700_000_000),
+        completedAfter: nil,
+        fields: ["id", "name", "completionDate"]
+    )
+
+    let source = try #require(box.lastSource)
+    #expect(source.contains("if (completedBefore && completionDate >= completedBefore.getTime()) { return false; }"))
+    #expect(!source.contains("if (completedBefore && completionDate > completedBefore.getTime()) { return false; }"))
+}
