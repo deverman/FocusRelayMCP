@@ -56,6 +56,9 @@ func bridgeListTagsUsesDocumentedCountDerivation() throws {
 
     #expect(source.contains("function collectAllTags()"))
     #expect(source.contains("function collectTasksForTag(tag)"))
+    #expect(source.contains("const rootTags = safe(() => tags) || [];"))
+    #expect(source.contains("let tagItems = collectAllTags();"))
+    #expect(!source.contains("let tags = collectAllTags();"))
     #expect(source.contains("safe(() => tag.flattenedTasks)"))
     #expect(source.contains("isAvailableStatusValue(status)"))
 }

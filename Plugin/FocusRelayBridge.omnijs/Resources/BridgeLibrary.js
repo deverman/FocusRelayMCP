@@ -1038,7 +1038,7 @@
               return result;
             }
 
-            const roots = safe(() => tags) || [];
+            const rootTags = safe(() => tags) || [];
             const seen = {};
             const result = [];
             const visit = (tag) => {
@@ -1047,7 +1047,7 @@
                 visit(child);
               }
             };
-            for (const tag of roots) {
+            for (const tag of rootTags) {
               visit(tag);
             }
             return result;
@@ -1074,11 +1074,11 @@
             return result;
           }
 
-          let tags = collectAllTags();
+          let tagItems = collectAllTags();
           
           // Filter by status
           if (statusFilter !== "all") {
-            tags = tags.filter(tag => {
+            tagItems = tagItems.filter(tag => {
               const status = safe(() => tag.status);
               if (!status) return false;
               
@@ -1100,7 +1100,7 @@
             if (!isNaN(parsed) && parsed >= 0) { offset = parsed; }
           }
           
-          const slice = tags.slice(offset, offset + limit);
+          const slice = tagItems.slice(offset, offset + limit);
           const items = slice.map(tag => {
             // Convert Tag.Status enum to string - check directly on tag object
             function getTagStatusString(tag) {
@@ -1147,9 +1147,9 @@
             return item;
           });
           
-          const nextCursor = (offset + limit < tags.length) ? String(offset + limit) : null;
+          const nextCursor = (offset + limit < tagItems.length) ? String(offset + limit) : null;
           const returnedCount = items.length;
-          response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: tags.length };
+          response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: tagItems.length };
         } else if (request.op === "get_task") {
           const fields = request.fields || [];
           const taskId = request.id;
