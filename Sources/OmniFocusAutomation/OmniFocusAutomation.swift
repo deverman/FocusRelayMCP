@@ -1063,25 +1063,98 @@ private func listTagsOmniAutomationScript(requestJSON: String) -> String {
         }
         throw new Error("Unsupported Omni Automation tag status value");
       }
+      function taskStatusName(task) {
+        var status = safe(function() { return task.taskStatus; });
+        var statusText = String(status);
+        if (statusText.indexOf("Completed") !== -1) { return "completed"; }
+        if (statusText.indexOf("Dropped") !== -1) { return "dropped"; }
+        if (statusText.indexOf("Available") !== -1) { return "available"; }
+        if (statusText.indexOf("DueSoon") !== -1) { return "dueSoon"; }
+        if (statusText.indexOf("Next") !== -1) { return "next"; }
+        if (statusText.indexOf("Overdue") !== -1) { return "overdue"; }
+        if (statusText.indexOf("Blocked") !== -1) { return "blocked"; }
+        if (status === Task.Status.Completed) { return "completed"; }
+        if (status === Task.Status.Dropped) { return "dropped"; }
+        if (status === Task.Status.Available) { return "available"; }
+        if (status === Task.Status.DueSoon) { return "dueSoon"; }
+        if (status === Task.Status.Next) { return "next"; }
+        if (status === Task.Status.Overdue) { return "overdue"; }
+        if (status === Task.Status.Blocked) { return "blocked"; }
+        return "unknown";
+      }
+      function isActionableTaskStatus(statusName) {
+        return statusName === "available" || statusName === "dueSoon" || statusName === "next" || statusName === "overdue";
+      }
+      function primaryKey(entity) {
+        return String(safe(function() { return entity.id.primaryKey; }) || "");
+      }
       function allTags() {
-        var flat = toArray(safe(function() { return flattenedTags; }));
-        if (flat.length > 0) { return flat; }
-
         function childTags(tag) {
           return toArray(safe(function() { return tag.children; }) || safe(function() { return tag.children(); }));
         }
+        function pushUnique(result, seen, item) {
+          var key = primaryKey(item);
+          if (key && seen[key]) { return; }
+          if (key) { seen[key] = true; }
+          result.push(item);
+        }
+        var flat = toArray(safe(function() { return flattenedTags; }) || safe(function() { return flattenedTags(); }));
+        if (flat.length > 0) {
+          var flatSeen = {};
+          var flatResult = [];
+          for (var flatIndex = 0; flatIndex < flat.length; flatIndex += 1) {
+            pushUnique(flatResult, flatSeen, flat[flatIndex]);
+          }
+          return flatResult;
+        }
+
         var result = [];
+        var seen = {};
         function visit(tag) {
-          result.push(tag);
+          pushUnique(result, seen, tag);
           var children = childTags(tag);
           for (var i = 0; i < children.length; i += 1) {
             visit(children[i]);
           }
         }
-        var roots = toArray(safe(function() { return tags; }));
+        var roots = toArray(safe(function() { return tags; }) || safe(function() { return tags(); }));
         for (var i = 0; i < roots.length; i += 1) {
           visit(roots[i]);
         }
+        return result;
+      }
+      function tasksForTag(tag) {
+        function directTasks(currentTag) {
+          return toArray(safe(function() { return currentTag.tasks; }) || safe(function() { return currentTag.tasks(); }));
+        }
+        function flattenedTasksForTag(currentTag) {
+          return toArray(safe(function() { return currentTag.flattenedTasks; }) || safe(function() { return currentTag.flattenedTasks(); }));
+        }
+        function childTags(currentTag) {
+          return toArray(safe(function() { return currentTag.children; }) || safe(function() { return currentTag.children(); }));
+        }
+        var flattened = flattenedTasksForTag(tag);
+        if (flattened.length > 0) { return flattened; }
+
+        var result = [];
+        var seen = {};
+        function pushTask(task) {
+          var key = primaryKey(task);
+          if (key && seen[key]) { return; }
+          if (key) { seen[key] = true; }
+          result.push(task);
+        }
+        function visit(currentTag) {
+          var currentTasks = directTasks(currentTag);
+          for (var taskIndex = 0; taskIndex < currentTasks.length; taskIndex += 1) {
+            pushTask(currentTasks[taskIndex]);
+          }
+          var children = childTags(currentTag);
+          for (var childIndex = 0; childIndex < children.length; childIndex += 1) {
+            visit(children[childIndex]);
+          }
+        }
+        visit(tag);
         return result;
       }
 
@@ -1109,24 +1182,22 @@ private func listTagsOmniAutomationScript(requestJSON: String) -> String {
         };
 
         if (includeTaskCounts) {
-          var availableTasks = toArray(requireTagSupported("availableTasks", function() {
-            var value = safe(function() { return tag.availableTasks; });
-            if (value !== null && typeof value !== "undefined") { return value; }
-            return tag.availableTasks();
-          }));
-          var remainingTasks = toArray(requireTagSupported("remainingTasks", function() {
-            var value = safe(function() { return tag.remainingTasks; });
-            if (value !== null && typeof value !== "undefined") { return value; }
-            return tag.remainingTasks();
-          }));
-          var totalTasks = toArray(requireTagSupported("tasks", function() {
-            var value = safe(function() { return tag.tasks; });
-            if (value !== null && typeof value !== "undefined") { return value; }
-            return tag.tasks();
-          }));
-          item.availableTasks = availableTasks.length;
-          item.remainingTasks = remainingTasks.length;
-          item.totalTasks = totalTasks.length;
+          var tagTasks = tasksForTag(tag);
+          var availableCount = 0;
+          var remainingCount = 0;
+          for (var taskIndex = 0; taskIndex < tagTasks.length; taskIndex += 1) {
+            var statusName = taskStatusName(tagTasks[taskIndex]);
+            if (statusName === "completed" || statusName === "dropped") {
+              continue;
+            }
+            remainingCount += 1;
+            if (isActionableTaskStatus(statusName)) {
+              availableCount += 1;
+            }
+          }
+          item.availableTasks = availableCount;
+          item.remainingTasks = remainingCount;
+          item.totalTasks = tagTasks.length;
         }
 
         return item;
