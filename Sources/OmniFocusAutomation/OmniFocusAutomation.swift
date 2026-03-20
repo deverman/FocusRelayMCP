@@ -776,12 +776,23 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
       }
-      function requireSupported(label, fn) {
+      function requireDefinedProjectField(label, fn) {
         try {
-          return fn();
+          var value = fn();
+          if (typeof value === "undefined") {
+            throw new Error("Undefined Omni Automation project field");
+          }
+          return value;
         } catch (e) {
           throw new Error("Unsupported Omni Automation project field: " + label);
         }
+      }
+      function requireBooleanProjectField(label, fn) {
+        var value = requireDefinedProjectField(label, fn);
+        if (value === null) {
+          throw new Error("Unsupported Omni Automation project field: " + label);
+        }
+        return value;
       }
       function toArray(collection) {
         if (!collection) { return []; }
@@ -958,7 +969,7 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
           var nextTaskValue = null;
           var nextTaskResolved = false;
           if (hasField("nextTask")) {
-            var nextTask = requireSupported("nextTask", function() { return p.nextTask; });
+            var nextTask = requireDefinedProjectField("nextTask", function() { return p.nextTask; });
             nextTaskValue = nextTask;
             nextTaskResolved = true;
             item.nextTask = nextTask ? {
@@ -967,14 +978,14 @@ private func listProjectsOmniAutomationScript(requestJSON: String) -> String {
             } : null;
           }
           if (hasField("isStalled")) {
-            var nextTaskForStall = nextTaskResolved ? nextTaskValue : requireSupported("nextTask", function() { return p.nextTask; });
-            var singletonRawForStall = requireSupported("containsSingletonActions", function() { return p.containsSingletonActions; });
+            var nextTaskForStall = nextTaskResolved ? nextTaskValue : requireDefinedProjectField("nextTask", function() { return p.nextTask; });
+            var singletonRawForStall = requireBooleanProjectField("containsSingletonActions", function() { return p.containsSingletonActions; });
             var isSingleActionsForStall = Boolean(singletonRawForStall);
             item.isStalled = flattenedTasks.length > 0 && !nextTaskForStall && !isSingleActionsForStall;
           }
         }
         if (hasField("containsSingletonActions")) {
-          item.containsSingletonActions = Boolean(requireSupported("containsSingletonActions", function() { return p.containsSingletonActions; }));
+          item.containsSingletonActions = Boolean(requireBooleanProjectField("containsSingletonActions", function() { return p.containsSingletonActions; }));
         }
 
         return item;

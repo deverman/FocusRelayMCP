@@ -59,3 +59,27 @@ func bridgeListTagsUsesDocumentedCountDerivation() throws {
     #expect(source.contains("safe(() => tag.flattenedTasks)"))
     #expect(source.contains("isAvailableStatusValue(status)"))
 }
+
+@Test
+func listProjectsScriptRejectsUndefinedHealthFields() async throws {
+    let (service, box) = makeAutomationServiceForScriptCapture()
+
+    _ = try await service.listProjects(
+        page: PageRequest(limit: 10),
+        statusFilter: "active",
+        includeTaskCounts: true,
+        reviewDueBefore: nil,
+        reviewDueAfter: nil,
+        reviewPerspective: false,
+        completed: nil,
+        completedBefore: nil,
+        completedAfter: nil,
+        fields: ["id", "name", "nextTask", "containsSingletonActions", "isStalled"]
+    )
+
+    let source = try #require(box.lastSource)
+    #expect(source.contains("function requireDefinedProjectField(label, fn)"))
+    #expect(source.contains("Undefined Omni Automation project field"))
+    #expect(source.contains("function requireBooleanProjectField(label, fn)"))
+    #expect(source.contains("requireBooleanProjectField"))
+}
