@@ -1109,9 +1109,21 @@ private func listTagsOmniAutomationScript(requestJSON: String) -> String {
         };
 
         if (includeTaskCounts) {
-          var availableTasks = toArray(safe(function() { return tag.availableTasks; }) || safe(function() { return tag.availableTasks(); }));
-          var remainingTasks = toArray(safe(function() { return tag.remainingTasks; }) || safe(function() { return tag.remainingTasks(); }));
-          var totalTasks = toArray(safe(function() { return tag.tasks; }) || safe(function() { return tag.tasks(); }));
+          var availableTasks = toArray(requireTagSupported("availableTasks", function() {
+            var value = safe(function() { return tag.availableTasks; });
+            if (value !== null && typeof value !== "undefined") { return value; }
+            return tag.availableTasks();
+          }));
+          var remainingTasks = toArray(requireTagSupported("remainingTasks", function() {
+            var value = safe(function() { return tag.remainingTasks; });
+            if (value !== null && typeof value !== "undefined") { return value; }
+            return tag.remainingTasks();
+          }));
+          var totalTasks = toArray(requireTagSupported("tasks", function() {
+            var value = safe(function() { return tag.tasks; });
+            if (value !== null && typeof value !== "undefined") { return value; }
+            return tag.tasks();
+          }));
           item.availableTasks = availableTasks.length;
           item.remainingTasks = remainingTasks.length;
           item.totalTasks = totalTasks.length;
