@@ -64,6 +64,42 @@ The MCP server automatically detects the user's local timezone from macOS system
 
 This ensures that time-based queries ("What should I do this morning?") work correctly regardless of the user's location.
 
+## Process Guardrails
+
+These rules exist to prevent repeating the performance/reliability process mistakes from the 2026 optimization cycle.
+
+### One Variable Per Branch
+- Do **not** mix query optimization, transport changes, approval-UX fixes, caching, and benchmark harness changes in the same branch.
+- Allowed branch scopes:
+  - query optimization
+  - transport experiment
+  - approval/security UX
+  - caching
+  - benchmark/process tooling
+
+### Documented APIs Only
+- For production query paths, use only documented Omni Automation APIs.
+- If an API is not documented on the official Omni Automation site, do **not** make it part of the default production path.
+- When in doubt, prefer:
+  - `flattenedTasks`
+  - `flattenedProjects`
+  - `task.taskStatus`
+  - `project.status`
+
+### Performance Change Acceptance Rule
+- Do **not** keep a speculative optimization just because it helps a microbenchmark or a short smoke run.
+- Keep a performance change only if all of the following hold:
+  - semantic gate passes
+  - smoke benchmark stays clean
+  - 1-hour realistic validation does not regress reliability
+  - 1-hour realistic validation shows a defensible latency win on the targeted path
+- If a change regresses the 1-hour validation or introduces new timeouts, revert it and document the experiment.
+
+### Benchmark Discipline
+- Do **not** compare transports and query changes in the same experiment.
+- Do **not** interpret soak benchmarks unless restart, readiness, and semantic gates were explicit and logged.
+- Do **not** commit raw `docs/benchmarks/` artifacts unless there is a specific reason to preserve them in git.
+
 ## Performance Optimizations
 
 ### JavaScript Layer (BridgeLibrary.js)
@@ -78,6 +114,59 @@ This ensures that time-based queries ("What should I do this morning?") work cor
 ### Impact
 - Task filtering: Now sub-millisecond (was 50-100ms with multiple passes)
 - End-to-end latency: Still ~1s (dominated by IPC/file I/O, not code)
+
+## Benchmark Policy
+
+### Required Sequence For Query, Reliability, Or Transport Changes
+1. Run `swift test`
+2. Run the semantic gate for the affected tool:
+   - `swift run focusrelay benchmark-gate-check --tool task-counts`
+   - `swift run focusrelay benchmark-gate-check --tool list-tasks`
+   - `swift run focusrelay benchmark-gate-check --tool project-counts`
+3. Run a 10-minute smoke benchmark on the affected tool
+4. If behavior changed materially, run a 1-hour realistic validation benchmark on the affected tool
+5. Run a 3-hour stress/diagnostic benchmark **only** if:
+   - transport changed
+   - timeout/reliability logic changed
+   - the 1-hour run regressed
+   - or you are explicitly investigating runtime-pressure behavior
+
+### Benchmark Profiles
+
+#### Smoke Validation
+- Use after any targeted optimization or reliability change
+- Recommended settings:
+  - warmup calls: `10`
+  - interval: `2000ms`
+  - cooldown: `3000ms`
+  - memory sampling: `60s`
+
+#### Realistic Single-User Validation
+- Use before merge or release for production-facing query changes
+- Recommended suite settings:
+  - total duration: `1.5h`
+  - per tool: `30m`
+  - warmup calls: `10`
+  - interval: `5000ms`
+  - cooldown: `5000ms`
+  - memory sampling: `60s`
+
+#### Stress / Diagnostic Validation
+- Use only for diagnosis, not as the default product benchmark
+- Recommended settings:
+  - total duration: `3h`
+  - warmup calls: `20`
+  - interval: `1500ms`
+  - cooldown: `3000ms`
+  - memory sampling: `30s`
+
+### Release Benchmark Rule
+- If a release changes any of these, run the realistic single-user validation suite before tagging:
+  - `BridgeLibrary.js`
+  - `BridgeClient.swift`
+  - `OmniFocusAutomation.swift`
+  - benchmark/timeout logic affecting the production path
+- If a release changes only docs, packaging, or metadata, a smoke validation is enough.
 
 ## Caching Strategy
 
@@ -150,6 +239,35 @@ brew install focusrelay
 # OR if reinstalling:
 brew reinstall focusrelay
 ```
+
+**Step 4: If the local tap is stale or broken, refresh it before trusting the install result**
+```bash
+brew untap deverman/focus-relay
+brew tap deverman/focus-relay
+brew reinstall focusrelay
+focusrelay --help
+```
+
+### Release Validation Checklist
+
+Before tagging:
+- If the release includes production query/transport changes:
+  - `swift test`
+  - semantic gate for affected tools
+  - realistic single-user validation suite
+- If the release is docs/packaging only:
+  - `swift test`
+  - smoke validation only
+
+After tagging:
+- Verify the GitHub release exists and assets are uploaded
+- Capture the tarball SHA256 from the actual release asset
+- Update the Homebrew tap
+- Refresh the local tap if necessary
+- `brew reinstall focusrelay`
+- Verify the installed binary:
+  - `focusrelay --help`
+- If the release includes plugin JS changes, reinstall the plugin and restart OmniFocus before validating locally
 
 **🔴 COMMON MISTAKE:** Forgetting to update the SHA256 when re-releasing the same version (e.g., fixing a bug and re-tagging v0.9.0-beta). The tarball is rebuilt every time, so the SHA256 will change even if the version number stays the same.
 

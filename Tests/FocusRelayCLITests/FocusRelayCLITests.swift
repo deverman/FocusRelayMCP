@@ -25,3 +25,34 @@ func iso8601DateParserRejectsInvalidDates() {
     }
     #expect(didThrow)
 }
+
+@Test
+func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
+    let contractNames = gateTaskCountContractScenarios().map(\.name)
+    let parityNames = gateTaskCountParityScenarios().map(\.name)
+
+    #expect(contractNames.contains("completed_after_anchor"))
+    #expect(parityNames.contains("flagged_only"))
+    #expect(parityNames.contains("completed_after_anchor"))
+}
+
+@Test
+func benchmarkGateListTaskScenariosCoverRegressionShapes() {
+    let baseNames = gateListTaskParityScenarios(projectID: nil).map(\.name)
+    let projectNames = gateListTaskParityScenarios(projectID: "project-123").map(\.name)
+
+    #expect(baseNames.contains("flagged_only"))
+    #expect(baseNames.contains("flagged_only_no_total"))
+    #expect(baseNames.contains("completed_after_anchor"))
+    #expect(!baseNames.contains("project_scoped_simple"))
+    #expect(projectNames.contains("project_scoped_simple"))
+}
+
+@Test
+func benchmarkGateProjectCountScenariosCoverCompletedWindowParity() {
+    let names = gateProjectCountParityScenarios().map(\.name)
+
+    #expect(names.contains("project_view_remaining"))
+    #expect(names.contains("project_view_active"))
+    #expect(names.contains("completed_after_anchor"))
+}

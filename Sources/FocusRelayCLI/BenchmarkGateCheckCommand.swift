@@ -79,20 +79,22 @@ private struct GateCheck: Codable {
     let detail: String
 }
 
-private struct GateTaskCountScenario {
+struct GateTaskCountScenario {
     let name: String
     let filter: TaskFilter
 }
 
-private struct GateListTaskScenario {
+struct GateListTaskScenario {
     let name: String
     let filter: TaskFilter
 }
 
-private struct GateProjectCountScenario {
+struct GateProjectCountScenario {
     let name: String
     let filter: TaskFilter
 }
+
+private let gateCompletedAfterAnchor = Date(timeIntervalSince1970: 0)
 
 private func checkBridgeHealth(using service: OmniFocusBridgeService) async -> GateCheck {
     do {
@@ -120,12 +122,67 @@ private func checkJXAProbe(using service: OmniAutomationService) async -> GateCh
     }
 }
 
-private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async -> [GateCheck] {
-    let scenarios = [
+func gateTaskCountContractScenarios() -> [GateTaskCountScenario] {
+    [
         GateTaskCountScenario(name: "default", filter: TaskFilter(includeTotalCount: true)),
         GateTaskCountScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true, includeTotalCount: true)),
-        GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true))
+        GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true)),
+        GateTaskCountScenario(
+            name: "completed_after_anchor",
+            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        )
     ]
+}
+
+func gateTaskCountParityScenarios() -> [GateTaskCountScenario] {
+    [
+        GateTaskCountScenario(name: "default", filter: TaskFilter()),
+        GateTaskCountScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true)),
+        GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true)),
+        GateTaskCountScenario(name: "flagged_only", filter: TaskFilter(flagged: true)),
+        GateTaskCountScenario(
+            name: "completed_after_anchor",
+            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
+        )
+    ]
+}
+
+func gateListTaskParityScenarios(projectID: String?) -> [GateListTaskScenario] {
+    var scenarios = [
+        GateListTaskScenario(name: "default", filter: TaskFilter(includeTotalCount: true)),
+        GateListTaskScenario(name: "default_no_total", filter: TaskFilter(includeTotalCount: false)),
+        GateListTaskScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true, includeTotalCount: true)),
+        GateListTaskScenario(name: "inbox_only_no_total", filter: TaskFilter(inboxOnly: true, includeTotalCount: false)),
+        GateListTaskScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true)),
+        GateListTaskScenario(name: "available_only_no_total", filter: TaskFilter(availableOnly: true, includeTotalCount: false)),
+        GateListTaskScenario(name: "flagged_only", filter: TaskFilter(flagged: true, includeTotalCount: true)),
+        GateListTaskScenario(name: "flagged_only_no_total", filter: TaskFilter(flagged: true, includeTotalCount: false)),
+        GateListTaskScenario(
+            name: "completed_after_anchor",
+            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        )
+    ]
+
+    if let projectID, !projectID.isEmpty {
+        scenarios.append(GateListTaskScenario(name: "project_scoped_simple", filter: TaskFilter(project: projectID, includeTotalCount: true)))
+    }
+
+    return scenarios
+}
+
+func gateProjectCountParityScenarios() -> [GateProjectCountScenario] {
+    [
+        GateProjectCountScenario(name: "project_view_remaining", filter: TaskFilter(projectView: "remaining")),
+        GateProjectCountScenario(name: "project_view_active", filter: TaskFilter(projectView: "active")),
+        GateProjectCountScenario(
+            name: "completed_after_anchor",
+            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
+        )
+    ]
+}
+
+private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async -> [GateCheck] {
+    let scenarios = gateTaskCountContractScenarios()
 
     return await scenarios.asyncMap { scenario in
         do {
@@ -150,11 +207,7 @@ private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async
 }
 
 private func taskCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let scenarios = [
-        GateTaskCountScenario(name: "default", filter: TaskFilter()),
-        GateTaskCountScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true)),
-        GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true))
-    ]
+    let scenarios = gateTaskCountParityScenarios()
 
     return await scenarios.asyncMap { scenario in
         do {
@@ -180,15 +233,8 @@ private func taskCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAuto
 }
 
 private func listTaskParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let scenarios = [
-        GateListTaskScenario(name: "default", filter: TaskFilter(includeTotalCount: true)),
-        GateListTaskScenario(name: "default_no_total", filter: TaskFilter(includeTotalCount: false)),
-        GateListTaskScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true, includeTotalCount: true)),
-        GateListTaskScenario(name: "inbox_only_no_total", filter: TaskFilter(inboxOnly: true, includeTotalCount: false)),
-        GateListTaskScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true)),
-        GateListTaskScenario(name: "available_only_no_total", filter: TaskFilter(availableOnly: true, includeTotalCount: false)),
-        GateListTaskScenario(name: "flagged_only_no_total", filter: TaskFilter(flagged: true, includeTotalCount: false))
-    ]
+    let projectID = await gateSimpleActiveProjectID(using: bridge)
+    let scenarios = gateListTaskParityScenarios(projectID: projectID)
     let fields = ["id", "name", "completed", "available", "completionDate"]
 
     return await scenarios.asyncMap { scenario in
@@ -216,6 +262,28 @@ private func listTaskParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutom
     }
 }
 
+private func gateSimpleActiveProjectID(using bridge: OmniFocusBridgeService) async -> String? {
+    do {
+        let page = try await retryAsync(operation: "bridge list-projects active gate seed") {
+            try await bridge.listProjects(
+                page: PageRequest(limit: 10),
+                statusFilter: "active",
+                includeTaskCounts: false,
+                reviewDueBefore: nil,
+                reviewDueAfter: nil,
+                reviewPerspective: false,
+                completed: nil,
+                completedBefore: nil,
+                completedAfter: nil,
+                fields: ["id", "name"]
+            )
+        }
+        return page.items.first?.id
+    } catch {
+        return nil
+    }
+}
+
 private func projectCountsBridgeActiveContractCheck(using bridge: OmniFocusBridgeService) async -> GateCheck {
     let filter = TaskFilter(completed: false, availableOnly: false, projectView: "active", includeTotalCount: true)
     do {
@@ -239,10 +307,7 @@ private func projectCountsBridgeActiveContractCheck(using bridge: OmniFocusBridg
 }
 
 private func projectCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let scenarios = [
-        GateProjectCountScenario(name: "project_view_remaining", filter: TaskFilter(projectView: "remaining")),
-        GateProjectCountScenario(name: "project_view_active", filter: TaskFilter(projectView: "active"))
-    ]
+    let scenarios = gateProjectCountParityScenarios()
 
     return await scenarios.asyncMap { scenario in
         do {

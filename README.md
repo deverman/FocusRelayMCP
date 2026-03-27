@@ -174,6 +174,20 @@ Or manually: Quit OmniFocus completely and reopen it.
 - Check if it's enabled, or try removing and reinstalling it
 - Restart OmniFocus and try again
 
+### Quick Validation After Setup
+
+After Step 5, verify the install path end to end:
+
+```bash
+focusrelay bridge-health-check
+focusrelay list-tasks --fields id,name --limit 1
+```
+
+Expected result:
+- `bridge-health-check` reports `ok: true`
+- the first `list-tasks` query may trigger the OmniFocus approval prompt
+- after approval, `list-tasks` returns real task data instead of timing out
+
 ## CLI Usage
 
 The `focusrelay` binary provides command-line equivalents of the MCP tools.
