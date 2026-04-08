@@ -24,41 +24,7 @@ final class BridgeClient: @unchecked Sendable {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.encoder = encoder
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let string = try container.decode(String.self)
-
-            // Try ISO8601 with fractional seconds first (e.g. "2026-04-04T12:00:00.000Z")
-            let isoFractional = ISO8601DateFormatter()
-            isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFractional.date(from: string) { return date }
-
-            // Try standard ISO8601 (e.g. "2026-04-04T12:00:00Z")
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime]
-            if let date = iso.date(from: string) { return date }
-
-            // Try date-only (e.g. "2026-04-04")
-            let dateOnly = DateFormatter()
-            dateOnly.locale = Locale(identifier: "en_US_POSIX")
-            dateOnly.timeZone = TimeZone(secondsFromGMT: 0)
-            dateOnly.dateFormat = "yyyy-MM-dd"
-            if let date = dateOnly.date(from: string) { return date }
-
-            // Try ISO8601 without timezone (e.g. "2026-04-04T12:00:00")
-            let noTZ = DateFormatter()
-            noTZ.locale = Locale(identifier: "en_US_POSIX")
-            noTZ.timeZone = TimeZone(secondsFromGMT: 0)
-            noTZ.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            if let date = noTZ.date(from: string) { return date }
-
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unable to parse date string: \(string)"
-            )
-        }
-        self.decoder = decoder
+        self.decoder = BridgeDateDecoding.makeJSONDecoder()
     }
 
     func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
