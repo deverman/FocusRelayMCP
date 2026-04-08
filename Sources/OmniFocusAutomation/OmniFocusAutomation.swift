@@ -45,9 +45,7 @@ public final class OmniAutomationService: OmniFocusService {
 
     public init(runner: ScriptRunner = ScriptRunner()) {
         self.runner = runner
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        self.decoder = decoder
+        self.decoder = BridgeDateDecoding.makeJSONDecoder()
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.requestEncoder = encoder
