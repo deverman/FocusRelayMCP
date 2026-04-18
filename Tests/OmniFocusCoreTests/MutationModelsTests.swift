@@ -89,6 +89,26 @@ func mutationRequestValidationRejectsConflictingTaskDateModes() {
 }
 
 @Test
+func mutationRequestValidationRejectsConflictingProjectDateModes() {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(
+            kind: .updateProjects,
+            projectPatch: ProjectPatchMutation(
+                dueDate: Date(timeIntervalSince1970: 1_700_000_000),
+                clearDueDate: true
+            )
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
 func mutationRequestValidationRejectsConflictingTagModes() {
     let request = MutationRequest(
         targetType: .task,
@@ -152,6 +172,24 @@ func mutationRequestValidationRejectsInvalidMovePosition() {
             move: MoveMutation(destinationKind: .inbox, position: "middle")
         ),
         previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
+func mutationRequestValidationRejectsUnsupportedProjectReturnFields() {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(
+            kind: .setProjectsStatus,
+            projectStatus: ProjectStatusMutation(status: .active)
+        ),
+        previewOnly: true,
+        returnFields: ["id", "projectName"]
     )
 
     #expect(throws: MutationValidationError.self) {

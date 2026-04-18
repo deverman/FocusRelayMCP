@@ -188,9 +188,13 @@ public final class OmniAutomationService: OmniFocusService {
     public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
         try request.validate()
 
-        if request.operation.kind == .updateTasks || request.operation.kind == .setTasksCompletion || request.operation.kind == .moveTasks {
-            // Keep the first real mutation path in the bridge transport so CLI and MCP
-            // share one execution implementation for v1 task mutations.
+        if request.operation.kind == .updateTasks ||
+            request.operation.kind == .setTasksCompletion ||
+            request.operation.kind == .moveTasks ||
+            request.operation.kind == .updateProjects ||
+            request.operation.kind == .setProjectsStatus {
+            // Keep the real mutation paths in the bridge transport so CLI and MCP
+            // share one execution implementation for v1 task and project mutations.
             return try await OmniFocusBridgeService().performMutation(request)
         }
 

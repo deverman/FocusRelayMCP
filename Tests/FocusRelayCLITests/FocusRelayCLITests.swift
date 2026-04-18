@@ -95,6 +95,43 @@ func moveTasksParsesProjectDestination() throws {
 }
 
 @Test
+func projectPatchOptionsBuildSharedProjectPatch() throws {
+    let options = try ProjectPatchOptions.parse([
+        "--name", "Renamed Project",
+        "--note-append", "\nWeekly review",
+        "--flagged", "true",
+        "--due-date", "2026-04-20T12:00:00Z",
+        "--sequential", "true",
+        "--review-steps", "2",
+        "--review-unit", "weeks"
+    ])
+
+    let patch = try options.makeProjectPatchMutation()
+
+    #expect(patch.name == "Renamed Project")
+    #expect(patch.noteAppend == "\nWeekly review")
+    #expect(patch.flagged == true)
+    #expect(patch.dueDate != nil)
+    #expect(patch.sequential == true)
+    #expect(patch.reviewInterval?.steps == 2)
+    #expect(patch.reviewInterval?.unit == "weeks")
+}
+
+@Test
+func setProjectsStatusParsesOnHoldState() throws {
+    let command = try SetProjectsStatus.parse([
+        "project-1",
+        "--status", "on_hold",
+        "--verify",
+        "--return-fields", "id,name,status"
+    ])
+
+    #expect(command.ids == ["project-1"])
+    #expect(command.status == .onHold)
+    #expect(command.verify)
+}
+
+@Test
 func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let contractNames = gateTaskCountContractScenarios().map(\.name)
     let parityNames = gateTaskCountParityScenarios().map(\.name)
