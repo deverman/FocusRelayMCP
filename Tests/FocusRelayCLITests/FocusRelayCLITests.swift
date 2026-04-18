@@ -77,6 +77,24 @@ func setTasksCompletionParsesCompletedState() throws {
 }
 
 @Test
+func moveTasksParsesProjectDestination() throws {
+    let command = try MoveTasks.parse([
+        "task-1",
+        "--destination-kind", "project",
+        "--destination-id", "project-1",
+        "--position", "beginning",
+        "--verify",
+        "--return-fields", "id,name,projectID"
+    ])
+
+    #expect(command.ids == ["task-1"])
+    #expect(command.destinationKind == .project)
+    #expect(command.destinationID == "project-1")
+    #expect(command.position == "beginning")
+    #expect(command.verify)
+}
+
+@Test
 func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let contractNames = gateTaskCountContractScenarios().map(\.name)
     let parityNames = gateTaskCountParityScenarios().map(\.name)

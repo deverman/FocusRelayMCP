@@ -287,6 +287,35 @@ public struct MoveMutation: Codable, Sendable, Equatable {
         self.destinationID = destinationID
         self.position = position
     }
+
+    public func validate(for targetType: MutationTargetType) throws {
+        let normalizedPosition = (position ?? "ending").lowercased()
+        guard normalizedPosition == "beginning" || normalizedPosition == "ending" else {
+            throw MutationValidationError("Move position must be beginning or ending.")
+        }
+
+        switch destinationKind {
+        case .inbox:
+            if targetType != .task {
+                throw MutationValidationError("Only task moves can target inbox.")
+            }
+            if destinationID != nil {
+                throw MutationValidationError("Inbox moves must not include a destinationID.")
+            }
+        case .project:
+            guard let destinationID, !destinationID.isEmpty else {
+                throw MutationValidationError("Project moves require a destinationID.")
+            }
+        case .parentTask:
+            guard let destinationID, !destinationID.isEmpty else {
+                throw MutationValidationError("Parent task moves require a destinationID.")
+            }
+        case .folder:
+            guard let destinationID, !destinationID.isEmpty else {
+                throw MutationValidationError("Folder moves require a destinationID.")
+            }
+        }
+    }
 }
 
 public struct MutationOperation: Codable, Sendable, Equatable {
@@ -366,9 +395,10 @@ public struct MutationRequest: Codable, Sendable, Equatable {
             guard targetType == .task else {
                 throw MutationValidationError("move_tasks requires task targets.")
             }
-            guard operation.move != nil else {
+            guard let move = operation.move else {
                 throw MutationValidationError("move_tasks requires a move payload.")
             }
+            try move.validate(for: targetType)
         case .updateProjects:
             guard targetType == .project else {
                 throw MutationValidationError("update_projects requires project targets.")
@@ -394,9 +424,10 @@ public struct MutationRequest: Codable, Sendable, Equatable {
             guard targetType == .project else {
                 throw MutationValidationError("move_projects requires project targets.")
             }
-            guard operation.move != nil else {
+            guard let move = operation.move else {
                 throw MutationValidationError("move_projects requires a move payload.")
             }
+            try move.validate(for: targetType)
         }
 
         if let returnFields {
