@@ -365,9 +365,20 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         return taskStatusName(task) === "dropped";
       }
 
+      function parentChainAllowsRemaining(task) {
+        var parent = safe(function() { return task.parent; });
+        var depth = 0;
+        while (parent && depth < 100) {
+          if (isCompletedStatus(parent) || isDroppedStatus(parent)) { return false; }
+          parent = safe(function() { return parent.parent; });
+          depth += 1;
+        }
+        return true;
+      }
+
       function isRemainingStatus(task) {
         var statusName = taskStatusName(task);
-        return statusName !== "completed" && statusName !== "dropped";
+        return statusName !== "completed" && statusName !== "dropped" && parentChainAllowsRemaining(task);
       }
 
       function isAvailableStatus(task) {
@@ -398,14 +409,8 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         return false;
       }
 
-      function parentAllowsAvailability(task) {
-        var parent = safe(function() { return task.parent; });
-        if (!parent) { return true; }
-        return !isCompletedStatus(parent) && !isDroppedStatus(parent);
-      }
-
       function isTaskAvailable(task) {
-        if (!parentAllowsAvailability(task)) { return false; }
+        if (!parentChainAllowsRemaining(task)) { return false; }
 
         var project = safe(function() { return task.containingProject; });
         if (project) {
@@ -947,9 +952,20 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         return taskStatusName(task) === "dropped";
       }
 
+      function parentChainAllowsRemaining(task) {
+        var parent = safe(function() { return task.parent; });
+        var depth = 0;
+        while (parent && depth < 100) {
+          if (isCompletedStatus(parent) || isDroppedStatus(parent)) { return false; }
+          parent = safe(function() { return parent.parent; });
+          depth += 1;
+        }
+        return true;
+      }
+
       function isRemainingStatus(task) {
         var statusName = taskStatusName(task);
-        return statusName !== "completed" && statusName !== "dropped";
+        return statusName !== "completed" && statusName !== "dropped" && parentChainAllowsRemaining(task);
       }
 
       function isAvailableStatus(task) {
@@ -980,14 +996,8 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         return false;
       }
 
-      function parentAllowsAvailability(task) {
-        var parent = safe(function() { return task.parent; });
-        if (!parent) { return true; }
-        return !isCompletedStatus(parent) && !isDroppedStatus(parent);
-      }
-
       function isTaskAvailable(task) {
-        if (!parentAllowsAvailability(task)) { return false; }
+        if (!parentChainAllowsRemaining(task)) { return false; }
 
         var project = safe(function() { return task.containingProject; });
         if (project) {
@@ -1254,9 +1264,20 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         return taskStatusName(task) === "dropped";
       }
 
+      function parentChainAllowsRemaining(task) {
+        var parent = safe(function() { return task.parent; });
+        var depth = 0;
+        while (parent && depth < 100) {
+          if (isCompletedStatus(parent) || isDroppedStatus(parent)) { return false; }
+          parent = safe(function() { return parent.parent; });
+          depth += 1;
+        }
+        return true;
+      }
+
       function isRemainingStatus(task) {
         var statusName = taskStatusName(task);
-        return statusName !== "completed" && statusName !== "dropped";
+        return statusName !== "completed" && statusName !== "dropped" && parentChainAllowsRemaining(task);
       }
 
       function isAvailableStatus(task) {
@@ -1287,14 +1308,8 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         return false;
       }
 
-      function parentAllowsAvailability(task) {
-        var parent = safe(function() { return task.parent; });
-        if (!parent) { return true; }
-        return !isCompletedStatus(parent) && !isDroppedStatus(parent);
-      }
-
       function isTaskAvailable(task) {
-        if (!parentAllowsAvailability(task)) { return false; }
+        if (!parentChainAllowsRemaining(task)) { return false; }
 
         var project = safe(function() { return task.containingProject; });
         if (project) {

@@ -637,6 +637,58 @@ func bridgeChildTasksWithCompletedParentNotAvailableLive() throws {
 }
 
 @Test
+func bridgeChildTasksWithCompletedParentNotRemainingLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let childTaskIds = env["FOCUS_RELAY_CHILD_TASK_IDS"]?.split(separator: ",").map(String.init) ?? []
+    guard !childTaskIds.isEmpty else {
+        return
+    }
+
+    let client = BridgeClient()
+    let result = try client.listTasks(
+        filter: TaskFilter(completed: false, availableOnly: false, includeTotalCount: true),
+        page: PageRequest(limit: 200),
+        fields: ["id", "name", "completed", "available"]
+    )
+
+    for childId in childTaskIds {
+        let found = result.items.contains { $0.id == childId }
+        #expect(!found, "Child task \(childId) of completed parent should not be returned in remaining/default results")
+    }
+}
+
+@Test
+func bridgeAndJXAChildTasksWithCompletedParentNotRemainingLive() async throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
+        return
+    }
+
+    let childTaskIds = env["FOCUS_RELAY_CHILD_TASK_IDS"]?.split(separator: ",").map(String.init) ?? []
+    guard !childTaskIds.isEmpty else {
+        return
+    }
+
+    let filter = TaskFilter(completed: false, availableOnly: false, includeTotalCount: true)
+    let page = PageRequest(limit: 200)
+    let fields = ["id", "name", "completed", "available"]
+
+    let bridge = OmniFocusBridgeService()
+    let automation = OmniAutomationService()
+    let bridgeResult = try await retryListTasks(service: bridge, filter: filter, page: page, fields: fields)
+    let jxaResult = try await retryListTasks(service: automation, filter: filter, page: page, fields: fields)
+
+    for childId in childTaskIds {
+        #expect(!bridgeResult.items.contains { $0.id == childId }, "Bridge should not return child task \(childId) of completed parent in remaining/default results")
+        #expect(!jxaResult.items.contains { $0.id == childId }, "JXA should not return child task \(childId) of completed parent in remaining/default results")
+    }
+}
+
+@Test
 func bridgeTaskStatusValuesAreValidLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
