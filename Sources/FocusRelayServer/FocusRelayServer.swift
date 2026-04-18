@@ -235,6 +235,53 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
                 ),
                 Tool(
+                    name: "update_tasks",
+                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "targetIDs": .object([
+                                "type": .string("array"),
+                                "description": .string("Task IDs to update."),
+                                "items": .object(["type": .string("string")])
+                            ]),
+                            "taskPatch": .object([
+                                "type": .string("object"),
+                                "description": .string("Shared task patch applied to every task ID in targetIDs."),
+                                "properties": .object([
+                                    "name": propertySchema(type: "string", description: "Set a new task name."),
+                                    "note": propertySchema(type: "string", description: "Replace the task note."),
+                                    "noteAppend": propertySchema(type: "string", description: "Append text to the task note."),
+                                    "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
+                                    "estimatedMinutes": propertySchema(type: "integer", description: "Set estimated minutes."),
+                                    "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
+                                    "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
+                                    "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
+                                    "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
+                                    "tags": .object([
+                                        "type": .string("object"),
+                                        "description": .string("Deterministic tag mutation. Tag IDs only in v1."),
+                                        "properties": .object([
+                                            "add": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                            "remove": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                            "set": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                            "clear": propertySchema(type: "boolean", description: "Clear all tags.")
+                                        ])
+                                    ])
+                                ])
+                            ]),
+                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
+                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "returnFields": .object([
+                                "type": .string("array"),
+                                "description": .string("Optional task fields to return in per-item results after mutation."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ],
+                        required: ["targetIDs", "taskPatch"]
+                    ),
+                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                ),
+                Tool(
                     name: "get_task_counts",
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
@@ -376,6 +423,25 @@ public enum FocusRelayServer {
                     let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
+                case "update_tasks":
+                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
+                    let taskPatch = try decodeArgument(TaskPatchMutation.self, from: params.arguments, key: "taskPatch")
+                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
+                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
+                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
+                    let request = MutationRequest(
+                        targetType: .task,
+                        targetIDs: targetIDs,
+                        operation: MutationOperation(
+                            kind: .updateTasks,
+                            taskPatch: taskPatch
+                        ),
+                        previewOnly: previewOnly,
+                        verify: verify,
+                        returnFields: returnFields
+                    )
+                    let result = try await service.performMutation(request)
+                    return .init(content: [.text(try encodeJSON(result))])
                 case "get_task_counts":
                     let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     let counts = try await service.getTaskCounts(filter: filter)

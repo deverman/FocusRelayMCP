@@ -188,6 +188,12 @@ public final class OmniAutomationService: OmniFocusService {
     public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
         try request.validate()
 
+        if request.operation.kind == .updateTasks {
+            // Keep the first real mutation path in the bridge transport so CLI and MCP
+            // share one execution implementation for v1 task updates.
+            return try await OmniFocusBridgeService().performMutation(request)
+        }
+
         let requestData = try requestEncoder.encode(request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
             throw AutomationError.executionFailed("Failed to encode mutation request JSON")
