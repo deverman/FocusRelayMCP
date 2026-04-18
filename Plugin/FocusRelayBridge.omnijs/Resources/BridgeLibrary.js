@@ -172,9 +172,30 @@
      * @param {Task} task - OmniFocus task object  
      * @returns {boolean} True if task is remaining
      */
-    function isRemainingStatus(task) {
-      const st = taskStatus(task);
+    function parentChainAllowsRemaining(task) {
+      let parent = safe(() => task.parent);
+      let depth = 0;
+      while (parent && depth < 100) {
+        const parentStatus = taskStatus(parent);
+        if (isCompletedStatusValue(parentStatus) || isDroppedStatusValue(parentStatus)) {
+          return false;
+        }
+        parent = safe(() => parent.parent);
+        depth += 1;
+      }
+      return true;
+    }
+
+    function isRemainingStatusValue(st) {
       return !isCompletedStatusValue(st) && !isDroppedStatusValue(st);
+    }
+
+    function isRemainingStatusWithStatus(task, taskStatusValue) {
+      return isRemainingStatusValue(taskStatusValue) && parentChainAllowsRemaining(task);
+    }
+
+    function isRemainingStatus(task) {
+      return isRemainingStatusWithStatus(task, taskStatus(task));
     }
 
     /**
@@ -251,11 +272,7 @@
         if (statusStr.includes("Done")) { return false; }
       }
 
-      const parent = safe(() => task.parent);
-      if (parent) {
-        if (isCompletedStatus(parent)) { return false; }
-        if (isDroppedStatus(parent)) { return false; }
-      }
+      if (!parentChainAllowsRemaining(task)) { return false; }
 
       return isAvailableStatusValue(taskStatusValue);
     }
@@ -455,7 +472,7 @@
               const taskCompleted = isCompletedStatusValue(taskStatusValue);
               if (taskCompleted !== filterState.completed) return false;
             } else if (!isEverything) {
-              if (isCompletedStatusValue(taskStatusValue) || isDroppedStatusValue(taskStatusValue)) return false;
+              if (!isRemainingStatusWithStatus(t, taskStatusValue)) return false;
             }
             if (filterState.flagged !== undefined) {
               const taskFlagged = Boolean(t.flagged);
@@ -1307,7 +1324,7 @@
               const taskStatusValue = taskStatus(t);
               const taskCompleted = isCompletedStatusValue(taskStatusValue);
               const taskDropped = isDroppedStatusValue(taskStatusValue);
-              const taskRemaining = !taskCompleted && !taskDropped;
+              const taskRemaining = isRemainingStatusWithStatus(t, taskStatusValue);
               let taskFlagged = null;
 
               if (filterState.completed !== undefined) {
