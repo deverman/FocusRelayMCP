@@ -69,6 +69,63 @@ func mutationRequestValidationRejectsEmptyPatch() {
 }
 
 @Test
+func mutationRequestValidationRejectsConflictingTaskDateModes() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .updateTasks,
+            taskPatch: TaskPatchMutation(
+                dueDate: Date(timeIntervalSince1970: 1_700_000_000),
+                clearDueDate: true
+            )
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
+func mutationRequestValidationRejectsConflictingTagModes() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .updateTasks,
+            taskPatch: TaskPatchMutation(
+                tags: TagMutation(add: ["tag-1"], set: ["tag-2"])
+            )
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
+func mutationRequestValidationRejectsUnsupportedTaskReturnFields() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .updateTasks,
+            taskPatch: TaskPatchMutation(name: "Renamed")
+        ),
+        previewOnly: true,
+        returnFields: ["id", "status"]
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
 func mutationResponseSupportsSummaryAndReturnedFields() throws {
     let response = MutationResponse(
         targetType: .task,

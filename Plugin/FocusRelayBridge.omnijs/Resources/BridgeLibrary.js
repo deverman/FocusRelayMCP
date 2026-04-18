@@ -126,6 +126,267 @@
       };
     }
 
+    function normalizeIdentifierArray(values) {
+      if (!Array.isArray(values)) { return []; }
+      return values
+        .map(value => String(value))
+        .filter(value => value.length > 0);
+    }
+
+    function validateTaskPatch(taskPatch) {
+      if (!taskPatch) { return "update_tasks requires a taskPatch payload."; }
+      if (taskPatch.dueDate && taskPatch.clearDueDate) {
+        return "Task patches cannot set and clear dueDate in the same request.";
+      }
+      if (taskPatch.deferDate && taskPatch.clearDeferDate) {
+        return "Task patches cannot set and clear deferDate in the same request.";
+      }
+      if (taskPatch.estimatedMinutes !== undefined && taskPatch.estimatedMinutes !== null && Number(taskPatch.estimatedMinutes) < 0) {
+        return "estimatedMinutes must be zero or greater.";
+      }
+
+      const tags = taskPatch.tags;
+      if (!tags) { return null; }
+
+      const add = normalizeIdentifierArray(tags.add);
+      const remove = normalizeIdentifierArray(tags.remove);
+      const set = normalizeIdentifierArray(tags.set);
+      const clear = Boolean(tags.clear);
+
+      if (set.length > 0 && (add.length > 0 || remove.length > 0 || clear)) {
+        return "Tag set operations cannot be combined with add, remove, or clear.";
+      }
+      if (clear && (add.length > 0 || remove.length > 0)) {
+        return "Tag clear operations cannot be combined with add or remove.";
+      }
+      if (set.length === 0 && add.length === 0 && remove.length === 0 && !clear) {
+        return "Tag operations must include add, remove, set, or clear.";
+      }
+      if (new Set(add).size !== add.length) {
+        return "Tag add operations must not contain duplicate tag IDs.";
+      }
+      if (new Set(remove).size !== remove.length) {
+        return "Tag remove operations must not contain duplicate tag IDs.";
+      }
+      if (new Set(set).size !== set.length) {
+        return "Tag set operations must not contain duplicate tag IDs.";
+      }
+
+      const overlaps = add.filter(id => remove.indexOf(id) !== -1);
+      if (overlaps.length > 0) {
+        return "Tag add and remove operations must not reference the same tag IDs.";
+      }
+
+      return null;
+    }
+
+    function resolveTaskPatchTags(taskPatch) {
+      if (!taskPatch || !taskPatch.tags) { return { ok: true, tags: null }; }
+
+      const allTags = toTaskArray(safe(() => flattenedTags));
+      const tagsByID = {};
+      allTags.forEach(tag => {
+        const id = String(safe(() => tag.id.primaryKey) || "");
+        if (id.length > 0) {
+          tagsByID[id] = tag;
+        }
+      });
+
+      function resolve(ids) {
+        const resolved = [];
+        const missing = [];
+        ids.forEach(id => {
+          const tag = tagsByID[id];
+          if (tag) {
+            resolved.push(tag);
+          } else {
+            missing.push(id);
+          }
+        });
+        return { resolved, missing };
+      }
+
+      const addIDs = normalizeIdentifierArray(taskPatch.tags.add);
+      const removeIDs = normalizeIdentifierArray(taskPatch.tags.remove);
+      const setIDs = normalizeIdentifierArray(taskPatch.tags.set);
+      const clear = Boolean(taskPatch.tags.clear);
+
+      const add = resolve(addIDs);
+      const remove = resolve(removeIDs);
+      const set = resolve(setIDs);
+      const missing = add.missing.concat(remove.missing, set.missing);
+
+      if (missing.length > 0) {
+        return {
+          ok: false,
+          message: "Unknown tag IDs: " + Array.from(new Set(missing)).join(", ")
+        };
+      }
+
+      return {
+        ok: true,
+        tags: {
+          clear: clear,
+          add: add.resolved,
+          addIDs: addIDs,
+          remove: remove.resolved,
+          removeIDs: removeIDs,
+          set: set.resolved,
+          setIDs: setIDs
+        }
+      };
+    }
+
+    function taskReturnedFields(task, returnFields) {
+      const fields = normalizeIdentifierArray(returnFields);
+      if (fields.length === 0) { return null; }
+      return taskToPayload(task, fields);
+    }
+
+    function currentTaskTagIDs(task) {
+      return (safe(() => task.tags) || []).map(tag => String(safe(() => tag.id.primaryKey) || "")).filter(Boolean);
+    }
+
+    function compareISODate(taskDate, mutationDate) {
+      if (!taskDate && !mutationDate) { return true; }
+      if (!taskDate || !mutationDate) { return false; }
+      try {
+        return taskDate.toISOString() === new Date(mutationDate).toISOString();
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function applyTaskPatch(task, taskPatch, resolvedTags) {
+      if (taskPatch.name !== undefined && taskPatch.name !== null) {
+        task.name = taskPatch.name;
+      }
+      if (taskPatch.note !== undefined && taskPatch.note !== null) {
+        task.note = taskPatch.note;
+      }
+      if (taskPatch.noteAppend !== undefined && taskPatch.noteAppend !== null) {
+        task.appendStringToNote(taskPatch.noteAppend);
+      }
+      if (taskPatch.flagged !== undefined && taskPatch.flagged !== null) {
+        task.flagged = Boolean(taskPatch.flagged);
+      }
+      if (taskPatch.estimatedMinutes !== undefined && taskPatch.estimatedMinutes !== null) {
+        task.estimatedMinutes = Number(taskPatch.estimatedMinutes);
+      }
+      if (taskPatch.clearDueDate) {
+        task.dueDate = null;
+      } else if (taskPatch.dueDate) {
+        task.dueDate = new Date(taskPatch.dueDate);
+      }
+      if (taskPatch.clearDeferDate) {
+        task.deferDate = null;
+      } else if (taskPatch.deferDate) {
+        task.deferDate = new Date(taskPatch.deferDate);
+      }
+
+      if (!resolvedTags) { return; }
+
+      if (resolvedTags.setIDs.length > 0) {
+        task.clearTags();
+        if (resolvedTags.set.length === 1) {
+          task.addTag(resolvedTags.set[0]);
+        } else if (resolvedTags.set.length > 1) {
+          task.addTags(resolvedTags.set);
+        }
+        return;
+      }
+
+      if (resolvedTags.clear) {
+        task.clearTags();
+      }
+      if (resolvedTags.remove.length === 1) {
+        task.removeTag(resolvedTags.remove[0]);
+      } else if (resolvedTags.remove.length > 1) {
+        task.removeTags(resolvedTags.remove);
+      }
+      if (resolvedTags.add.length === 1) {
+        task.addTag(resolvedTags.add[0]);
+      } else if (resolvedTags.add.length > 1) {
+        task.addTags(resolvedTags.add);
+      }
+    }
+
+    function verifyTaskPatch(task, taskPatch, resolvedTags) {
+      if (taskPatch.name !== undefined && taskPatch.name !== null) {
+        if (String(safe(() => task.name) || "") !== String(taskPatch.name)) {
+          return "name did not match requested value.";
+        }
+      }
+
+      const currentNote = String(safe(() => task.note) || "");
+      if (taskPatch.note !== undefined && taskPatch.note !== null && taskPatch.noteAppend !== undefined && taskPatch.noteAppend !== null) {
+        if (currentNote !== String(taskPatch.note) + String(taskPatch.noteAppend)) {
+          return "note did not match requested replacement plus append.";
+        }
+      } else if (taskPatch.note !== undefined && taskPatch.note !== null) {
+        if (currentNote !== String(taskPatch.note)) {
+          return "note did not match requested replacement.";
+        }
+      } else if (taskPatch.noteAppend !== undefined && taskPatch.noteAppend !== null) {
+        if (!currentNote.endsWith(String(taskPatch.noteAppend))) {
+          return "note did not end with requested appended text.";
+        }
+      }
+
+      if (taskPatch.flagged !== undefined && taskPatch.flagged !== null) {
+        if (Boolean(safe(() => task.flagged)) !== Boolean(taskPatch.flagged)) {
+          return "flagged did not match requested value.";
+        }
+      }
+
+      if (taskPatch.estimatedMinutes !== undefined && taskPatch.estimatedMinutes !== null) {
+        if (Number(safe(() => task.estimatedMinutes)) !== Number(taskPatch.estimatedMinutes)) {
+          return "estimatedMinutes did not match requested value.";
+        }
+      }
+
+      if (taskPatch.clearDueDate) {
+        if (safe(() => task.dueDate) !== null) {
+          return "dueDate was not cleared.";
+        }
+      } else if (taskPatch.dueDate && !compareISODate(safe(() => task.dueDate), taskPatch.dueDate)) {
+        return "dueDate did not match requested value.";
+      }
+
+      if (taskPatch.clearDeferDate) {
+        if (safe(() => task.deferDate) !== null) {
+          return "deferDate was not cleared.";
+        }
+      } else if (taskPatch.deferDate && !compareISODate(safe(() => task.deferDate), taskPatch.deferDate)) {
+        return "deferDate did not match requested value.";
+      }
+
+      if (!resolvedTags) { return null; }
+
+      const currentIDs = currentTaskTagIDs(task);
+      const currentSet = new Set(currentIDs);
+      if (resolvedTags.setIDs.length > 0) {
+        if (currentIDs.length !== resolvedTags.setIDs.length) {
+          return "tag set size did not match requested value.";
+        }
+        const allPresent = resolvedTags.setIDs.every(id => currentSet.has(id));
+        return allPresent ? null : "tag set did not match requested value.";
+      }
+      if (resolvedTags.clear && currentIDs.length !== 0) {
+        return "tags were not cleared.";
+      }
+      const missingAdded = resolvedTags.addIDs.find(id => !currentSet.has(id));
+      if (missingAdded) {
+        return "tag add did not include requested tag ID " + missingAdded + ".";
+      }
+      const removedStillPresent = resolvedTags.removeIDs.find(id => currentSet.has(id));
+      if (removedStillPresent) {
+        return "tag remove did not remove requested tag ID " + removedStillPresent + ".";
+      }
+
+      return null;
+    }
+
     // ============================================================
     // STATUS MODULE - Single Source of Truth for OmniFocus Status
     // ============================================================
@@ -337,52 +598,171 @@
           response.data = { ok: true, plugin: "FocusRelay Bridge", version: "0.1.0" };
         } else if (request.op === "perform_mutation") {
           const mutation = request.mutation || {};
-          if (!mutation.previewOnly) {
-            throw new Error("Mutation execution is not implemented yet. Use previewOnly=true.");
-          }
-
           const targetType = mutation.targetType;
-          const ids = Array.isArray(mutation.targetIDs) ? mutation.targetIDs : [];
-          const pool = targetType === "project" ? toTaskArray(safe(() => flattenedProjects)) : toTaskArray(safe(() => flattenedTasks));
-          const knownIDs = {};
+          const ids = normalizeIdentifierArray(mutation.targetIDs);
+          const operation = mutation.operation || {};
 
-          for (let i = 0; i < pool.length; i += 1) {
-            const item = pool[i];
-            const id = String(safe(() => item.id.primaryKey) || "");
-            if (id.length > 0) {
-              knownIDs[id] = true;
+          if (operation.kind === "update_tasks") {
+            const patchError = validateTaskPatch(operation.taskPatch);
+            if (patchError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: patchError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const resolvedTags = resolveTaskPatchTags(operation.taskPatch);
+              if (!resolvedTags.ok) {
+                const results = ids.map(id => ({
+                  id: id,
+                  status: "failed",
+                  message: resolvedTags.message
+                }));
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: 0,
+                  failureCount: results.length,
+                  results: results,
+                  warnings: []
+                };
+              } else {
+                const pool = toTaskArray(safe(() => flattenedTasks));
+                const tasksByID = {};
+                pool.forEach(task => {
+                  const id = String(safe(() => task.id.primaryKey) || "");
+                  if (id.length > 0) {
+                    tasksByID[id] = task;
+                  }
+                });
+
+                const results = [];
+                let successCount = 0;
+                let mutatedAny = false;
+
+                ids.forEach(id => {
+                  const task = tasksByID[id];
+                  if (!task) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Target ID not found."
+                    });
+                    return;
+                  }
+
+                  if (mutation.previewOnly) {
+                    results.push({
+                      id: id,
+                      status: "previewed",
+                      message: "Validated target and shared patch for preview."
+                    });
+                    successCount += 1;
+                    return;
+                  }
+
+                  applyTaskPatch(task, operation.taskPatch, resolvedTags.tags);
+                  mutatedAny = true;
+
+                  if (mutation.verify) {
+                    const verificationError = verifyTaskPatch(task, operation.taskPatch, resolvedTags.tags);
+                    if (verificationError) {
+                      results.push({
+                        id: id,
+                        status: "failed",
+                        message: "Mutation applied but verification failed: " + verificationError,
+                        returnedFields: taskReturnedFields(task, mutation.returnFields)
+                      });
+                      return;
+                    }
+                  }
+
+                  results.push({
+                    id: id,
+                    status: "mutated",
+                    message: mutation.verify ? "Task updated and verified." : "Task updated.",
+                    returnedFields: taskReturnedFields(task, mutation.returnFields)
+                  });
+                  successCount += 1;
+                });
+
+                if (mutatedAny) {
+                  safe(() => save());
+                }
+
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: successCount,
+                  failureCount: results.length - successCount,
+                  results: results,
+                  warnings: []
+                };
+              }
             }
-          }
+          } else {
+            if (!mutation.previewOnly) {
+              throw new Error("Mutation execution is not implemented yet for " + String(operation.kind) + ". Use previewOnly=true.");
+            }
 
-          const results = ids.map(id => {
-            const normalized = String(id);
-            if (knownIDs[normalized]) {
+            const pool = targetType === "project" ? toTaskArray(safe(() => flattenedProjects)) : toTaskArray(safe(() => flattenedTasks));
+            const knownIDs = {};
+
+            for (let i = 0; i < pool.length; i += 1) {
+              const item = pool[i];
+              const id = String(safe(() => item.id.primaryKey) || "");
+              if (id.length > 0) {
+                knownIDs[id] = true;
+              }
+            }
+
+            const results = ids.map(id => {
+              const normalized = String(id);
+              if (knownIDs[normalized]) {
+                return {
+                  id: normalized,
+                  status: "previewed",
+                  message: "Validated target for preview."
+                };
+              }
               return {
                 id: normalized,
-                status: "previewed",
-                message: "Validated target for preview."
+                status: "failed",
+                message: "Target ID not found."
               };
-            }
-            return {
-              id: normalized,
-              status: "failed",
-              message: "Target ID not found."
-            };
-          });
+            });
 
-          const successCount = results.filter(item => item.status === "previewed").length;
-          const failureCount = results.length - successCount;
-          response.data = {
-            targetType: targetType,
-            operationKind: mutation.operation ? mutation.operation.kind : null,
-            previewOnly: true,
-            verify: Boolean(mutation.verify),
-            requestedCount: ids.length,
-            successCount: successCount,
-            failureCount: failureCount,
-            results: results,
-            warnings: []
-          };
+            const successCount = results.filter(item => item.status === "previewed").length;
+            const failureCount = results.length - successCount;
+            response.data = {
+              targetType: targetType,
+              operationKind: operation.kind,
+              previewOnly: true,
+              verify: Boolean(mutation.verify),
+              requestedCount: ids.length,
+              successCount: successCount,
+              failureCount: failureCount,
+              results: results,
+              warnings: []
+            };
+          }
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
           const debugListTasks = filter.search === "__debug_list_tasks__";
