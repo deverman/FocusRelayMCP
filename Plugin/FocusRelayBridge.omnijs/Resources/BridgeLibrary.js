@@ -243,6 +243,16 @@
       return taskToPayload(task, fields);
     }
 
+    function validateCompletionMutation(completion) {
+      if (!completion || !completion.state) {
+        return "set_tasks_completion requires a completion payload.";
+      }
+      if (completion.state !== "active" && completion.state !== "completed") {
+        return "Completion state must be either active or completed.";
+      }
+      return null;
+    }
+
     function currentTaskTagIDs(task) {
       return (safe(() => task.tags) || []).map(tag => String(safe(() => tag.id.primaryKey) || "")).filter(Boolean);
     }
@@ -385,6 +395,40 @@
       }
 
       return null;
+    }
+
+    function verifyTaskCompletion(task, completedTask, requestedState) {
+      if (requestedState === "completed") {
+        if (completedTask && String(safe(() => completedTask.id.primaryKey) || "") !== String(safe(() => task.id.primaryKey) || "")) {
+          if (!isCompletedStatus(completedTask)) {
+            return "repeating task completion did not produce a completed occurrence.";
+          }
+          if (isCompletedStatus(task)) {
+            return "repeating task source should remain active after completion.";
+          }
+          return null;
+        }
+        if (!isCompletedStatus(task)) {
+          return "task did not reach completed state.";
+        }
+        return null;
+      }
+
+      if (isCompletedStatus(task)) {
+        return "task did not return to active state.";
+      }
+      return null;
+    }
+
+    function completionResultFields(task, completedTask, requestedState, returnFields) {
+      if (requestedState === "completed" && completedTask) {
+        const completedID = String(safe(() => completedTask.id.primaryKey) || "");
+        const taskID = String(safe(() => task.id.primaryKey) || "");
+        if (completedID.length > 0 && completedID !== taskID) {
+          return taskReturnedFields(completedTask, returnFields);
+        }
+      }
+      return taskReturnedFields(task, returnFields);
     }
 
     // ============================================================
@@ -716,6 +760,122 @@
                   warnings: []
                 };
               }
+            }
+          } else if (operation.kind === "set_tasks_completion") {
+            const completionError = validateCompletionMutation(operation.completion);
+            if (completionError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: completionError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const requestedState = operation.completion.state;
+              const pool = toTaskArray(safe(() => flattenedTasks));
+              const tasksByID = {};
+              pool.forEach(task => {
+                const id = String(safe(() => task.id.primaryKey) || "");
+                if (id.length > 0) {
+                  tasksByID[id] = task;
+                }
+              });
+
+              const results = [];
+              let successCount = 0;
+              let mutatedAny = false;
+
+              ids.forEach(id => {
+                const task = tasksByID[id];
+                if (!task) {
+                  results.push({
+                    id: id,
+                    status: "failed",
+                    message: "Target ID not found."
+                  });
+                  return;
+                }
+
+                const isRepeating = Boolean(safe(() => task.repetitionRule));
+                if (mutation.previewOnly) {
+                  results.push({
+                    id: id,
+                    status: "previewed",
+                    message: requestedState === "completed" && isRepeating
+                      ? "Validated repeating task target for completion preview."
+                      : "Validated target for completion preview."
+                  });
+                  successCount += 1;
+                  return;
+                }
+
+                let completedTask = null;
+                if (requestedState === "completed") {
+                  completedTask = task.markComplete(null);
+                } else {
+                  task.markIncomplete();
+                }
+                mutatedAny = true;
+
+                if (mutation.verify) {
+                  const verificationError = verifyTaskCompletion(task, completedTask, requestedState);
+                  if (verificationError) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Mutation applied but verification failed: " + verificationError,
+                      returnedFields: completionResultFields(task, completedTask, requestedState, mutation.returnFields)
+                    });
+                    return;
+                  }
+                }
+
+                let message = requestedState === "completed" ? "Task completed." : "Task marked active.";
+                if (requestedState === "completed" && completedTask) {
+                  const completedID = String(safe(() => completedTask.id.primaryKey) || "");
+                  const taskID = String(safe(() => task.id.primaryKey) || "");
+                  if (completedID.length > 0 && completedID !== taskID) {
+                    message = "Repeating task completed and advanced to the next occurrence."
+                  }
+                }
+                if (mutation.verify) {
+                  message = message.replace(/\.$/, "") + " Verified.";
+                }
+
+                results.push({
+                  id: id,
+                  status: "mutated",
+                  message: message,
+                  returnedFields: completionResultFields(task, completedTask, requestedState, mutation.returnFields)
+                });
+                successCount += 1;
+              });
+
+              if (mutatedAny) {
+                safe(() => save());
+              }
+
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: successCount,
+                failureCount: results.length - successCount,
+                results: results,
+                warnings: []
+              };
             }
           } else {
             if (!mutation.previewOnly) {
