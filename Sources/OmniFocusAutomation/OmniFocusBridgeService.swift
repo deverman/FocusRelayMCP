@@ -93,6 +93,14 @@ public final class OmniFocusBridgeService: OmniFocusService {
         return try client.getProjectCounts(filter: filter)
     }
 
+    public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
+        let response = try client.performMutation(request)
+        if !request.previewOnly && response.successCount > 0 {
+            await cache.invalidateAll()
+        }
+        return response
+    }
+
     public func healthCheck() throws -> BridgeHealthResult {
         let response = try client.ping()
         return BridgeHealthResult(

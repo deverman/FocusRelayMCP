@@ -166,3 +166,38 @@ func catalogCacheSeparatesTagEntriesByKey() async {
     #expect(cachedPlain?.items.first?.totalTasks == nil)
     #expect(cachedCounted?.items.first?.totalTasks == 5)
 }
+
+@Test
+func catalogCacheInvalidatesProjectsAndTags() async {
+    let cache = CatalogCache()
+    let projectKey = CacheKey.projects(
+        page: PageRequest(limit: 10),
+        fields: ["id"],
+        statusFilter: "active",
+        includeTaskCounts: false
+    )
+    let tagKey = CacheKey.tags(
+        page: PageRequest(limit: 10),
+        statusFilter: "active",
+        includeTaskCounts: false
+    )
+
+    await cache.setProjects(
+        Page(items: [ProjectItem(id: "project-1", name: "Project", status: "active", flagged: false)], returnedCount: 1, totalCount: 1),
+        key: projectKey,
+        ttl: 60
+    )
+    await cache.setTags(
+        Page(items: [TagItem(id: "tag-1", name: "Tag", status: "active")], returnedCount: 1, totalCount: 1),
+        key: tagKey,
+        ttl: 60
+    )
+
+    await cache.invalidateAll()
+
+    let cachedProject = await cache.getProjects(key: projectKey)
+    let cachedTag = await cache.getTags(key: tagKey)
+
+    #expect(cachedProject == nil)
+    #expect(cachedTag == nil)
+}

@@ -41,6 +41,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: filter,
             tagFilter: nil,
             projectFilter: nil,
+            mutation: nil,
             fields: fields,
             page: page
         )
@@ -86,6 +87,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: nil,
             tagFilter: nil,
             projectFilter: nil,
+            mutation: nil,
             fields: nil,
             page: nil
         )
@@ -126,6 +128,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: nil,
             tagFilter: nil,
             projectFilter: projectFilter,
+            mutation: nil,
             fields: fields,
             page: page
         )
@@ -176,6 +179,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: nil,
             tagFilter: tagFilter,
             projectFilter: nil,
+            mutation: nil,
             fields: nil,
             page: page
         )
@@ -211,6 +215,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: nil,
             tagFilter: nil,
             projectFilter: nil,
+            mutation: nil,
             fields: fields,
             page: nil
         )
@@ -252,6 +257,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: filter,
             tagFilter: nil,
             projectFilter: nil,
+            mutation: nil,
             fields: nil,
             page: nil
         )
@@ -277,6 +283,7 @@ final class BridgeClient: @unchecked Sendable {
             filter: filter,
             tagFilter: nil,
             projectFilter: nil,
+            mutation: nil,
             fields: nil,
             page: nil
         )
@@ -284,6 +291,34 @@ final class BridgeClient: @unchecked Sendable {
         let response: BridgeResponse<ProjectCounts> = try sendRequest(request, responseType: ProjectCounts.self)
         if response.ok, let counts = response.data {
             return counts
+        }
+
+        let message = response.error?.message ?? "Unknown bridge error"
+        throw AutomationError.executionFailed(message)
+    }
+
+    func performMutation(_ mutation: MutationRequest) throws -> MutationResponse {
+        try mutation.validate()
+
+        let requestId = UUID().uuidString
+        let request = BridgeRequest(
+            schemaVersion: 1,
+            requestId: requestId,
+            op: "perform_mutation",
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
+            id: nil,
+            filter: nil,
+            tagFilter: nil,
+            projectFilter: nil,
+            mutation: mutation,
+            fields: nil,
+            page: nil
+        )
+
+        let response: BridgeResponse<MutationResponse> = try sendRequest(request, responseType: MutationResponse.self)
+        if response.ok, let mutationResponse = response.data {
+            return mutationResponse
         }
 
         let message = response.error?.message ?? "Unknown bridge error"

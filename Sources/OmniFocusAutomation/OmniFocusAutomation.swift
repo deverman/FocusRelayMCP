@@ -185,6 +185,20 @@ public final class OmniAutomationService: OmniFocusService {
         return try decoder.decode(ProjectCounts.self, from: data)
     }
 
+    public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
+        try request.validate()
+
+        let requestData = try requestEncoder.encode(request)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw AutomationError.executionFailed("Failed to encode mutation request JSON")
+        }
+
+        let script = mutationPreviewEvaluateScript(requestJSON: requestJSON)
+        let output = try runner.runJavaScript(script)
+        let data = Data(output.utf8)
+        return try decoder.decode(MutationResponse.self, from: data)
+    }
+
     public func debugInboxProbe() async throws -> InboxProbe {
         let script = inboxProbeScript()
         let output = try runner.runJavaScript(script)
@@ -226,6 +240,84 @@ private struct TaskCountsRequest: Codable {
 
 private struct ProjectCountsRequest: Codable {
     let filter: TaskFilter
+}
+
+private func mutationPreviewEvaluateScript(requestJSON: String) -> String {
+    let automationScript = mutationPreviewOmniAutomationScript(requestJSON: requestJSON)
+    return """
+    (function() {
+      var app = Application('OmniFocus');
+      var script = \(jsStringLiteral(automationScript));
+      var result = app.evaluateJavascript(script);
+      if (Array.isArray(result)) {
+        if (result.length === 0 || result[0] === null || typeof result[0] === "undefined") {
+          return "";
+        }
+        return String(result[0]);
+      }
+      if (result === null || typeof result === "undefined") {
+        return "";
+      }
+      return String(result);
+    })();
+    """
+}
+
+private func mutationPreviewOmniAutomationScript(requestJSON: String) -> String {
+    return """
+    (function() {
+      var request = \(requestJSON);
+
+      function toArray(collection) {
+        if (!collection) { return []; }
+        if (Array.isArray(collection)) { return collection; }
+        if (typeof collection.apply === "function") {
+          var items = [];
+          collection.apply(function(item) { items.push(item); });
+          return items;
+        }
+        try { return Array.from(collection); } catch (e) { return []; }
+      }
+
+      function objectID(item) {
+        try { return String(item.id.primaryKey); } catch (e) { return ""; }
+      }
+
+      if (!request.previewOnly) {
+        throw new Error("Mutation execution is not implemented yet. Use previewOnly=true.");
+      }
+
+      var targetType = request.targetType;
+      var pool = targetType === "project" ? toArray(flattenedProjects) : toArray(flattenedTasks);
+      var byID = {};
+      for (var i = 0; i < pool.length; i += 1) {
+        byID[objectID(pool[i])] = true;
+      }
+
+      var ids = Array.isArray(request.targetIDs) ? request.targetIDs : [];
+      var results = ids.map(function(id) {
+        if (byID[String(id)]) {
+          return { id: String(id), status: "previewed", message: "Validated target for preview." };
+        }
+        return { id: String(id), status: "failed", message: "Target ID not found." };
+      });
+
+      var successCount = results.filter(function(item) { return item.status === "previewed"; }).length;
+      var failureCount = results.length - successCount;
+
+      return JSON.stringify({
+        targetType: targetType,
+        operationKind: request.operation.kind,
+        previewOnly: true,
+        verify: Boolean(request.verify),
+        requestedCount: ids.length,
+        successCount: successCount,
+        failureCount: failureCount,
+        results: results,
+        warnings: []
+      });
+    })();
+    """
 }
 
 

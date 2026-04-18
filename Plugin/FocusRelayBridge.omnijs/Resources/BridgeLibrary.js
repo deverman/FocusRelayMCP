@@ -335,6 +335,54 @@
       const request = readJSON(requestPath);
         if (request.op === "ping") {
           response.data = { ok: true, plugin: "FocusRelay Bridge", version: "0.1.0" };
+        } else if (request.op === "perform_mutation") {
+          const mutation = request.mutation || {};
+          if (!mutation.previewOnly) {
+            throw new Error("Mutation execution is not implemented yet. Use previewOnly=true.");
+          }
+
+          const targetType = mutation.targetType;
+          const ids = Array.isArray(mutation.targetIDs) ? mutation.targetIDs : [];
+          const pool = targetType === "project" ? toTaskArray(safe(() => flattenedProjects)) : toTaskArray(safe(() => flattenedTasks));
+          const knownIDs = {};
+
+          for (let i = 0; i < pool.length; i += 1) {
+            const item = pool[i];
+            const id = String(safe(() => item.id.primaryKey) || "");
+            if (id.length > 0) {
+              knownIDs[id] = true;
+            }
+          }
+
+          const results = ids.map(id => {
+            const normalized = String(id);
+            if (knownIDs[normalized]) {
+              return {
+                id: normalized,
+                status: "previewed",
+                message: "Validated target for preview."
+              };
+            }
+            return {
+              id: normalized,
+              status: "failed",
+              message: "Target ID not found."
+            };
+          });
+
+          const successCount = results.filter(item => item.status === "previewed").length;
+          const failureCount = results.length - successCount;
+          response.data = {
+            targetType: targetType,
+            operationKind: mutation.operation ? mutation.operation.kind : null,
+            previewOnly: true,
+            verify: Boolean(mutation.verify),
+            requestedCount: ids.length,
+            successCount: successCount,
+            failureCount: failureCount,
+            results: results,
+            warnings: []
+          };
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
           const debugListTasks = filter.search === "__debug_list_tasks__";
