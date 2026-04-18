@@ -2,6 +2,8 @@ import ArgumentParser
 import Foundation
 import OmniFocusCore
 
+extension MutationCompletionState: ExpressibleByArgument {}
+
 enum FieldList {
     static func parse(_ raw: String?) -> [String] {
         guard let raw, !raw.isEmpty else { return [] }

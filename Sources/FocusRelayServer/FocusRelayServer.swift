@@ -282,6 +282,39 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
+                    name: "set_tasks_completion",
+                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "targetIDs": .object([
+                                "type": .string("array"),
+                                "description": .string("Task IDs to change."),
+                                "items": .object(["type": .string("string")])
+                            ]),
+                            "completion": .object([
+                                "type": .string("object"),
+                                "description": .string("Shared completion payload applied to every task ID in targetIDs."),
+                                "properties": .object([
+                                    "state": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("active"), .string("completed")]),
+                                        "description": .string("Lifecycle state to apply.")
+                                    ])
+                                ])
+                            ]),
+                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
+                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "returnFields": .object([
+                                "type": .string("array"),
+                                "description": .string("Optional task fields to return in per-item results after mutation."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ],
+                        required: ["targetIDs", "completion"]
+                    ),
+                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                ),
+                Tool(
                     name: "get_task_counts",
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
@@ -435,6 +468,25 @@ public enum FocusRelayServer {
                         operation: MutationOperation(
                             kind: .updateTasks,
                             taskPatch: taskPatch
+                        ),
+                        previewOnly: previewOnly,
+                        verify: verify,
+                        returnFields: returnFields
+                    )
+                    let result = try await service.performMutation(request)
+                    return .init(content: [.text(try encodeJSON(result))])
+                case "set_tasks_completion":
+                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
+                    let completion = try decodeArgument(CompletionMutation.self, from: params.arguments, key: "completion")
+                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
+                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
+                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
+                    let request = MutationRequest(
+                        targetType: .task,
+                        targetIDs: targetIDs,
+                        operation: MutationOperation(
+                            kind: .setTasksCompletion,
+                            completion: completion
                         ),
                         previewOnly: previewOnly,
                         verify: verify,
