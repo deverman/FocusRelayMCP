@@ -243,6 +243,247 @@
       return taskToPayload(task, fields);
     }
 
+    function projectStatusString(project) {
+      const status = safe(() => project.status);
+      if (!status) { return "active"; }
+      if (status === Project.Status.Active) { return "active"; }
+      if (status === Project.Status.OnHold) { return "onHold"; }
+      if (status === Project.Status.Dropped) { return "dropped"; }
+      if (status === Project.Status.Done) { return "done"; }
+
+      const statusStr = String(status);
+      if (statusStr.includes("OnHold")) { return "onHold"; }
+      if (statusStr.includes("Dropped")) { return "dropped"; }
+      if (statusStr.includes("Done")) { return "done"; }
+      return "active";
+    }
+
+    function projectReturnedFields(project, returnFields) {
+      const fields = normalizeIdentifierArray(returnFields);
+      if (fields.length === 0) { return null; }
+      const rootTask = safe(() => project.task);
+      const hasField = (name) => fields.indexOf(name) !== -1;
+      const reviewInterval = hasField("reviewInterval") ? safe(() => project.reviewInterval) : null;
+      let reviewIntervalPayload = null;
+      if (reviewInterval) {
+        const steps = safe(() => reviewInterval.steps);
+        const unit = safe(() => reviewInterval.unit);
+        reviewIntervalPayload = {
+          steps: (typeof steps === "number" && isFinite(steps)) ? Math.trunc(steps) : null,
+          unit: unit ? String(unit) : null
+        };
+      }
+
+      const payload = {};
+      if (hasField("id")) { payload.id = String(safe(() => project.id.primaryKey) || ""); }
+      if (hasField("name")) { payload.name = String(safe(() => project.name) || ""); }
+      if (hasField("note")) { payload.note = safe(() => rootTask ? rootTask.note : null); }
+      if (hasField("status")) { payload.status = projectStatusString(project); }
+      if (hasField("flagged")) { payload.flagged = Boolean(safe(() => project.flagged)); }
+      if (hasField("lastReviewDate")) {
+        const value = safe(() => project.lastReviewDate);
+        payload.lastReviewDate = value ? value.toISOString() : null;
+      }
+      if (hasField("nextReviewDate")) {
+        const value = safe(() => project.nextReviewDate);
+        payload.nextReviewDate = value ? value.toISOString() : null;
+      }
+      if (hasField("reviewInterval")) { payload.reviewInterval = reviewIntervalPayload; }
+      if (hasField("availableTasks")) {
+        payload.availableTasks = toTaskArray(safe(() => project.availableTasks)).length;
+      }
+      if (hasField("remainingTasks") || hasField("completedTasks") || hasField("droppedTasks") || hasField("totalTasks")) {
+        const flattenedTasks = toTaskArray(safe(() => project.flattenedTasks));
+        let remaining = 0;
+        let completed = 0;
+        let dropped = 0;
+        flattenedTasks.forEach(task => {
+          const status = taskStatus(task);
+          if (isCompletedStatusValue(status)) {
+            completed += 1;
+          } else if (isDroppedStatusValue(status)) {
+            dropped += 1;
+          } else {
+            remaining += 1;
+          }
+        });
+        if (hasField("remainingTasks")) { payload.remainingTasks = remaining; }
+        if (hasField("completedTasks")) { payload.completedTasks = completed; }
+        if (hasField("droppedTasks")) { payload.droppedTasks = dropped; }
+        if (hasField("totalTasks")) { payload.totalTasks = flattenedTasks.length; }
+      }
+      if (hasField("hasChildren")) { payload.hasChildren = Boolean(safe(() => project.hasChildren)); }
+      if (hasField("nextTask")) {
+        const nextTask = safe(() => project.nextTask);
+        payload.nextTask = nextTask ? {
+          id: String(safe(() => nextTask.id.primaryKey) || ""),
+          name: String(safe(() => nextTask.name) || "")
+        } : null;
+      }
+      if (hasField("containsSingletonActions")) {
+        payload.containsSingletonActions = Boolean(safe(() => project.containsSingletonActions));
+      }
+      if (hasField("isStalled")) {
+        const hasChildren = Boolean(safe(() => project.hasChildren));
+        const nextTask = safe(() => project.nextTask);
+        const isSingleActions = Boolean(safe(() => project.containsSingletonActions));
+        payload.isStalled = hasChildren && !nextTask && !isSingleActions;
+      }
+      if (hasField("completionDate")) {
+        const value = safe(() => project.completionDate);
+        payload.completionDate = value ? value.toISOString() : null;
+      }
+      return payload;
+    }
+
+    function validateProjectPatch(projectPatch) {
+      if (!projectPatch) { return "update_projects requires a projectPatch payload."; }
+      if (projectPatch.dueDate && projectPatch.clearDueDate) {
+        return "Project patches cannot set and clear dueDate in the same request.";
+      }
+      if (projectPatch.deferDate && projectPatch.clearDeferDate) {
+        return "Project patches cannot set and clear deferDate in the same request.";
+      }
+      if (projectPatch.reviewInterval) {
+        const steps = Number(projectPatch.reviewInterval.steps);
+        const unit = String(projectPatch.reviewInterval.unit || "");
+        if (!isFinite(steps) || steps < 0) {
+          return "reviewInterval.steps must be zero or greater.";
+        }
+        if (!unit) {
+          return "reviewInterval.unit is required when reviewInterval is provided.";
+        }
+      }
+      return null;
+    }
+
+    function applyProjectPatch(project, projectPatch) {
+      const rootTask = safe(() => project.task);
+      if (projectPatch.name !== undefined && projectPatch.name !== null) {
+        project.name = projectPatch.name;
+      }
+      if (rootTask && projectPatch.note !== undefined && projectPatch.note !== null) {
+        rootTask.note = projectPatch.note;
+      }
+      if (rootTask && projectPatch.noteAppend !== undefined && projectPatch.noteAppend !== null) {
+        rootTask.appendStringToNote(projectPatch.noteAppend);
+      }
+      if (projectPatch.flagged !== undefined && projectPatch.flagged !== null) {
+        project.flagged = Boolean(projectPatch.flagged);
+      }
+      if (rootTask && projectPatch.clearDueDate) {
+        rootTask.dueDate = null;
+      } else if (rootTask && projectPatch.dueDate) {
+        rootTask.dueDate = new Date(projectPatch.dueDate);
+      }
+      if (rootTask && projectPatch.clearDeferDate) {
+        rootTask.deferDate = null;
+      } else if (rootTask && projectPatch.deferDate) {
+        rootTask.deferDate = new Date(projectPatch.deferDate);
+      }
+      if (projectPatch.sequential !== undefined && projectPatch.sequential !== null) {
+        project.sequential = Boolean(projectPatch.sequential);
+      }
+      if (projectPatch.reviewInterval) {
+        const current = safe(() => project.reviewInterval) || { steps: 0, unit: "days" };
+        current.steps = Number(projectPatch.reviewInterval.steps);
+        current.unit = String(projectPatch.reviewInterval.unit);
+        project.reviewInterval = current;
+      }
+    }
+
+    function verifyProjectPatch(project, projectPatch) {
+      const rootTask = safe(() => project.task);
+      if (projectPatch.name !== undefined && projectPatch.name !== null) {
+        if (String(safe(() => project.name) || "") !== String(projectPatch.name)) {
+          return "name did not match requested value.";
+        }
+      }
+
+      const currentNote = String(safe(() => rootTask ? rootTask.note : null) || "");
+      if (projectPatch.note !== undefined && projectPatch.note !== null && projectPatch.noteAppend !== undefined && projectPatch.noteAppend !== null) {
+        if (currentNote !== String(projectPatch.note) + String(projectPatch.noteAppend)) {
+          return "note did not match requested replacement plus append.";
+        }
+      } else if (projectPatch.note !== undefined && projectPatch.note !== null) {
+        if (currentNote !== String(projectPatch.note)) {
+          return "note did not match requested replacement.";
+        }
+      } else if (projectPatch.noteAppend !== undefined && projectPatch.noteAppend !== null) {
+        if (!currentNote.endsWith(String(projectPatch.noteAppend))) {
+          return "note did not end with requested appended text.";
+        }
+      }
+
+      if (projectPatch.flagged !== undefined && projectPatch.flagged !== null) {
+        if (Boolean(safe(() => project.flagged)) !== Boolean(projectPatch.flagged)) {
+          return "flagged did not match requested value.";
+        }
+      }
+      if (projectPatch.clearDueDate) {
+        if (safe(() => rootTask ? rootTask.dueDate : null) !== null) {
+          return "dueDate was not cleared.";
+        }
+      } else if (projectPatch.dueDate && !compareISODate(safe(() => rootTask ? rootTask.dueDate : null), projectPatch.dueDate)) {
+        return "dueDate did not match requested value.";
+      }
+      if (projectPatch.clearDeferDate) {
+        if (safe(() => rootTask ? rootTask.deferDate : null) !== null) {
+          return "deferDate was not cleared.";
+        }
+      } else if (projectPatch.deferDate && !compareISODate(safe(() => rootTask ? rootTask.deferDate : null), projectPatch.deferDate)) {
+        return "deferDate did not match requested value.";
+      }
+      if (projectPatch.sequential !== undefined && projectPatch.sequential !== null) {
+        if (Boolean(safe(() => project.sequential)) !== Boolean(projectPatch.sequential)) {
+          return "sequential did not match requested value.";
+        }
+      }
+      if (projectPatch.reviewInterval) {
+        const current = safe(() => project.reviewInterval);
+        const currentSteps = Number(safe(() => current.steps));
+        const currentUnit = String(safe(() => current.unit) || "");
+        if (currentSteps !== Number(projectPatch.reviewInterval.steps) || currentUnit !== String(projectPatch.reviewInterval.unit)) {
+          return "reviewInterval did not match requested value.";
+        }
+      }
+      return null;
+    }
+
+    function validateProjectStatusMutation(projectStatus) {
+      if (!projectStatus || !projectStatus.status) {
+        return "set_projects_status requires a projectStatus payload.";
+      }
+      if (projectStatus.status !== "active" && projectStatus.status !== "on_hold" && projectStatus.status !== "dropped") {
+        return "Project status must be active, on_hold, or dropped.";
+      }
+      return null;
+    }
+
+    function applyProjectStatus(project, requestedStatus) {
+      if (requestedStatus === "active") {
+        project.status = Project.Status.Active;
+      } else if (requestedStatus === "on_hold") {
+        project.status = Project.Status.OnHold;
+      } else if (requestedStatus === "dropped") {
+        project.status = Project.Status.Dropped;
+      }
+    }
+
+    function verifyProjectStatus(project, requestedStatus) {
+      const actual = projectStatusString(project);
+      if (requestedStatus === "active" && actual !== "active") {
+        return "project did not return to active status.";
+      }
+      if (requestedStatus === "on_hold" && actual !== "onHold") {
+        return "project did not reach onHold status.";
+      }
+      if (requestedStatus === "dropped" && actual !== "dropped") {
+        return "project did not reach dropped status.";
+      }
+      return null;
+    }
+
     function validateCompletionMutation(completion) {
       if (!completion || !completion.state) {
         return "set_tasks_completion requires a completion payload.";
@@ -893,6 +1134,205 @@
                   warnings: []
                 };
               }
+            }
+          } else if (operation.kind === "update_projects") {
+            const patchError = validateProjectPatch(operation.projectPatch);
+            if (patchError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: patchError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const projects = toTaskArray(safe(() => flattenedProjects));
+              const projectByID = {};
+              projects.forEach(project => {
+                const id = String(safe(() => project.id.primaryKey) || "");
+                if (id.length > 0) {
+                  projectByID[id] = project;
+                }
+              });
+
+              const results = [];
+              let successCount = 0;
+              let mutatedAny = false;
+
+              ids.forEach(id => {
+                const project = projectByID[id];
+                if (!project) {
+                  results.push({
+                    id: id,
+                    status: "failed",
+                    message: "Target ID not found."
+                  });
+                  return;
+                }
+
+                if (mutation.previewOnly) {
+                  results.push({
+                    id: id,
+                    status: "previewed",
+                    message: "Validated target and shared project patch for preview."
+                  });
+                  successCount += 1;
+                  return;
+                }
+
+                applyProjectPatch(project, operation.projectPatch);
+                mutatedAny = true;
+
+                if (mutation.verify) {
+                  const verificationError = verifyProjectPatch(project, operation.projectPatch);
+                  if (verificationError) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Mutation applied but verification failed: " + verificationError,
+                      returnedFields: projectReturnedFields(project, mutation.returnFields)
+                    });
+                    return;
+                  }
+                }
+
+                results.push({
+                  id: id,
+                  status: "mutated",
+                  message: mutation.verify ? "Project updated and verified." : "Project updated.",
+                  returnedFields: projectReturnedFields(project, mutation.returnFields)
+                });
+                successCount += 1;
+              });
+
+              if (mutatedAny) {
+                safe(() => save());
+              }
+
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: successCount,
+                failureCount: results.length - successCount,
+                results: results,
+                warnings: []
+              };
+            }
+          } else if (operation.kind === "set_projects_status") {
+            const statusError = validateProjectStatusMutation(operation.projectStatus);
+            if (statusError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: statusError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const requestedStatus = operation.projectStatus.status;
+              const projects = toTaskArray(safe(() => flattenedProjects));
+              const projectByID = {};
+              projects.forEach(project => {
+                const id = String(safe(() => project.id.primaryKey) || "");
+                if (id.length > 0) {
+                  projectByID[id] = project;
+                }
+              });
+
+              const results = [];
+              let successCount = 0;
+              let mutatedAny = false;
+
+              ids.forEach(id => {
+                const project = projectByID[id];
+                if (!project) {
+                  results.push({
+                    id: id,
+                    status: "failed",
+                    message: "Target ID not found."
+                  });
+                  return;
+                }
+
+                if (mutation.previewOnly) {
+                  results.push({
+                    id: id,
+                    status: "previewed",
+                    message: "Validated target for project status preview."
+                  });
+                  successCount += 1;
+                  return;
+                }
+
+                applyProjectStatus(project, requestedStatus);
+                mutatedAny = true;
+
+                if (mutation.verify) {
+                  const verificationError = verifyProjectStatus(project, requestedStatus);
+                  if (verificationError) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Mutation applied but verification failed: " + verificationError,
+                      returnedFields: projectReturnedFields(project, mutation.returnFields)
+                    });
+                    return;
+                  }
+                }
+
+                let message = "Project status updated.";
+                if (requestedStatus === "active") { message = "Project marked active."; }
+                if (requestedStatus === "on_hold") { message = "Project put on hold."; }
+                if (requestedStatus === "dropped") { message = "Project dropped."; }
+                if (mutation.verify) {
+                  message = message.replace(/\.$/, "") + " Verified.";
+                }
+
+                results.push({
+                  id: id,
+                  status: "mutated",
+                  message: message,
+                  returnedFields: projectReturnedFields(project, mutation.returnFields)
+                });
+                successCount += 1;
+              });
+
+              if (mutatedAny) {
+                safe(() => save());
+              }
+
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: successCount,
+                failureCount: results.length - successCount,
+                results: results,
+                warnings: []
+              };
             }
           } else if (operation.kind === "set_tasks_completion") {
             const completionError = validateCompletionMutation(operation.completion);

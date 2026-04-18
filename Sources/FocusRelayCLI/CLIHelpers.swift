@@ -4,6 +4,7 @@ import OmniFocusCore
 
 extension MutationCompletionState: ExpressibleByArgument {}
 extension MutationMoveDestinationKind: ExpressibleByArgument {}
+extension MutationProjectStatus: ExpressibleByArgument {}
 
 enum FieldList {
     static func parse(_ raw: String?) -> [String] {
@@ -205,6 +206,68 @@ struct TaskPatchOptions: ParsableArguments {
             deferDate: try ISO8601DateParser.parseOptional(deferDate, argumentName: "--defer-date"),
             clearDeferDate: clearDeferDate,
             tags: tagMutation
+        )
+        try patch.validate()
+        return patch
+    }
+}
+
+struct ProjectPatchOptions: ParsableArguments {
+    @Option(help: "New project name.")
+    var name: String? = nil
+
+    @Option(help: "Replace the project note with this value.")
+    var note: String? = nil
+
+    @Option(name: .customLong("note-append"), help: "Append this string to the project note.")
+    var noteAppend: String? = nil
+
+    @Option(help: "Set flagged state (true/false).")
+    var flagged: Bool? = nil
+
+    @Option(name: .customLong("due-date"), help: "Set due date as ISO8601.")
+    var dueDate: String? = nil
+
+    @Flag(name: .customLong("clear-due-date"), help: "Clear the due date.")
+    var clearDueDate: Bool = false
+
+    @Option(name: .customLong("defer-date"), help: "Set defer date as ISO8601.")
+    var deferDate: String? = nil
+
+    @Flag(name: .customLong("clear-defer-date"), help: "Clear the defer date.")
+    var clearDeferDate: Bool = false
+
+    @Option(help: "Set sequential state (true/false).")
+    var sequential: Bool? = nil
+
+    @Option(name: .customLong("review-steps"), help: "Set review interval step count.")
+    var reviewSteps: Int? = nil
+
+    @Option(name: .customLong("review-unit"), help: "Set review interval unit: days, weeks, months, years.")
+    var reviewUnit: String? = nil
+
+    func makeProjectPatchMutation() throws -> ProjectPatchMutation {
+        let reviewInterval: ReviewInterval?
+        switch (reviewSteps, reviewUnit) {
+        case (nil, nil):
+            reviewInterval = nil
+        case let (steps?, unit?):
+            reviewInterval = ReviewInterval(steps: steps, unit: unit)
+        default:
+            throw ValidationError("Project review interval requires both --review-steps and --review-unit.")
+        }
+
+        let patch = ProjectPatchMutation(
+            name: name,
+            note: note,
+            noteAppend: noteAppend,
+            flagged: flagged,
+            dueDate: try ISO8601DateParser.parseOptional(dueDate, argumentName: "--due-date"),
+            clearDueDate: clearDueDate,
+            deferDate: try ISO8601DateParser.parseOptional(deferDate, argumentName: "--defer-date"),
+            clearDeferDate: clearDeferDate,
+            sequential: sequential,
+            reviewInterval: reviewInterval
         )
         try patch.validate()
         return patch
