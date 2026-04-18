@@ -431,6 +431,139 @@
       return taskReturnedFields(task, returnFields);
     }
 
+    function destinationLabel(move, projectByID, taskByID) {
+      if (move.destinationKind === "inbox") {
+        return "inbox";
+      }
+      if (move.destinationKind === "project") {
+        const project = projectByID[move.destinationID];
+        const name = String(safe(() => project.name) || move.destinationID);
+        return "project " + name;
+      }
+      if (move.destinationKind === "parent_task") {
+        const task = taskByID[move.destinationID];
+        const name = String(safe(() => task.name) || move.destinationID);
+        return "parent task " + name;
+      }
+      return String(move.destinationKind);
+    }
+
+    function buildMoveDestination(move, projectByID, taskByID) {
+      const position = String(move.position || "ending").toLowerCase();
+      if (move.destinationKind === "inbox") {
+        return {
+          ok: true,
+          location: position === "beginning" ? inbox.beginning : inbox.ending,
+          label: "inbox"
+        };
+      }
+      if (move.destinationKind === "project") {
+        const project = projectByID[move.destinationID];
+        if (!project) {
+          return { ok: false, message: "Destination project ID not found." };
+        }
+        return {
+          ok: true,
+          location: position === "beginning" ? project.beginning : project.ending,
+          label: "project " + String(safe(() => project.name) || move.destinationID)
+        };
+      }
+      if (move.destinationKind === "parent_task") {
+        const parentTask = taskByID[move.destinationID];
+        if (!parentTask) {
+          return { ok: false, message: "Destination parent task ID not found." };
+        }
+        return {
+          ok: true,
+          location: position === "beginning" ? parentTask.beginning : parentTask.ending,
+          parentTask: parentTask,
+          label: "parent task " + String(safe(() => parentTask.name) || move.destinationID)
+        };
+      }
+      return { ok: false, message: "Unsupported move destination kind " + String(move.destinationKind) + "." };
+    }
+
+    function validateMoveMutation(move, targetIDs, projectByID, taskByID) {
+      if (!move || !move.destinationKind) {
+        return "move_tasks requires a move payload.";
+      }
+
+      const position = String(move.position || "ending").toLowerCase();
+      if (position !== "beginning" && position !== "ending") {
+        return "Move position must be beginning or ending.";
+      }
+
+      if (move.destinationKind === "inbox") {
+        if (move.destinationID !== undefined && move.destinationID !== null) {
+          return "Inbox moves must not include a destinationID.";
+        }
+        return null;
+      }
+
+      if (!move.destinationID) {
+        return "Move destination requires a destinationID.";
+      }
+
+      if (move.destinationKind === "project") {
+        return projectByID[move.destinationID] ? null : "Destination project ID not found.";
+      }
+
+      if (move.destinationKind === "parent_task") {
+        const parentTask = taskByID[move.destinationID];
+        if (!parentTask) {
+          return "Destination parent task ID not found.";
+        }
+        for (let i = 0; i < targetIDs.length; i += 1) {
+          const task = taskByID[targetIDs[i]];
+          if (!task) { continue; }
+          const taskID = String(safe(() => task.id.primaryKey) || "");
+          const parentID = String(safe(() => parentTask.id.primaryKey) || "");
+          if (taskID === parentID) {
+            return "Tasks cannot be moved under themselves.";
+          }
+          const descendantIDs = new Set(toTaskArray(safe(() => task.flattenedTasks)).map(item => String(safe(() => item.id.primaryKey) || "")));
+          if (descendantIDs.has(parentID)) {
+            return "Tasks cannot be moved under one of their descendants.";
+          }
+        }
+        return null;
+      }
+
+      return "Unsupported move destination kind " + String(move.destinationKind) + ".";
+    }
+
+    function verifyTaskMove(task, move, destination, projectByID, taskByID) {
+      const project = safe(() => task.containingProject);
+      const parent = safe(() => task.parent);
+      const projectID = String(safe(() => project.id.primaryKey) || "");
+      const parentID = String(safe(() => parent.id.primaryKey) || "");
+
+      if (move.destinationKind === "inbox") {
+        if (!Boolean(safe(() => task.inInbox))) {
+          return "task did not return to inbox.";
+        }
+        return null;
+      }
+
+      if (move.destinationKind === "project") {
+        const destinationID = String(move.destinationID || "");
+        if (projectID !== destinationID) {
+          return "task project did not match the requested destination.";
+        }
+        return null;
+      }
+
+      if (move.destinationKind === "parent_task") {
+        const destinationID = String(move.destinationID || "");
+        if (parentID !== destinationID) {
+          return "task parent did not match the requested destination.";
+        }
+        return null;
+      }
+
+      return "Unsupported move destination kind " + String(move.destinationKind) + ".";
+    }
+
     // ============================================================
     // STATUS MODULE - Single Source of Truth for OmniFocus Status
     // ============================================================
@@ -876,6 +1009,130 @@
                 results: results,
                 warnings: []
               };
+            }
+          } else if (operation.kind === "move_tasks") {
+            const projects = toTaskArray(safe(() => flattenedProjects));
+            const tasks = toTaskArray(safe(() => flattenedTasks));
+            const projectByID = {};
+            const taskByID = {};
+            projects.forEach(project => {
+              const id = String(safe(() => project.id.primaryKey) || "");
+              if (id.length > 0) { projectByID[id] = project; }
+            });
+            tasks.forEach(task => {
+              const id = String(safe(() => task.id.primaryKey) || "");
+              if (id.length > 0) { taskByID[id] = task; }
+            });
+
+            const moveError = validateMoveMutation(operation.move, ids, projectByID, taskByID);
+            if (moveError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: moveError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const destination = buildMoveDestination(operation.move, projectByID, taskByID);
+              if (!destination.ok) {
+                const results = ids.map(id => ({
+                  id: id,
+                  status: "failed",
+                  message: destination.message
+                }));
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: 0,
+                  failureCount: results.length,
+                  results: results,
+                  warnings: []
+                };
+              } else {
+                const results = [];
+                let successCount = 0;
+                let mutatedAny = false;
+
+                ids.forEach(id => {
+                  const task = taskByID[id];
+                  if (!task) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Target ID not found."
+                    });
+                    return;
+                  }
+
+                  if (mutation.previewOnly) {
+                    results.push({
+                      id: id,
+                      status: "previewed",
+                      message: "Validated move target and destination " + destination.label + " for preview."
+                    });
+                    successCount += 1;
+                    return;
+                  }
+
+                  moveTasks([task], destination.location);
+                  mutatedAny = true;
+
+                  if (mutation.verify) {
+                    const verificationError = verifyTaskMove(task, operation.move, destination, projectByID, taskByID);
+                    if (verificationError) {
+                      results.push({
+                        id: id,
+                        status: "failed",
+                        message: "Mutation applied but verification failed: " + verificationError,
+                        returnedFields: taskReturnedFields(task, mutation.returnFields)
+                      });
+                      return;
+                    }
+                  }
+
+                  let message = "Task moved to " + destination.label + ".";
+                  if (mutation.verify) {
+                    message = message.replace(/\.$/, "") + " Verified.";
+                  }
+
+                  results.push({
+                    id: id,
+                    status: "mutated",
+                    message: message,
+                    returnedFields: taskReturnedFields(task, mutation.returnFields)
+                  });
+                  successCount += 1;
+                });
+
+                if (mutatedAny) {
+                  safe(() => save());
+                }
+
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: successCount,
+                  failureCount: results.length - successCount,
+                  results: results,
+                  warnings: []
+                };
+              }
             }
           } else {
             if (!mutation.previewOnly) {
