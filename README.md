@@ -261,7 +261,7 @@ Query tasks with various filters:
 - `plannedBefore`, `plannedAfter`: Filter by planned dates
 - `deferBefore`, `deferAfter`: Filter by defer dates
 - `completedBefore`, `completedAfter`: Filter by completion dates (implies `completed: true`)
-- `tags`: Filter by specific tags
+- `tags`: Filter by specific tags. Tagged project root tasks are included when they match, even if OmniFocus omits them from `flattenedTasks`; set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
 - `project`: Filter by project
 - `flagged`: Show only flagged tasks
 - `completed`: Show completed or remaining tasks
