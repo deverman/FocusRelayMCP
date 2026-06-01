@@ -97,6 +97,43 @@ public struct TagMutation: Codable, Sendable, Equatable {
         self.set = set
         self.clear = clear
     }
+
+    public var isEmpty: Bool {
+        !clear &&
+        (add?.isEmpty ?? true) &&
+        (remove?.isEmpty ?? true) &&
+        (set?.isEmpty ?? true)
+    }
+
+    public func validate() throws {
+        if let set, set.isEmpty {
+            throw MutationValidationError("Tag set operations must include at least one tag ID.")
+        }
+        if let add, add.isEmpty {
+            throw MutationValidationError("Tag add operations must include at least one tag ID.")
+        }
+        if let remove, remove.isEmpty {
+            throw MutationValidationError("Tag remove operations must include at least one tag ID.")
+        }
+        if set != nil && (add != nil || remove != nil || clear) {
+            throw MutationValidationError("Tag set operations cannot be combined with add, remove, or clear.")
+        }
+        if clear && (add != nil || remove != nil) {
+            throw MutationValidationError("Tag clear operations cannot be combined with add or remove.")
+        }
+        if isEmpty {
+            throw MutationValidationError("Tag operations must include add, remove, set, or clear.")
+        }
+        try validateUniqueIdentifiers(add, label: "Tag add")
+        try validateUniqueIdentifiers(remove, label: "Tag remove")
+        try validateUniqueIdentifiers(set, label: "Tag set")
+        if let add, let remove {
+            let overlap = Set(add).intersection(remove)
+            if !overlap.isEmpty {
+                throw MutationValidationError("Tag add and remove operations must not reference the same tag IDs.")
+            }
+        }
+    }
 }
 
 public struct TaskPatchMutation: Codable, Sendable, Equatable {
@@ -146,6 +183,19 @@ public struct TaskPatchMutation: Codable, Sendable, Equatable {
         deferDate == nil &&
         !clearDeferDate &&
         tags == nil
+    }
+
+    public func validate() throws {
+        if dueDate != nil && clearDueDate {
+            throw MutationValidationError("Task patches cannot set and clear dueDate in the same request.")
+        }
+        if deferDate != nil && clearDeferDate {
+            throw MutationValidationError("Task patches cannot set and clear deferDate in the same request.")
+        }
+        if let estimatedMinutes, estimatedMinutes < 0 {
+            throw MutationValidationError("estimatedMinutes must be zero or greater.")
+        }
+        try tags?.validate()
     }
 }
 
@@ -304,6 +354,7 @@ public struct MutationRequest: Codable, Sendable, Equatable {
             guard let taskPatch = operation.taskPatch, !taskPatch.isEmpty else {
                 throw MutationValidationError("update_tasks requires a non-empty taskPatch.")
             }
+            try taskPatch.validate()
         case .setTasksCompletion:
             guard targetType == .task else {
                 throw MutationValidationError("set_tasks_completion requires task targets.")
@@ -347,7 +398,28 @@ public struct MutationRequest: Codable, Sendable, Equatable {
                 throw MutationValidationError("move_projects requires a move payload.")
             }
         }
+
+        if let returnFields {
+            let allowedFields = targetType == .task ? Self.allowedTaskReturnFields : Self.allowedProjectReturnFields
+            let unsupportedFields = returnFields.filter { !allowedFields.contains($0) }
+            if !unsupportedFields.isEmpty {
+                throw MutationValidationError("Unsupported returnFields for \(targetType.rawValue) mutations: \(unsupportedFields.joined(separator: ", ")).")
+            }
+        }
     }
+
+    private static let allowedTaskReturnFields: Set<String> = [
+        "id", "name", "note", "projectID", "projectName",
+        "tagIDs", "tagNames", "dueDate", "plannedDate", "deferDate",
+        "completionDate", "completed", "flagged", "estimatedMinutes", "available"
+    ]
+
+    private static let allowedProjectReturnFields: Set<String> = [
+        "id", "name", "note", "status", "flagged", "lastReviewDate",
+        "nextReviewDate", "reviewInterval", "availableTasks", "remainingTasks",
+        "completedTasks", "droppedTasks", "totalTasks", "hasChildren", "nextTask",
+        "containsSingletonActions", "isStalled", "completionDate"
+    ]
 }
 
 public struct MutationItemResult: Codable, Sendable, Equatable {
@@ -411,4 +483,11 @@ public struct MutationValidationError: Error, LocalizedError, Sendable {
     }
 
     public var errorDescription: String? { message }
+}
+
+private func validateUniqueIdentifiers(_ ids: [String]?, label: String) throws {
+    guard let ids else { return }
+    if Set(ids).count != ids.count {
+        throw MutationValidationError("\(label) operations must not contain duplicate tag IDs.")
+    }
 }

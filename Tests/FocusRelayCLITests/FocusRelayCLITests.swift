@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import FocusRelayCLI
+import OmniFocusCore
 
 @Test
 func fieldListParsesCommaSeparatedValues() {
@@ -24,6 +25,39 @@ func iso8601DateParserRejectsInvalidDates() {
         didThrow = true
     }
     #expect(didThrow)
+}
+
+@Test
+func taskPatchOptionsBuildSharedTaskPatch() throws {
+    let options = try TaskPatchOptions.parse([
+        "--name", "Renamed",
+        "--note-append", "\nFollow up",
+        "--flagged", "true",
+        "--estimated-minutes", "30",
+        "--due-date", "2026-04-18T12:00:00Z",
+        "--tag-add", "tag-1,tag-2"
+    ])
+
+    let patch = try options.makeTaskPatchMutation()
+
+    #expect(patch.name == "Renamed")
+    #expect(patch.noteAppend == "\nFollow up")
+    #expect(patch.flagged == true)
+    #expect(patch.estimatedMinutes == 30)
+    #expect(patch.dueDate != nil)
+    #expect(patch.tags?.add == ["tag-1", "tag-2"])
+}
+
+@Test
+func taskPatchOptionsRejectConflictingTagModes() {
+    let options = try! TaskPatchOptions.parse([
+        "--tag-add", "tag-1",
+        "--tag-set", "tag-2"
+    ])
+
+    #expect(throws: MutationValidationError.self) {
+        _ = try options.makeTaskPatchMutation()
+    }
 }
 
 @Test

@@ -16,6 +16,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
             GetTask.self,
             ListProjects.self,
             ListTags.self,
+            UpdateTasks.self,
             TaskCounts.self,
             ProjectCounts.self,
             DebugInboxProbe.self,
@@ -182,6 +183,46 @@ struct ListTags: AsyncParsableCommand {
         let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
         let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
         print(try encodeJSON(output))
+    }
+}
+
+struct UpdateTasks: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "update-tasks",
+        abstract: "Apply one shared task patch to multiple task IDs.",
+        aliases: ["update_tasks"]
+    )
+
+    @Argument(help: "Task IDs to update.")
+    var ids: [String] = []
+
+    @OptionGroup var patch: TaskPatchOptions
+
+    @Flag(name: .customLong("preview-only"), help: "Validate and resolve targets without mutating.")
+    var previewOnly: Bool = false
+
+    @Flag(help: "Verify the final state after mutation.")
+    var verify: Bool = false
+
+    @Option(name: .customLong("return-fields"), help: "Comma-separated task fields to include in per-item results.")
+    var returnFields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let request = MutationRequest(
+            targetType: .task,
+            targetIDs: ids,
+            operation: MutationOperation(
+                kind: .updateTasks,
+                taskPatch: try patch.makeTaskPatchMutation()
+            ),
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: FieldList.parse(returnFields)
+        )
+
+        let result = try await service.performMutation(request)
+        print(try encodeJSON(result))
     }
 }
 

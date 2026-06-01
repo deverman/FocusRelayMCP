@@ -137,3 +137,73 @@ struct TaskFilterOptions: ParsableArguments {
         )
     }
 }
+
+struct TaskPatchOptions: ParsableArguments {
+    @Option(help: "New task name.")
+    var name: String? = nil
+
+    @Option(help: "Replace the task note with this value.")
+    var note: String? = nil
+
+    @Option(name: .customLong("note-append"), help: "Append this string to the task note.")
+    var noteAppend: String? = nil
+
+    @Option(help: "Set flagged state (true/false).")
+    var flagged: Bool? = nil
+
+    @Option(name: .customLong("estimated-minutes"), help: "Set estimated minutes.")
+    var estimatedMinutes: Int? = nil
+
+    @Option(name: .customLong("due-date"), help: "Set due date as ISO8601.")
+    var dueDate: String? = nil
+
+    @Flag(name: .customLong("clear-due-date"), help: "Clear the due date.")
+    var clearDueDate: Bool = false
+
+    @Option(name: .customLong("defer-date"), help: "Set defer date as ISO8601.")
+    var deferDate: String? = nil
+
+    @Flag(name: .customLong("clear-defer-date"), help: "Clear the defer date.")
+    var clearDeferDate: Bool = false
+
+    @Option(name: .customLong("tag-add"), help: "Comma-separated tag IDs to add.")
+    var tagAdd: String? = nil
+
+    @Option(name: .customLong("tag-remove"), help: "Comma-separated tag IDs to remove.")
+    var tagRemove: String? = nil
+
+    @Option(name: .customLong("tag-set"), help: "Comma-separated tag IDs to set exactly.")
+    var tagSet: String? = nil
+
+    @Flag(name: .customLong("tag-clear"), help: "Clear all tags from the task.")
+    var tagClear: Bool = false
+
+    func makeTaskPatchMutation() throws -> TaskPatchMutation {
+        let add = FieldList.parse(tagAdd)
+        let remove = FieldList.parse(tagRemove)
+        let set = FieldList.parse(tagSet)
+        let tagMutation: TagMutation? = (add.isEmpty && remove.isEmpty && set.isEmpty && !tagClear)
+            ? nil
+            : TagMutation(
+                add: add.isEmpty ? nil : add,
+                remove: remove.isEmpty ? nil : remove,
+                set: set.isEmpty ? nil : set,
+                clear: tagClear
+            )
+
+        let patch = TaskPatchMutation(
+            name: name,
+            note: note,
+            noteAppend: noteAppend,
+            flagged: flagged,
+            estimatedMinutes: estimatedMinutes,
+            dueDate: try ISO8601DateParser.parseOptional(dueDate, argumentName: "--due-date"),
+            clearDueDate: clearDueDate,
+            deferDate: try ISO8601DateParser.parseOptional(deferDate, argumentName: "--defer-date"),
+            clearDeferDate: clearDeferDate,
+            tags: tagMutation
+        )
+        try patch.validate()
+        return patch
+    }
+}
