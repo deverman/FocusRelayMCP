@@ -52,6 +52,20 @@ func mutationRequestValidationRejectsWrongTargetType() {
 }
 
 @Test
+func mutationRequestValidationRejectsMissingProjectCompletionPayload() {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(kind: .setProjectsCompletion),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
 func mutationRequestValidationRejectsEmptyPatch() {
     let request = MutationRequest(
         targetType: .project,

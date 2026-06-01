@@ -7,6 +7,7 @@ func bridgeClientConfigurationDefaults() {
     let configuration = BridgeClientConfiguration.fromEnvironment([:])
 
     #expect(configuration.responseTimeout == 45.0)
+    #expect(configuration.mutationResponseTimeout == 300.0)
     #expect(configuration.responsePollInterval == 0.05)
     #expect(configuration.dispatchTransport == .urlScheme)
     #expect(configuration.dispatchTimeout == 20.0)
@@ -16,12 +17,14 @@ func bridgeClientConfigurationDefaults() {
 func bridgeClientConfigurationUsesEnvironmentOverrides() {
     let configuration = BridgeClientConfiguration.fromEnvironment([
         "FOCUS_RELAY_BRIDGE_RESPONSE_TIMEOUT_SECONDS": "30",
+        "FOCUS_RELAY_BRIDGE_MUTATION_RESPONSE_TIMEOUT_SECONDS": "120",
         "FOCUS_RELAY_BRIDGE_RESPONSE_POLL_MS": "25",
         "FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT": "jxa",
         "FOCUS_RELAY_BRIDGE_DISPATCH_TIMEOUT_SECONDS": "18"
     ])
 
     #expect(configuration.responseTimeout == 30.0)
+    #expect(configuration.mutationResponseTimeout == 120.0)
     #expect(configuration.responsePollInterval == 0.025)
     #expect(configuration.dispatchTransport == .jxaEvaluate)
     #expect(configuration.dispatchTimeout == 18.0)
@@ -31,11 +34,13 @@ func bridgeClientConfigurationUsesEnvironmentOverrides() {
 func bridgeClientConfigurationIgnoresInvalidEnvironmentOverrides() {
     let configuration = BridgeClientConfiguration.fromEnvironment([
         "FOCUS_RELAY_BRIDGE_RESPONSE_TIMEOUT_SECONDS": "0",
+        "FOCUS_RELAY_BRIDGE_MUTATION_RESPONSE_TIMEOUT_SECONDS": "0",
         "FOCUS_RELAY_BRIDGE_RESPONSE_POLL_MS": "-1",
         "FOCUS_RELAY_BRIDGE_DISPATCH_TIMEOUT_SECONDS": "0"
     ])
 
     #expect(configuration.responseTimeout == 45.0)
+    #expect(configuration.mutationResponseTimeout == 300.0)
     #expect(configuration.responsePollInterval == 0.05)
     #expect(configuration.dispatchTransport == .urlScheme)
     #expect(configuration.dispatchTimeout == 20.0)

@@ -484,9 +484,9 @@
       return null;
     }
 
-    function validateCompletionMutation(completion) {
+    function validateCompletionMutation(completion, operationName) {
       if (!completion || !completion.state) {
-        return "set_tasks_completion requires a completion payload.";
+        return operationName + " requires a completion payload.";
       }
       if (completion.state !== "active" && completion.state !== "completed") {
         return "Completion state must be either active or completed.";
@@ -670,6 +670,40 @@
         }
       }
       return taskReturnedFields(task, returnFields);
+    }
+
+    function verifyProjectCompletion(project, completedProject, requestedState) {
+      if (requestedState === "completed") {
+        if (completedProject && String(safe(() => completedProject.id.primaryKey) || "") !== String(safe(() => project.id.primaryKey) || "")) {
+          if (projectStatusString(completedProject) !== "done") {
+            return "repeating project completion did not produce a completed occurrence.";
+          }
+          if (projectStatusString(project) === "done") {
+            return "repeating project source should remain active after completion.";
+          }
+          return null;
+        }
+        if (projectStatusString(project) !== "done") {
+          return "project did not reach completed state.";
+        }
+        return null;
+      }
+
+      if (projectStatusString(project) !== "active") {
+        return "project did not return to active state.";
+      }
+      return null;
+    }
+
+    function projectCompletionResultFields(project, completedProject, requestedState, returnFields) {
+      if (requestedState === "completed" && completedProject) {
+        const completedID = String(safe(() => completedProject.id.primaryKey) || "");
+        const projectID = String(safe(() => project.id.primaryKey) || "");
+        if (completedID.length > 0 && completedID !== projectID) {
+          return projectReturnedFields(completedProject, returnFields);
+        }
+      }
+      return projectReturnedFields(project, returnFields);
     }
 
     function destinationLabel(move, projectByID, taskByID) {
@@ -1334,8 +1368,124 @@
                 warnings: []
               };
             }
+          } else if (operation.kind === "set_projects_completion") {
+            const completionError = validateCompletionMutation(operation.completion, "set_projects_completion");
+            if (completionError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: completionError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const requestedState = operation.completion.state;
+              const projects = toTaskArray(safe(() => flattenedProjects));
+              const projectByID = {};
+              projects.forEach(project => {
+                const id = String(safe(() => project.id.primaryKey) || "");
+                if (id.length > 0) {
+                  projectByID[id] = project;
+                }
+              });
+
+              const results = [];
+              let successCount = 0;
+              let mutatedAny = false;
+
+              ids.forEach(id => {
+                const project = projectByID[id];
+                if (!project) {
+                  results.push({
+                    id: id,
+                    status: "failed",
+                    message: "Target ID not found."
+                  });
+                  return;
+                }
+
+                const isRepeating = Boolean(safe(() => project.repetitionRule));
+                if (mutation.previewOnly) {
+                  results.push({
+                    id: id,
+                    status: "previewed",
+                    message: requestedState === "completed" && isRepeating
+                      ? "Validated repeating project target for completion preview."
+                      : "Validated target for project completion preview."
+                  });
+                  successCount += 1;
+                  return;
+                }
+
+                let completedProject = null;
+                if (requestedState === "completed") {
+                  completedProject = project.markComplete(null);
+                } else {
+                  project.markIncomplete();
+                }
+                mutatedAny = true;
+
+                if (mutation.verify) {
+                  const verificationError = verifyProjectCompletion(project, completedProject, requestedState);
+                  if (verificationError) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Mutation applied but verification failed: " + verificationError,
+                      returnedFields: projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
+                    });
+                    return;
+                  }
+                }
+
+                let message = requestedState === "completed" ? "Project completed." : "Project marked active.";
+                if (requestedState === "completed" && completedProject) {
+                  const completedID = String(safe(() => completedProject.id.primaryKey) || "");
+                  const projectID = String(safe(() => project.id.primaryKey) || "");
+                  if (completedID.length > 0 && completedID !== projectID) {
+                    message = "Repeating project completed and advanced to the next occurrence.";
+                  }
+                }
+                if (mutation.verify) {
+                  message = message.replace(/\.$/, "") + " Verified.";
+                }
+
+                results.push({
+                  id: id,
+                  status: "mutated",
+                  message: message,
+                  returnedFields: projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
+                });
+                successCount += 1;
+              });
+
+              if (mutatedAny) {
+                safe(() => save());
+              }
+
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: successCount,
+                failureCount: results.length - successCount,
+                results: results,
+                warnings: []
+              };
+            }
           } else if (operation.kind === "set_tasks_completion") {
-            const completionError = validateCompletionMutation(operation.completion);
+            const completionError = validateCompletionMutation(operation.completion, "set_tasks_completion");
             if (completionError) {
               const results = ids.map(id => ({
                 id: id,
