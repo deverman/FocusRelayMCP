@@ -79,6 +79,19 @@ actor CatalogCache {
         tags[key] = CacheEntry(value: page, expiresAt: Date().addingTimeInterval(ttl))
     }
 
+    func invalidateProjects() {
+        projects.removeAll()
+    }
+
+    func invalidateTags() {
+        tags.removeAll()
+    }
+
+    func invalidateAll() {
+        invalidateProjects()
+        invalidateTags()
+    }
+
     private func purgeExpired() {
         let now = Date()
         projects = projects.filter { $0.value.expiresAt > now }

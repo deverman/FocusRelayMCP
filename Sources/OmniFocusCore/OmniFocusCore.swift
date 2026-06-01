@@ -62,7 +62,7 @@ public struct ProjectTaskSummary: Codable, Sendable {
     }
 }
 
-public struct ReviewInterval: Codable, Sendable {
+public struct ReviewInterval: Codable, Sendable, Equatable {
     public let steps: Int?
     public let unit: String?
 
@@ -335,4 +335,5 @@ public protocol OmniFocusService: Sendable {
     func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem>
     func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts
     func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts
+    func performMutation(_ request: MutationRequest) async throws -> MutationResponse
 }

@@ -11,6 +11,7 @@ struct BridgeRequest: Codable {
     let filter: TaskFilter?
     let tagFilter: TagFilter?
     let projectFilter: ProjectFilter?
+    let mutation: MutationRequest?
     let fields: [String]?
     let page: PageRequest?
 }
