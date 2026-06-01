@@ -193,7 +193,8 @@ public final class OmniAutomationService: OmniFocusService {
             request.operation.kind == .moveTasks ||
             request.operation.kind == .updateProjects ||
             request.operation.kind == .setProjectsStatus ||
-            request.operation.kind == .setProjectsCompletion {
+            request.operation.kind == .setProjectsCompletion ||
+            request.operation.kind == .moveProjects {
             // Keep the real mutation paths in the bridge transport so CLI and MCP
             // share one execution implementation for v1 task and project mutations.
             return try await OmniFocusBridgeService().performMutation(request)

@@ -132,6 +132,40 @@ func setProjectsStatusParsesOnHoldState() throws {
 }
 
 @Test
+func moveProjectsParsesFolderDestination() throws {
+    let command = try MoveProjects.parse([
+        "project-1",
+        "project-2",
+        "--destination-kind", "folder",
+        "--destination-id", "folder-1",
+        "--position", "beginning",
+        "--verify",
+        "--return-fields", "id,name,status"
+    ])
+
+    #expect(command.ids == ["project-1", "project-2"])
+    #expect(command.destinationKind == .folder)
+    #expect(command.destinationID == "folder-1")
+    #expect(command.position == "beginning")
+    #expect(command.verify)
+    #expect(command.returnFields == "id,name,status")
+}
+
+@Test
+func moveProjectsAllowsRootLibraryDestination() throws {
+    let command = try MoveProjects.parse([
+        "project-1",
+        "--destination-kind", "folder",
+        "--position", "ending"
+    ])
+
+    #expect(command.ids == ["project-1"])
+    #expect(command.destinationKind == .folder)
+    #expect(command.destinationID == nil)
+    #expect(command.position == "ending")
+}
+
+@Test
 func setProjectsCompletionParsesCompletedState() throws {
     let command = try SetProjectsCompletion.parse([
         "project-1",

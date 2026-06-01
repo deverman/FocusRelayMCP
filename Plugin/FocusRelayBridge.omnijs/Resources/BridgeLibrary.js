@@ -839,6 +839,93 @@
       return "Unsupported move destination kind " + String(move.destinationKind) + ".";
     }
 
+    function buildProjectMoveDestination(move, folderByID) {
+      const position = String(move.position || "ending").toLowerCase();
+      if (move.destinationKind !== "folder") {
+        return { ok: false, message: "move_projects supports only folder destinations." };
+      }
+
+      if (move.destinationID === undefined || move.destinationID === null) {
+        return {
+          ok: true,
+          location: position === "beginning" ? library.beginning : library.ending,
+          label: "root library",
+          folder: null
+        };
+      }
+
+      const destinationID = String(move.destinationID);
+      if (destinationID.length === 0) {
+        return { ok: false, message: "Folder moves require a non-empty destinationID when provided." };
+      }
+
+      const folder = folderByID[destinationID];
+      if (!folder) {
+        return { ok: false, message: "Destination folder ID not found." };
+      }
+
+      return {
+        ok: true,
+        location: position === "beginning" ? folder.beginning : folder.ending,
+        label: "folder " + String(safe(() => folder.name) || destinationID),
+        folder: folder
+      };
+    }
+
+    function validateProjectMoveMutation(move, folderByID) {
+      if (!move || !move.destinationKind) {
+        return "move_projects requires a move payload.";
+      }
+
+      const position = String(move.position || "ending").toLowerCase();
+      if (position !== "beginning" && position !== "ending") {
+        return "Move position must be beginning or ending.";
+      }
+
+      if (move.destinationKind !== "folder") {
+        return "move_projects supports only folder destinations.";
+      }
+
+      if (move.destinationID === undefined || move.destinationID === null) {
+        return null;
+      }
+
+      const destinationID = String(move.destinationID);
+      if (destinationID.length === 0) {
+        return "Folder moves require a non-empty destinationID when provided.";
+      }
+
+      return folderByID[destinationID] ? null : "Destination folder ID not found.";
+    }
+
+    function directProjectArrayContainsID(projectCollection, projectID) {
+      return toTaskArray(projectCollection).some(project => {
+        const id = String(safe(() => project.id.primaryKey) || "");
+        return id === projectID;
+      });
+    }
+
+    function verifyProjectMove(project, destination) {
+      const projectID = String(safe(() => project.id.primaryKey) || "");
+      if (projectID.length === 0) {
+        return "project ID could not be resolved after move.";
+      }
+
+      if (destination.folder) {
+        const folderProjects = safe(() => destination.folder.projects);
+        if (!directProjectArrayContainsID(folderProjects, projectID)) {
+          return "project folder did not match the requested destination.";
+        }
+        return null;
+      }
+
+      const rootProjects = safe(() => projects);
+      if (!directProjectArrayContainsID(rootProjects, projectID)) {
+        return "project did not move to the root library.";
+      }
+      return null;
+    }
+
     // ============================================================
     // STATUS MODULE - Single Source of Truth for OmniFocus Status
     // ============================================================
@@ -1483,6 +1570,130 @@
                 results: results,
                 warnings: []
               };
+            }
+          } else if (operation.kind === "move_projects") {
+            const projects = toTaskArray(safe(() => flattenedProjects));
+            const folders = toTaskArray(safe(() => flattenedFolders));
+            const projectByID = {};
+            const folderByID = {};
+            projects.forEach(project => {
+              const id = String(safe(() => project.id.primaryKey) || "");
+              if (id.length > 0) { projectByID[id] = project; }
+            });
+            folders.forEach(folder => {
+              const id = String(safe(() => folder.id.primaryKey) || "");
+              if (id.length > 0) { folderByID[id] = folder; }
+            });
+
+            const moveError = validateProjectMoveMutation(operation.move, folderByID);
+            if (moveError) {
+              const results = ids.map(id => ({
+                id: id,
+                status: "failed",
+                message: moveError
+              }));
+              response.data = {
+                targetType: targetType,
+                operationKind: operation.kind,
+                previewOnly: Boolean(mutation.previewOnly),
+                verify: Boolean(mutation.verify),
+                requestedCount: ids.length,
+                successCount: 0,
+                failureCount: results.length,
+                results: results,
+                warnings: []
+              };
+            } else {
+              const destination = buildProjectMoveDestination(operation.move, folderByID);
+              if (!destination.ok) {
+                const results = ids.map(id => ({
+                  id: id,
+                  status: "failed",
+                  message: destination.message
+                }));
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: 0,
+                  failureCount: results.length,
+                  results: results,
+                  warnings: []
+                };
+              } else {
+                const results = [];
+                let successCount = 0;
+                let mutatedAny = false;
+
+                ids.forEach(id => {
+                  const project = projectByID[id];
+                  if (!project) {
+                    results.push({
+                      id: id,
+                      status: "failed",
+                      message: "Target ID not found."
+                    });
+                    return;
+                  }
+
+                  if (mutation.previewOnly) {
+                    results.push({
+                      id: id,
+                      status: "previewed",
+                      message: "Validated project move target and destination " + destination.label + " for preview."
+                    });
+                    successCount += 1;
+                    return;
+                  }
+
+                  moveSections([project], destination.location);
+                  mutatedAny = true;
+
+                  if (mutation.verify) {
+                    const verificationError = verifyProjectMove(project, destination);
+                    if (verificationError) {
+                      results.push({
+                        id: id,
+                        status: "failed",
+                        message: "Mutation applied but verification failed: " + verificationError,
+                        returnedFields: projectReturnedFields(project, mutation.returnFields)
+                      });
+                      return;
+                    }
+                  }
+
+                  let message = "Project moved to " + destination.label + ".";
+                  if (mutation.verify) {
+                    message = message.replace(/\.$/, "") + " Verified.";
+                  }
+
+                  results.push({
+                    id: id,
+                    status: "mutated",
+                    message: message,
+                    returnedFields: projectReturnedFields(project, mutation.returnFields)
+                  });
+                  successCount += 1;
+                });
+
+                if (mutatedAny) {
+                  safe(() => save());
+                }
+
+                response.data = {
+                  targetType: targetType,
+                  operationKind: operation.kind,
+                  previewOnly: Boolean(mutation.previewOnly),
+                  verify: Boolean(mutation.verify),
+                  requestedCount: ids.length,
+                  successCount: successCount,
+                  failureCount: results.length - successCount,
+                  results: results,
+                  warnings: []
+                };
+              }
             }
           } else if (operation.kind === "set_tasks_completion") {
             const completionError = validateCompletionMutation(operation.completion, "set_tasks_completion");

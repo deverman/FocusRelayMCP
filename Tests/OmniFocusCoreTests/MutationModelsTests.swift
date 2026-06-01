@@ -194,6 +194,70 @@ func mutationRequestValidationRejectsInvalidMovePosition() {
 }
 
 @Test
+func mutationRequestValidationAllowsProjectMoveToRootLibrary() throws {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(
+            kind: .moveProjects,
+            move: MoveMutation(destinationKind: .folder, position: "ending")
+        ),
+        previewOnly: true
+    )
+
+    try request.validate()
+}
+
+@Test
+func mutationRequestValidationAllowsProjectMoveToFolder() throws {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(
+            kind: .moveProjects,
+            move: MoveMutation(destinationKind: .folder, destinationID: "folder-1", position: "beginning")
+        ),
+        previewOnly: true
+    )
+
+    try request.validate()
+}
+
+@Test
+func mutationRequestValidationRejectsTaskMoveToFolder() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .moveTasks,
+            move: MoveMutation(destinationKind: .folder, destinationID: "folder-1", position: "ending")
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
+func mutationRequestValidationRejectsProjectMoveToProject() {
+    let request = MutationRequest(
+        targetType: .project,
+        targetIDs: ["project-1"],
+        operation: MutationOperation(
+            kind: .moveProjects,
+            move: MoveMutation(destinationKind: .project, destinationID: "project-2", position: "ending")
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
 func mutationRequestValidationRejectsUnsupportedProjectReturnFields() {
     let request = MutationRequest(
         targetType: .project,
