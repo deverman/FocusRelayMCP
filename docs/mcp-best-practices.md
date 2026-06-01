@@ -30,6 +30,7 @@
 7) Explicit safety boundaries
 - For write actions, include dry-run or preview modes.
 - Require explicit confirmation for bulk writes.
+- For FocusRelay mutations, use `previewOnly`, `verify`, and compact `returnFields`; see [`mutation-workflows.md`](./mutation-workflows.md).
 
 8) Timeouts + retries
 - Short timeouts with clear errors.
@@ -59,7 +60,7 @@
 
 5) Cache where it matters
 - Short TTL cache for lists of projects/tags.
-- Invalidate on write operations (when we add writes).
+- Invalidate project/tag catalog caches after successful non-preview write operations.
 
 6) Avoid macOS UI activation
 - Use `open -g` when triggering OmniFocus.

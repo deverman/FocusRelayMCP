@@ -32,12 +32,19 @@ Stop clicking through endless task lists. Just ask:
 - "Find my flagged items"
 - "What did I accomplish this week?"
 
+**AI-Assisted Updates**
+- "Mark these tasks complete after I confirm the preview"
+- "Move these inbox tasks into this project"
+- "Flag these tasks and set a due date"
+- "Put this project on hold"
+
 ## Features
 
 - **Time-based Queries**: Natural language time period filtering
 - **Project Health**: Detect stalled projects and missing next actions
 - **Context Awareness**: Tag-based filtering and availability
 - **Completion Date Filtering**: Query completed tasks/projects by specific date ranges
+- **Safe Write Tools**: Preview, verify, and mutate task/project fields, completion, status, and moves
 - **Smart Filtering**: By tags, due dates, defer dates, completion, duration
 - **Timezone Aware**: Automatic local timezone detection and handling
 - **High Performance**: Single-pass filtering with early exit optimization
@@ -211,9 +218,45 @@ focusrelay bridge-health-check
 
 # List tasks with total count (shows returnedCount and totalCount)
 focusrelay list-tasks --fields name --limit 10 --include-total-count
+
+# Preview a task field update before mutating
+focusrelay update-tasks <task-id> --flagged true --preview-only --verify --return-fields id,name,flagged
+
+# Complete tasks after preview/confirmation
+focusrelay set-tasks-completion <task-id> --state completed --verify --return-fields id,name,completed
+
+# Move tasks to a project
+focusrelay move-tasks <task-id> --destination-kind project --destination-id <project-id> --verify
+
+# Put a project on hold
+focusrelay set-projects-status <project-id> --status on_hold --preview-only --verify --return-fields id,name,status
 ```
 
 Dates should be ISO8601 (e.g. `2026-02-04T12:00:00Z`).
+
+## Safe Mutation Workflows
+
+FocusRelay includes v1 write tools for task and project updates. The mutation surface is intentionally split into three operation types so AI clients choose predictable tools:
+
+- **Patch tools**: `update_tasks`, `update_projects`
+- **Lifecycle/status tools**: `set_tasks_completion`, `set_projects_completion`, `set_projects_status`
+- **Move tools**: `move_tasks`, `move_projects`
+
+Recommended AI workflow:
+
+1. Read the smallest useful set of candidates with `id,name`.
+2. Run the write with `previewOnly: true`, `verify: true`, and compact `returnFields`.
+3. Ask the user to confirm the preview.
+4. Rerun the same request with `previewOnly: false`.
+
+V1 mutation rules:
+
+- Mutations target IDs only, not names.
+- Bulk writes are homogeneous: one operation kind and one shared patch/state/destination applied to all IDs.
+- Mixed-operation `batch_mutate_tasks` is intentionally out of scope.
+- Successful non-preview writes invalidate the project/tag cache.
+
+See [AI-Optimized Mutation Workflows](docs/mutation-workflows.md) for CLI and MCP examples.
 
 ## Usage Examples
 
@@ -245,6 +288,14 @@ Dates should be ISO8601 (e.g. `2026-02-04T12:00:00Z`).
 - "How many projects did I complete this month?" (count without listing)
 - "How many tasks are in my inbox?"
 - "Show me completed tasks"
+
+### Mutation Workflows
+- "Preview marking these tasks complete, then ask me before doing it"
+- "Move these inbox tasks into this project"
+- "Add the Mac tag to these tasks"
+- "Clear the due date on these tasks"
+- "Put this project on hold"
+- "Move this project into my Travel folder"
 
 ### Completed Perspective Parity
 All completion queries match the OmniFocus Completed perspective:
@@ -305,6 +356,43 @@ Query projects with status and task counts:
 Query tags with task counts:
 - `statusFilter`: active, onHold, dropped, all
 - `includeTaskCounts`: Get task counts per tag
+
+### update_tasks
+Apply one shared task field patch to one or more task IDs:
+- Supports: `name`, `note`, `noteAppend`, `flagged`, `estimatedMinutes`, `dueDate`, `clearDueDate`, `deferDate`, `clearDeferDate`, tag add/remove/set/clear
+- Does not complete or move tasks
+- Use `previewOnly`, `verify`, and `returnFields` for safe low-token workflows
+
+### set_tasks_completion
+Complete or uncomplete one or more task IDs:
+- `state`: `completed` or `active`
+- Handles repeating-task completion behavior and reports advancement in result messages
+
+### move_tasks
+Move or reparent one or more task IDs:
+- `destinationKind`: `inbox`, `project`, or `parent_task`
+- Omit `destinationID` for inbox moves
+- Use `position`: `beginning` or `ending`
+
+### update_projects
+Apply one shared project field patch to one or more project IDs:
+- Supports: `name`, `note`, `noteAppend`, `flagged`, `dueDate`, `clearDueDate`, `deferDate`, `clearDeferDate`, `sequential`, `reviewInterval`
+- Does not change status, completion, or folder location
+
+### set_projects_status
+Set project status for one or more project IDs:
+- `status`: `active`, `on_hold`, or `dropped`
+
+### set_projects_completion
+Complete or reactivate one or more project IDs:
+- `state`: `completed` or `active`
+- Handles repeating-project completion behavior and reports advancement in result messages
+
+### move_projects
+Move one or more project IDs to a folder or the root library:
+- `destinationKind`: `folder`
+- Set `destinationID` to a folder ID, or omit it to move to the root library
+- Use `position`: `beginning` or `ending`
 
 ### get_task_counts
 Get aggregate counts for any filter combination. Supports full task filtering including:

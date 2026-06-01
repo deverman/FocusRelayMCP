@@ -62,7 +62,14 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with inbox filter
 - `list_projects` (for categorization context)
-- Write tools (future): `update_task`, `move_task_to_project`
+- `update_tasks` for shared field/tag patches
+- `move_tasks` for moving tasks to projects or parent tasks
+
+**AI Workflow**:
+1. Read inbox tasks with `fields: ["id", "name"]`.
+2. Read candidate projects with `fields: ["id", "name"]`.
+3. Preview one homogeneous move or patch at a time.
+4. Ask for confirmation before sending the non-preview mutation.
 
 ---
 
@@ -81,7 +88,7 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with estimatedMinutes field
 - `list_tasks` with due date filters
-- Write tools (future): `update_task` to set estimates
+- `update_tasks` to set one shared estimate on selected task IDs
 
 ---
 
@@ -99,7 +106,8 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_projects` (to find related project)
 - `get_task` (to check for duplicates)
-- Write tools (future): `create_task`, `create_project`
+- Not supported in v1: task/project creation
+- Supported adjacent tools: `update_tasks`, `move_tasks`, `update_projects` for organizing existing items
 
 ---
 
@@ -290,50 +298,67 @@ This document captures real-world use cases and questions users ask AI about the
 
 **MCP Tools Needed**:
 - `list_projects` (to avoid duplicates)
-- Write tools (future): `create_project`, `create_task`, `add_subtask`
+- Not supported in v1: project/task creation and subtask creation
+- Supported adjacent tools: `update_projects`, `move_projects`, `set_projects_status`
 
 ---
 
 ## Implementation Status
 
-### Read-Only Use Cases (Current Capabilities)
+### Read Use Cases
 ✅ **Working Today**:
 - Daily planning with available tasks
 - Project priority analysis
 - Basic task listing by project
 - Flagged item identification
+- Date-based task and project queries
+- Duration filtering
+- Tag-based queries
+- Completed task/project analysis
 
-⚠️ **Partial** (Needs Enhancement):
-- Date-based queries (need date range filters)
-- Duration filtering (need min/max filters)
-- Tag-based queries (need tag filter)
-- Completed task analysis (need completion dates)
+### V1 Write Use Cases
+✅ **Working Today With Preview/Verify**:
+- Task field updates through `update_tasks`
+- Task complete/uncomplete through `set_tasks_completion`
+- Task inbox/project/parent moves through `move_tasks`
+- Project field updates through `update_projects`
+- Project active/on-hold/dropped transitions through `set_projects_status`
+- Project complete/reactivate through `set_projects_completion`
+- Project folder/root moves through `move_projects`
 
-❌ **Not Yet** (Requires Write Access):
-- Inbox processing/organization
-- Task estimation updates
-- Creating tasks from discussions
-- Project creation
+V1 write constraints:
+- ID-only mutation targeting
+- Homogeneous bulk only
+- Read-before-write recommended
+- `previewOnly` and `verify` recommended for AI clients
+- Mixed batch mutation is not supported
+
+❌ **Not Yet**:
+- Creating tasks, projects, tags, or folders
+- Mixed-operation batch mutation
+- Name-based mutation targeting
+- Planned-date writes
+- Project tag mutations
+
+See [AI-Optimized Mutation Workflows](mutation-workflows.md) for CLI and MCP examples.
 
 ## Priority Roadmap
 
-### Phase 1: Read-Only Enhancement (High Priority)
-1. Add date range filters (`dueBefore`, `dueAfter`, etc.)
-2. Add duration filtering (`maxEstimatedMinutes`)
-3. Add tag-based filtering
-4. Add creation and completion dates
+### Phase 1: Read/Write Reliability
+1. Keep read trust parity aligned with OmniFocus perspectives.
+2. Keep mutation preview/verify behavior consistent across CLI and MCP.
+3. Maintain cache invalidation after successful writes.
 
-### Phase 2: Search & Discovery (Medium Priority)
-1. Add `search_projects` tool
-2. Add `search_tags` tool
-3. Add per-project task counts
-4. Add analytics endpoints
+### Phase 2: Search & Discovery
+1. Add `search_projects` tool.
+2. Add `search_tags` tool.
+3. Add richer analytics endpoints.
 
-### Phase 3: Write Operations (Future)
-1. Task creation tools
-2. Task update tools
-3. Inbox processing automation
-4. Project management tools
+### Phase 3: Creation And Advanced Writes
+1. Task creation tools.
+2. Project creation tools.
+3. Folder/tag creation tools.
+4. Mixed-operation batch mutation only if a clear AI-safety contract is defined.
 
 ## Success Metrics
 
