@@ -126,6 +126,40 @@ func mutationRequestValidationRejectsUnsupportedTaskReturnFields() {
 }
 
 @Test
+func mutationRequestValidationRejectsMissingMoveDestinationID() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .moveTasks,
+            move: MoveMutation(destinationKind: .project, position: "ending")
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
+func mutationRequestValidationRejectsInvalidMovePosition() {
+    let request = MutationRequest(
+        targetType: .task,
+        targetIDs: ["task-1"],
+        operation: MutationOperation(
+            kind: .moveTasks,
+            move: MoveMutation(destinationKind: .inbox, position: "middle")
+        ),
+        previewOnly: true
+    )
+
+    #expect(throws: MutationValidationError.self) {
+        try request.validate()
+    }
+}
+
+@Test
 func mutationResponseSupportsSummaryAndReturnedFields() throws {
     let response = MutationResponse(
         targetType: .task,

@@ -3,6 +3,7 @@ import Foundation
 import OmniFocusCore
 
 extension MutationCompletionState: ExpressibleByArgument {}
+extension MutationMoveDestinationKind: ExpressibleByArgument {}
 
 enum FieldList {
     static func parse(_ raw: String?) -> [String] {

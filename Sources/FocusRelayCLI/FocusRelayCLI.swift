@@ -18,6 +18,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
             ListTags.self,
             UpdateTasks.self,
             SetTasksCompletion.self,
+            MoveTasks.self,
             TaskCounts.self,
             ProjectCounts.self,
             DebugInboxProbe.self,
@@ -257,6 +258,57 @@ struct SetTasksCompletion: AsyncParsableCommand {
             operation: MutationOperation(
                 kind: .setTasksCompletion,
                 completion: CompletionMutation(state: state)
+            ),
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: FieldList.parse(returnFields)
+        )
+
+        let result = try await service.performMutation(request)
+        print(try encodeJSON(result))
+    }
+}
+
+struct MoveTasks: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "move-tasks",
+        abstract: "Move or reparent multiple tasks to one shared destination.",
+        aliases: ["move_tasks"]
+    )
+
+    @Argument(help: "Task IDs to move.")
+    var ids: [String] = []
+
+    @Option(help: "Destination kind: inbox, project, or parent_task.")
+    var destinationKind: MutationMoveDestinationKind
+
+    @Option(help: "Destination ID for project or parent_task moves.")
+    var destinationID: String?
+
+    @Option(help: "Placement within the destination: beginning or ending.")
+    var position: String = "ending"
+
+    @Flag(name: .customLong("preview-only"), help: "Validate and resolve targets without mutating.")
+    var previewOnly: Bool = false
+
+    @Flag(help: "Verify the final state after mutation.")
+    var verify: Bool = false
+
+    @Option(name: .customLong("return-fields"), help: "Comma-separated task fields to include in per-item results.")
+    var returnFields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let request = MutationRequest(
+            targetType: .task,
+            targetIDs: ids,
+            operation: MutationOperation(
+                kind: .moveTasks,
+                move: MoveMutation(
+                    destinationKind: destinationKind,
+                    destinationID: destinationID,
+                    position: position
+                )
             ),
             previewOnly: previewOnly,
             verify: verify,
