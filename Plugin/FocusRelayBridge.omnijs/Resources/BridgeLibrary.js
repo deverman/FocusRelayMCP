@@ -172,9 +172,30 @@
      * @param {Task} task - OmniFocus task object  
      * @returns {boolean} True if task is remaining
      */
-    function isRemainingStatus(task) {
-      const st = taskStatus(task);
+    function parentChainAllowsRemaining(task) {
+      let parent = safe(() => task.parent);
+      let depth = 0;
+      while (parent && depth < 100) {
+        const parentStatus = taskStatus(parent);
+        if (isCompletedStatusValue(parentStatus) || isDroppedStatusValue(parentStatus)) {
+          return false;
+        }
+        parent = safe(() => parent.parent);
+        depth += 1;
+      }
+      return true;
+    }
+
+    function isRemainingStatusValue(st) {
       return !isCompletedStatusValue(st) && !isDroppedStatusValue(st);
+    }
+
+    function isRemainingStatusWithStatus(task, taskStatusValue) {
+      return isRemainingStatusValue(taskStatusValue) && parentChainAllowsRemaining(task);
+    }
+
+    function isRemainingStatus(task) {
+      return isRemainingStatusWithStatus(task, taskStatus(task));
     }
 
     /**
@@ -251,11 +272,7 @@
         if (statusStr.includes("Done")) { return false; }
       }
 
-      const parent = safe(() => task.parent);
-      if (parent) {
-        if (isCompletedStatus(parent)) { return false; }
-        if (isDroppedStatus(parent)) { return false; }
-      }
+      if (!parentChainAllowsRemaining(task)) { return false; }
 
       return isAvailableStatusValue(taskStatusValue);
     }
@@ -315,6 +332,54 @@
       }
     }
 
+    function taskIdentifier(task) {
+      return String(safe(() => task.id.primaryKey) || "");
+    }
+
+    function tagCollectionMatchesFilter(tags, filterTags) {
+      return tags.some(tag => {
+        const tagId = String(safe(() => tag.id.primaryKey) || "");
+        const tagName = String(safe(() => tag.name) || "");
+        return filterTags.some(filterTag => tagId === filterTag || tagName === filterTag);
+      });
+    }
+
+    function taskMatchesTagFilter(task, filterTags, untaggedOnly) {
+      const tags = safe(() => task.tags) || [];
+      if (untaggedOnly) {
+        return tags.length === 0;
+      }
+      return tagCollectionMatchesFilter(tags, filterTags);
+    }
+
+    function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
+      if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
+
+      const expandedTasks = tasks.slice();
+      const seenTaskIDs = {};
+      expandedTasks.forEach(task => {
+        const id = taskIdentifier(task);
+        if (id.length > 0) { seenTaskIDs[id] = true; }
+      });
+
+      projects.forEach(project => {
+        const rootTask = safe(() => project.task);
+        if (!rootTask) { return; }
+
+        const id = taskIdentifier(rootTask);
+        if (id.length === 0 || seenTaskIDs[id]) { return; }
+
+        const rootTags = safe(() => rootTask.tags) || [];
+        const projectTags = safe(() => project.tags) || [];
+        if (!tagCollectionMatchesFilter(rootTags, filterTags) && !tagCollectionMatchesFilter(projectTags, filterTags)) { return; }
+
+        expandedTasks.push(rootTask);
+        seenTaskIDs[id] = true;
+      });
+
+      return expandedTasks;
+    }
+
     function inboxTasksArray() {
       const tasks = [];
       inbox.apply(task => tasks.push(task));
@@ -350,18 +415,28 @@
           };
           const fields = request.fields || [];
           const hasField = (name) => fields.length === 0 || fields.indexOf(name) !== -1;
+          const hasProjectRootTagFilter = Array.isArray(filter.tags) && filter.tags.length > 0;
 
           let tasks = [];
+          let projectRootCandidates = [];
           const useInbox = filter.inboxOnly === true || request.op === "list_inbox";
           if (useInbox) {
             inbox.apply(task => tasks.push(task));
           } else {
             tasks = flattenedTasks;
+            if (hasProjectRootTagFilter) {
+              projectRootCandidates = safe(() => flattenedProjects) || [];
+            }
           }
           markListTasks("selected_base_pool", { useInbox: useInbox, count: tasks.length });
 
           if (!useInbox && typeof filter.project === "string" && filter.project.length > 0) {
             const projectFilter = filter.project;
+            projectRootCandidates = projectRootCandidates.filter(project => {
+              const pid = String(safe(() => project.id.primaryKey) || "");
+              const pname = String(safe(() => project.name) || "");
+              return pid === projectFilter || pname === projectFilter;
+            });
             tasks = tasks.filter(t => {
               const project = safe(() => t.containingProject);
               if (!project) { return false; }
@@ -371,6 +446,10 @@
             });
           }
           markListTasks("after_project_scope", { count: tasks.length, projectFilter: filter.project || null });
+          if (!useInbox && hasProjectRootTagFilter) {
+            tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
+            markListTasks("after_tagged_project_root_expansion", { count: tasks.length, projectRootCandidates: projectRootCandidates.length });
+          }
           // Note: When inboxOnly is false and no project filter is specified,
           // we return tasks from all projects (flattenedTasks)
 
@@ -455,7 +534,7 @@
               const taskCompleted = isCompletedStatusValue(taskStatusValue);
               if (taskCompleted !== filterState.completed) return false;
             } else if (!isEverything) {
-              if (isCompletedStatusValue(taskStatusValue) || isDroppedStatusValue(taskStatusValue)) return false;
+              if (!isRemainingStatusWithStatus(t, taskStatusValue)) return false;
             }
             if (filterState.flagged !== undefined) {
               const taskFlagged = Boolean(t.flagged);
@@ -531,17 +610,7 @@
             
             // Tag checks
             if (filterState.tags) {
-              const tags = safe(() => t.tags) || [];
-              if (filterState.untaggedOnly) {
-                if (tags.length > 0) return false;
-              } else {
-                const hasMatchingTag = tags.some(tag => {
-                  const tagId = String(safe(() => tag.id.primaryKey) || "");
-                  const tagName = String(safe(() => tag.name) || "");
-                  return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
-                });
-                if (!hasMatchingTag) return false;
-              }
+              if (!taskMatchesTagFilter(t, filterState.tags, filterState.untaggedOnly)) return false;
             }
             
             return true;
@@ -1140,11 +1209,29 @@
             return toTaskArray(safe(() => flattenedTasks));
           }
 
+          function selectProjectRootCandidates() {
+            if (filter.inboxOnly === true || !Array.isArray(filter.tags) || filter.tags.length === 0) {
+              return [];
+            }
+
+            const project = resolveProject(filter.project);
+            if (filter.project && !project) {
+              return [];
+            }
+            if (project) {
+              return [project];
+            }
+
+            return safe(() => flattenedProjects) || [];
+          }
+
           // Use same filtering logic as list_tasks for consistency.
           // Task pool is selected from native OmniFocus collections first,
           // then filtered with the same semantics as list_tasks.
           const poolStart = Date.now();
           let tasks = selectTaskPool();
+          const projectRootCandidates = selectProjectRootCandidates();
+          tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
           const debugInfo = debugTaskCounts ? {
             requestId: requestId,
             availableOnly: availableOnly,
@@ -1307,7 +1394,7 @@
               const taskStatusValue = taskStatus(t);
               const taskCompleted = isCompletedStatusValue(taskStatusValue);
               const taskDropped = isDroppedStatusValue(taskStatusValue);
-              const taskRemaining = !taskCompleted && !taskDropped;
+              const taskRemaining = isRemainingStatusWithStatus(t, taskStatusValue);
               let taskFlagged = null;
 
               if (filterState.completed !== undefined) {
@@ -1379,17 +1466,7 @@
                 if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
               }
               if (filterState.tags) {
-                const tags = safe(() => t.tags) || [];
-                if (filterState.untaggedOnly) {
-                  if (tags.length > 0) return;
-                } else {
-                  const hasMatchingTag = tags.some(tag => {
-                    const tagId = String(safe(() => tag.id.primaryKey) || "");
-                    const tagName = String(safe(() => tag.name) || "");
-                    return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
-                  });
-                  if (!hasMatchingTag) return;
-                }
+                if (!taskMatchesTagFilter(t, filterState.tags, filterState.untaggedOnly)) return;
               }
 
               let taskAvailable = false;
@@ -1543,11 +1620,13 @@
 
             let tasks = [];
             const project = resolveProject(filter.project);
+            let projectRootCandidates = [];
             if (filter.project && !project) {
               tasks = [];
             } else if (project) {
               const poolStart = Date.now();
               tasks = toTaskArray(safe(() => project.flattenedTasks));
+              projectRootCandidates = [project];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
                 durationMs: Date.now() - poolStart,
@@ -1559,6 +1638,7 @@
             } else {
               const poolStart = Date.now();
               tasks = toTaskArray(safe(() => flattenedTasks));
+              projectRootCandidates = safe(() => flattenedProjects) || [];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
                 durationMs: Date.now() - poolStart,
@@ -1568,6 +1648,7 @@
                 completed: derivedCompleted
               });
             }
+            tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
 
             const filterState = {
               completed: derivedCompleted,
@@ -1657,17 +1738,7 @@
                 if (minutes === null || minutes === undefined || minutes < filterState.minEstimatedMinutes) return;
               }
               if (filterState.tags) {
-                const tags = safe(() => t.tags) || [];
-                if (filterState.untaggedOnly) {
-                  if (tags.length > 0) return;
-                } else {
-                  const hasMatchingTag = tags.some(tag => {
-                    const tagId = String(safe(() => tag.id.primaryKey) || "");
-                    const tagName = String(safe(() => tag.name) || "");
-                    return filterState.tags.some(filterTag => tagId === filterTag || tagName === filterTag);
-                  });
-                  if (!hasMatchingTag) return;
-                }
+                if (!taskMatchesTagFilter(t, filterState.tags, filterState.untaggedOnly)) return;
               }
               const pid = String(safe(() => project.id.primaryKey) || "");
               if (pid) { projectIds.add(pid); }

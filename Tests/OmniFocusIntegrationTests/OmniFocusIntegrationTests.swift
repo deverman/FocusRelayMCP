@@ -76,6 +76,30 @@ func bridgeListInboxPagingCursorAdvancesLive() throws {
 }
 
 @Test
+func bridgeTaggedProjectRootWithChildrenLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+    guard let projectID = env["FOCUS_RELAY_TAGGED_PROJECT_ROOT_ID"], !projectID.isEmpty else {
+        return
+    }
+    guard let tag = env["FOCUS_RELAY_TAGGED_PROJECT_ROOT_TAG"], !tag.isEmpty else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(completed: false, availableOnly: false, project: projectID, tags: [tag], includeTotalCount: true)
+    let result = try client.listTasks(filter: filter, page: PageRequest(limit: 50), fields: ["id", "name", "tagNames", "available"])
+
+    #expect(result.items.contains { $0.id == projectID })
+
+    let counts = try client.getTaskCounts(filter: filter)
+    #expect(result.totalCount == counts.total)
+    #expect(counts.total >= result.items.count)
+}
+
+@Test
 func bridgeTaskCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -633,6 +657,58 @@ func bridgeChildTasksWithCompletedParentNotAvailableLive() throws {
     for childId in childTaskIds {
         let found = result.items.contains { $0.id == childId }
         #expect(!found, "Child task \(childId) of completed parent should not be available")
+    }
+}
+
+@Test
+func bridgeChildTasksWithCompletedParentNotRemainingLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let childTaskIds = env["FOCUS_RELAY_CHILD_TASK_IDS"]?.split(separator: ",").map(String.init) ?? []
+    guard !childTaskIds.isEmpty else {
+        return
+    }
+
+    let client = BridgeClient()
+    let result = try client.listTasks(
+        filter: TaskFilter(completed: false, availableOnly: false, includeTotalCount: true),
+        page: PageRequest(limit: 200),
+        fields: ["id", "name", "completed", "available"]
+    )
+
+    for childId in childTaskIds {
+        let found = result.items.contains { $0.id == childId }
+        #expect(!found, "Child task \(childId) of completed parent should not be returned in remaining/default results")
+    }
+}
+
+@Test
+func bridgeAndJXAChildTasksWithCompletedParentNotRemainingLive() async throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
+        return
+    }
+
+    let childTaskIds = env["FOCUS_RELAY_CHILD_TASK_IDS"]?.split(separator: ",").map(String.init) ?? []
+    guard !childTaskIds.isEmpty else {
+        return
+    }
+
+    let filter = TaskFilter(completed: false, availableOnly: false, includeTotalCount: true)
+    let page = PageRequest(limit: 200)
+    let fields = ["id", "name", "completed", "available"]
+
+    let bridge = OmniFocusBridgeService()
+    let automation = OmniAutomationService()
+    let bridgeResult = try await retryListTasks(service: bridge, filter: filter, page: page, fields: fields)
+    let jxaResult = try await retryListTasks(service: automation, filter: filter, page: page, fields: fields)
+
+    for childId in childTaskIds {
+        #expect(!bridgeResult.items.contains { $0.id == childId }, "Bridge should not return child task \(childId) of completed parent in remaining/default results")
+        #expect(!jxaResult.items.contains { $0.id == childId }, "JXA should not return child task \(childId) of completed parent in remaining/default results")
     }
 }
 
