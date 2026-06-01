@@ -126,6 +126,34 @@
       };
     }
 
+    function collectionLength(collection) {
+      if (!collection) { return 0; }
+      if (Array.isArray(collection)) { return collection.length; }
+      const length = safe(() => collection.length);
+      return (typeof length === "number" && isFinite(length)) ? Math.trunc(length) : 0;
+    }
+
+    function folderToPayload(folder, fields) {
+      const hasField = (name) => fields.length === 0 || fields.indexOf(name) !== -1;
+      const parent = (hasField("parentID") || hasField("parentName")) ? safe(() => folder.parent) : null;
+      const needsProjectCount = hasField("projectCount") || hasField("childFolderCount");
+      const projects = needsProjectCount ? safe(() => folder.projects) : null;
+      const children = hasField("childFolderCount") ? safe(() => folder.children) : null;
+      const projectCount = collectionLength(projects);
+      const childSectionCount = collectionLength(children);
+      // OmniFocus folder.children includes direct child sections, including projects.
+      const childFolderCount = Math.max(childSectionCount - projectCount, 0);
+
+      return {
+        id: hasField("id") ? String(safe(() => folder.id.primaryKey) || "") : null,
+        name: hasField("name") ? String(safe(() => folder.name) || "") : null,
+        parentID: hasField("parentID") && parent ? String(safe(() => parent.id.primaryKey) || "") : null,
+        parentName: hasField("parentName") && parent ? String(safe(() => parent.name) || "") : null,
+        projectCount: hasField("projectCount") ? projectCount : null,
+        childFolderCount: hasField("childFolderCount") ? childFolderCount : null
+      };
+    }
+
     function normalizeIdentifierArray(values) {
       if (!Array.isArray(values)) { return []; }
       return values
@@ -2291,6 +2319,21 @@
           const nextCursor = (offset + limit < tags.length) ? String(offset + limit) : null;
           const returnedCount = items.length;
           response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: tags.length };
+        } else if (request.op === "list_folders") {
+          const fields = request.fields || [];
+          const folders = toTaskArray(safe(() => flattenedFolders));
+          const limit = request.page && request.page.limit ? request.page.limit : 150;
+          let offset = 0;
+          if (request.page && request.page.cursor) {
+            const parsed = parseInt(request.page.cursor, 10);
+            if (!isNaN(parsed) && parsed >= 0) { offset = parsed; }
+          }
+
+          const slice = folders.slice(offset, offset + limit);
+          const items = slice.map(folder => folderToPayload(folder, fields));
+          const nextCursor = (offset + limit < folders.length) ? String(offset + limit) : null;
+          const returnedCount = items.length;
+          response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: folders.length };
         } else if (request.op === "get_task") {
           const fields = request.fields || [];
           const taskId = request.id;

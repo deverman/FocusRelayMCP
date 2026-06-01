@@ -235,6 +235,27 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
                 ),
                 Tool(
+                    name: "list_folders",
+                    description: "List OmniFocus folders with pagination for project move destination discovery. Use this before move_projects when moving projects into a folder. Compact default fields are id and name; request parentID, parentName, projectCount, or childFolderCount when needed.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "page": .object([
+                                "type": .string("object"),
+                                "properties": .object([
+                                    "limit": .object(["type": .string("integer")]),
+                                    "cursor": .object(["type": .string("string")])
+                                ])
+                            ]),
+                            "fields": .object([
+                                "type": .string("array"),
+                                "description": .string("Specify folder fields to return: id, name, parentID, parentName, projectCount, childFolderCount."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ]
+                    ),
+                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+                ),
+                Tool(
                     name: "update_tasks",
                     description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
                     inputSchema: toolSchema(
@@ -467,7 +488,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "move_projects",
-                    description: "Move multiple project IDs to one shared folder or the root library. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -484,7 +505,7 @@ public enum FocusRelayServer {
                                         "enum": .array([.string("folder")]),
                                         "description": .string("Destination kind. Use folder for both folder and root-library project moves.")
                                     ]),
-                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID. Omit to move projects to the root library."),
+                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID from list_folders. Omit to move projects to the root library."),
                                     "position": .object([
                                         "type": .string("string"),
                                         "enum": .array([.string("beginning"), .string("ending")]),
@@ -645,6 +666,16 @@ public enum FocusRelayServer {
                     let result = try await service.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
                     let fieldSet = Set(["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"])
                     let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
+                    let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
+                    return .init(content: [.text(try encodeJSON(output))])
+                case "list_folders":
+                    let hasPage = params.arguments?["page"] != nil
+                    let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
+                    let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
+                    let result = try await service.listFolders(page: page, fields: fields)
+                    let fieldSet = Set(fields)
+                    let items = result.items.map { makeFolderOutput(from: $0, fields: fieldSet) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "update_tasks":

@@ -201,6 +201,42 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed(message)
     }
 
+    func listFolders(page: PageRequest, fields: [String]?) throws -> Page<FolderItem> {
+        let requestId = UUID().uuidString
+        let request = BridgeRequest(
+            schemaVersion: 1,
+            requestId: requestId,
+            op: "list_folders",
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
+            id: nil,
+            filter: nil,
+            tagFilter: nil,
+            projectFilter: nil,
+            mutation: nil,
+            fields: fields,
+            page: page
+        )
+
+        let response: BridgeResponse<Page<FolderItemPayload>> = try sendRequest(request, responseType: Page<FolderItemPayload>.self)
+        if response.ok, let payloadPage = response.data {
+            let items = payloadPage.items.map { payload in
+                FolderItem(
+                    id: payload.id ?? "",
+                    name: payload.name ?? "",
+                    parentID: payload.parentID,
+                    parentName: payload.parentName,
+                    projectCount: payload.projectCount,
+                    childFolderCount: payload.childFolderCount
+                )
+            }
+            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount)
+        }
+
+        let message = response.error?.message ?? "Unknown bridge error"
+        throw AutomationError.executionFailed(message)
+    }
+
     func getTask(id: String, fields: [String]?) throws -> TaskItem {
         let requestId = UUID().uuidString
         let request = BridgeRequest(

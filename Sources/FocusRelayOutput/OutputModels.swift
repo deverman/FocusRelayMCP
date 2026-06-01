@@ -153,6 +153,31 @@ public struct TagOutput: Encodable {
     }
 }
 
+public struct FolderOutput: Encodable {
+    public let id: String?
+    public let name: String?
+    public let parentID: String?
+    public let parentName: String?
+    public let projectCount: Int?
+    public let childFolderCount: Int?
+
+    public init(
+        id: String?,
+        name: String?,
+        parentID: String?,
+        parentName: String?,
+        projectCount: Int?,
+        childFolderCount: Int?
+    ) {
+        self.id = id
+        self.name = name
+        self.parentID = parentID
+        self.parentName = parentName
+        self.projectCount = projectCount
+        self.childFolderCount = childFolderCount
+    }
+}
+
 public func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOutput {
     TaskOutput(
         id: fields.contains("id") ? task.id : nil,
@@ -204,6 +229,17 @@ public func makeTagOutput(from tag: TagItem, fields: Set<String>, includeTaskCou
         availableTasks: includeTaskCounts ? tag.availableTasks : nil,
         remainingTasks: includeTaskCounts ? tag.remainingTasks : nil,
         totalTasks: includeTaskCounts ? tag.totalTasks : nil
+    )
+}
+
+public func makeFolderOutput(from folder: FolderItem, fields: Set<String>) -> FolderOutput {
+    FolderOutput(
+        id: fields.contains("id") ? folder.id : nil,
+        name: fields.contains("name") ? folder.name : nil,
+        parentID: fields.contains("parentID") ? folder.parentID : nil,
+        parentName: fields.contains("parentName") ? folder.parentName : nil,
+        projectCount: fields.contains("projectCount") ? folder.projectCount : nil,
+        childFolderCount: fields.contains("childFolderCount") ? folder.childFolderCount : nil
     )
 }
 

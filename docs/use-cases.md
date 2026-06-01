@@ -312,6 +312,7 @@ This document captures real-world use cases and questions users ask AI about the
 - Tag-based task filtering
 - Completed task/project analysis
 - Project and task counts
+- Folder destination discovery through `list_folders`
 
 ### Current Write Capabilities
 ✅ **Working Today**:
@@ -335,7 +336,6 @@ This document captures real-world use cases and questions users ask AI about the
 - Mixed-operation `batch_mutate_tasks`
 - Name-based or fuzzy mutation targeting
 - Planned-date writes
-- Public folder discovery for project moves
 
 ## Priority Roadmap
 

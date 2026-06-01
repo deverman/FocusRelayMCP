@@ -85,6 +85,10 @@ public final class OmniFocusBridgeService: OmniFocusService {
         return pageResult
     }
 
+    public func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {
+        return try client.listFolders(page: page, fields: fields)
+    }
+
     public func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts {
         return try client.getTaskCounts(filter: filter)
     }

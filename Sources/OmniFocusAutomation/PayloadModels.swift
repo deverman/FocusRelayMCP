@@ -57,3 +57,12 @@ struct TagItemPayload: Codable {
     let remainingTasks: Int?
     let totalTasks: Int?
 }
+
+struct FolderItemPayload: Codable {
+    let id: String?
+    let name: String?
+    let parentID: String?
+    let parentName: String?
+    let projectCount: Int?
+    let childFolderCount: Int?
+}

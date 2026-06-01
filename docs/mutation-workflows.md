@@ -28,6 +28,9 @@ FocusRelay v1 write tools are designed to be low-token, deterministic, and easy 
 | Set project active, on-hold, or dropped | `set_projects_status` | `focusrelay set-projects-status` |
 | Complete or uncomplete projects | `set_projects_completion` | `focusrelay set-projects-completion` |
 | Move projects to a folder or root library | `move_projects` | `focusrelay move-projects` |
+| Discover project folder IDs before moves | `list_folders` | `focusrelay list-folders` |
+
+Do not use `update_tasks` or `update_projects` for completion, status, or move behavior.
 
 ## Read Before Write
 
@@ -61,6 +64,8 @@ MCP example:
 ```
 
 ## Low-Token Output
+
+When a mutation needs tag, project, parent-task, or folder IDs, read those IDs first. Do not ask the model to infer IDs from names already shown in prior conversation unless the ID is still visible in context. Use `list_folders` before folder moves when the folder ID is not already known, or omit `destinationID` to move projects to the root library.
 
 Default mutation responses are compact. Add `returnFields` only when the next step needs those fields.
 
@@ -144,11 +149,12 @@ focusrelay set-projects-completion project-1 --state active --verify --return-fi
 Move to a known folder ID, or omit `--destination-id` to move to the root library.
 
 ```bash
+focusrelay list-folders --fields id,name,parentID,parentName --limit 50
 focusrelay move-projects project-1 --destination-kind folder --destination-id folder-1 --verify --return-fields id,name,status
 focusrelay move-projects project-1 --destination-kind folder --verify --return-fields id,name,status
 ```
 
-V1 does not include a public folder discovery tool. Agents must not invent folder IDs; use `move_projects` only when the destination folder ID is known, or omit `destinationID` for a root-library move.
+Agents must not invent folder IDs. Use `list_folders` when the destination folder ID is not already known.
 
 ## MCP Examples
 
@@ -208,6 +214,17 @@ Call `update_tasks` again with `"previewOnly": false` and `"verify": true` after
 ```
 
 ### Move Projects
+
+Before a folder move, call `list_folders` with compact fields if you do not already have the folder ID:
+
+```json
+{
+  "fields": ["id", "name", "parentID", "parentName"],
+  "limit": 50
+}
+```
+
+Then call `move_projects`:
 
 ```json
 {
