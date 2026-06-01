@@ -183,14 +183,7 @@
     function resolveTaskPatchTags(taskPatch) {
       if (!taskPatch || !taskPatch.tags) { return { ok: true, tags: null }; }
 
-      const allTags = toTaskArray(safe(() => flattenedTags));
-      const tagsByID = {};
-      allTags.forEach(tag => {
-        const id = String(safe(() => tag.id.primaryKey) || "");
-        if (id.length > 0) {
-          tagsByID[id] = tag;
-        }
-      });
+      const tagsByID = indexByPrimaryKey(safe(() => flattenedTags));
 
       function resolve(ids) {
         const resolved = [];
@@ -926,6 +919,84 @@
       return null;
     }
 
+    function primaryKey(item) {
+      return String(safe(() => item.id.primaryKey) || "");
+    }
+
+    function indexByPrimaryKey(collection) {
+      const indexed = {};
+      toTaskArray(collection).forEach(item => {
+        const id = primaryKey(item);
+        if (id.length > 0) {
+          indexed[id] = item;
+        }
+      });
+      return indexed;
+    }
+
+    function mutationItemResult(id, status, message, returnedFields) {
+      const result = {
+        id: id,
+        status: status,
+        message: message
+      };
+      if (arguments.length >= 4) {
+        result.returnedFields = returnedFields;
+      }
+      return result;
+    }
+
+    function failedMutationItem(id, message, returnedFields) {
+      if (arguments.length >= 3) {
+        return mutationItemResult(id, "failed", message, returnedFields);
+      }
+      return mutationItemResult(id, "failed", message);
+    }
+
+    function previewedMutationItem(id, message) {
+      return mutationItemResult(id, "previewed", message);
+    }
+
+    function mutatedMutationItem(id, message, returnedFields) {
+      return mutationItemResult(id, "mutated", message, returnedFields);
+    }
+
+    function mutationResponsePayload(mutation, operation, ids, results, warnings) {
+      const successCount = results.filter(result => result.status !== "failed").length;
+      return {
+        targetType: mutation.targetType,
+        operationKind: operation.kind,
+        previewOnly: Boolean(mutation.previewOnly),
+        verify: Boolean(mutation.verify),
+        requestedCount: ids.length,
+        successCount: successCount,
+        failureCount: results.length - successCount,
+        results: results,
+        warnings: warnings || []
+      };
+    }
+
+    function failedMutationPayload(mutation, operation, ids, message) {
+      return mutationResponsePayload(
+        mutation,
+        operation,
+        ids,
+        ids.map(id => failedMutationItem(id, message)),
+        []
+      );
+    }
+
+    function verifiedMutationMessage(message, verify) {
+      if (!verify) { return message; }
+      return message.replace(/\.$/, "") + " Verified.";
+    }
+
+    function saveIfMutated(mutatedAny) {
+      if (mutatedAny) {
+        safe(() => save());
+      }
+    }
+
     // ============================================================
     // STATUS MODULE - Single Source of Truth for OmniFocus Status
     // ============================================================
@@ -1144,73 +1215,26 @@
           if (operation.kind === "update_tasks") {
             const patchError = validateTaskPatch(operation.taskPatch);
             if (patchError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: patchError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, patchError);
             } else {
               const resolvedTags = resolveTaskPatchTags(operation.taskPatch);
               if (!resolvedTags.ok) {
-                const results = ids.map(id => ({
-                  id: id,
-                  status: "failed",
-                  message: resolvedTags.message
-                }));
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: 0,
-                  failureCount: results.length,
-                  results: results,
-                  warnings: []
-                };
+                response.data = failedMutationPayload(mutation, operation, ids, resolvedTags.message);
               } else {
-                const pool = toTaskArray(safe(() => flattenedTasks));
-                const tasksByID = {};
-                pool.forEach(task => {
-                  const id = String(safe(() => task.id.primaryKey) || "");
-                  if (id.length > 0) {
-                    tasksByID[id] = task;
-                  }
-                });
+                const tasksByID = indexByPrimaryKey(safe(() => flattenedTasks));
 
                 const results = [];
-                let successCount = 0;
                 let mutatedAny = false;
 
                 ids.forEach(id => {
                   const task = tasksByID[id];
                   if (!task) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Target ID not found."
-                    });
+                    results.push(failedMutationItem(id, "Target ID not found."));
                     return;
                   }
 
                   if (mutation.previewOnly) {
-                    results.push({
-                      id: id,
-                      status: "previewed",
-                      message: "Validated target and shared patch for preview."
-                    });
-                    successCount += 1;
+                    results.push(previewedMutationItem(id, "Validated target and shared patch for preview."));
                     return;
                   }
 
@@ -1220,93 +1244,45 @@
                   if (mutation.verify) {
                     const verificationError = verifyTaskPatch(task, operation.taskPatch, resolvedTags.tags);
                     if (verificationError) {
-                      results.push({
-                        id: id,
-                        status: "failed",
-                        message: "Mutation applied but verification failed: " + verificationError,
-                        returnedFields: taskReturnedFields(task, mutation.returnFields)
-                      });
+                      results.push(failedMutationItem(
+                        id,
+                        "Mutation applied but verification failed: " + verificationError,
+                        taskReturnedFields(task, mutation.returnFields)
+                      ));
                       return;
                     }
                   }
 
-                  results.push({
-                    id: id,
-                    status: "mutated",
-                    message: mutation.verify ? "Task updated and verified." : "Task updated.",
-                    returnedFields: taskReturnedFields(task, mutation.returnFields)
-                  });
-                  successCount += 1;
+                  results.push(mutatedMutationItem(
+                    id,
+                    mutation.verify ? "Task updated and verified." : "Task updated.",
+                    taskReturnedFields(task, mutation.returnFields)
+                  ));
                 });
 
-                if (mutatedAny) {
-                  safe(() => save());
-                }
-
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: successCount,
-                  failureCount: results.length - successCount,
-                  results: results,
-                  warnings: []
-                };
+                saveIfMutated(mutatedAny);
+                response.data = mutationResponsePayload(mutation, operation, ids, results, []);
               }
             }
           } else if (operation.kind === "update_projects") {
             const patchError = validateProjectPatch(operation.projectPatch);
             if (patchError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: patchError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, patchError);
             } else {
-              const projects = toTaskArray(safe(() => flattenedProjects));
-              const projectByID = {};
-              projects.forEach(project => {
-                const id = String(safe(() => project.id.primaryKey) || "");
-                if (id.length > 0) {
-                  projectByID[id] = project;
-                }
-              });
+              const projectByID = indexByPrimaryKey(safe(() => flattenedProjects));
 
               const results = [];
-              let successCount = 0;
               let mutatedAny = false;
 
               ids.forEach(id => {
                 const project = projectByID[id];
                 if (!project) {
-                  results.push({
-                    id: id,
-                    status: "failed",
-                    message: "Target ID not found."
-                  });
+                  results.push(failedMutationItem(id, "Target ID not found."));
                   return;
                 }
 
                 if (mutation.previewOnly) {
-                  results.push({
-                    id: id,
-                    status: "previewed",
-                    message: "Validated target and shared project patch for preview."
-                  });
-                  successCount += 1;
+                  results.push(previewedMutationItem(id, "Validated target and shared project patch for preview."));
                   return;
                 }
 
@@ -1316,93 +1292,45 @@
                 if (mutation.verify) {
                   const verificationError = verifyProjectPatch(project, operation.projectPatch);
                   if (verificationError) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Mutation applied but verification failed: " + verificationError,
-                      returnedFields: projectReturnedFields(project, mutation.returnFields)
-                    });
+                    results.push(failedMutationItem(
+                      id,
+                      "Mutation applied but verification failed: " + verificationError,
+                      projectReturnedFields(project, mutation.returnFields)
+                    ));
                     return;
                   }
                 }
 
-                results.push({
-                  id: id,
-                  status: "mutated",
-                  message: mutation.verify ? "Project updated and verified." : "Project updated.",
-                  returnedFields: projectReturnedFields(project, mutation.returnFields)
-                });
-                successCount += 1;
+                results.push(mutatedMutationItem(
+                  id,
+                  mutation.verify ? "Project updated and verified." : "Project updated.",
+                  projectReturnedFields(project, mutation.returnFields)
+                ));
               });
 
-              if (mutatedAny) {
-                safe(() => save());
-              }
-
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: successCount,
-                failureCount: results.length - successCount,
-                results: results,
-                warnings: []
-              };
+              saveIfMutated(mutatedAny);
+              response.data = mutationResponsePayload(mutation, operation, ids, results, []);
             }
           } else if (operation.kind === "set_projects_status") {
             const statusError = validateProjectStatusMutation(operation.projectStatus);
             if (statusError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: statusError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, statusError);
             } else {
               const requestedStatus = operation.projectStatus.status;
-              const projects = toTaskArray(safe(() => flattenedProjects));
-              const projectByID = {};
-              projects.forEach(project => {
-                const id = String(safe(() => project.id.primaryKey) || "");
-                if (id.length > 0) {
-                  projectByID[id] = project;
-                }
-              });
+              const projectByID = indexByPrimaryKey(safe(() => flattenedProjects));
 
               const results = [];
-              let successCount = 0;
               let mutatedAny = false;
 
               ids.forEach(id => {
                 const project = projectByID[id];
                 if (!project) {
-                  results.push({
-                    id: id,
-                    status: "failed",
-                    message: "Target ID not found."
-                  });
+                  results.push(failedMutationItem(id, "Target ID not found."));
                   return;
                 }
 
                 if (mutation.previewOnly) {
-                  results.push({
-                    id: id,
-                    status: "previewed",
-                    message: "Validated target for project status preview."
-                  });
-                  successCount += 1;
+                  results.push(previewedMutationItem(id, "Validated target for project status preview."));
                   return;
                 }
 
@@ -1412,12 +1340,11 @@
                 if (mutation.verify) {
                   const verificationError = verifyProjectStatus(project, requestedStatus);
                   if (verificationError) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Mutation applied but verification failed: " + verificationError,
-                      returnedFields: projectReturnedFields(project, mutation.returnFields)
-                    });
+                    results.push(failedMutationItem(
+                      id,
+                      "Mutation applied but verification failed: " + verificationError,
+                      projectReturnedFields(project, mutation.returnFields)
+                    ));
                     return;
                   }
                 }
@@ -1426,90 +1353,44 @@
                 if (requestedStatus === "active") { message = "Project marked active."; }
                 if (requestedStatus === "on_hold") { message = "Project put on hold."; }
                 if (requestedStatus === "dropped") { message = "Project dropped."; }
-                if (mutation.verify) {
-                  message = message.replace(/\.$/, "") + " Verified.";
-                }
+                message = verifiedMutationMessage(message, mutation.verify);
 
-                results.push({
-                  id: id,
-                  status: "mutated",
-                  message: message,
-                  returnedFields: projectReturnedFields(project, mutation.returnFields)
-                });
-                successCount += 1;
+                results.push(mutatedMutationItem(
+                  id,
+                  message,
+                  projectReturnedFields(project, mutation.returnFields)
+                ));
               });
 
-              if (mutatedAny) {
-                safe(() => save());
-              }
-
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: successCount,
-                failureCount: results.length - successCount,
-                results: results,
-                warnings: []
-              };
+              saveIfMutated(mutatedAny);
+              response.data = mutationResponsePayload(mutation, operation, ids, results, []);
             }
           } else if (operation.kind === "set_projects_completion") {
             const completionError = validateCompletionMutation(operation.completion, "set_projects_completion");
             if (completionError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: completionError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, completionError);
             } else {
               const requestedState = operation.completion.state;
-              const projects = toTaskArray(safe(() => flattenedProjects));
-              const projectByID = {};
-              projects.forEach(project => {
-                const id = String(safe(() => project.id.primaryKey) || "");
-                if (id.length > 0) {
-                  projectByID[id] = project;
-                }
-              });
+              const projectByID = indexByPrimaryKey(safe(() => flattenedProjects));
 
               const results = [];
-              let successCount = 0;
               let mutatedAny = false;
 
               ids.forEach(id => {
                 const project = projectByID[id];
                 if (!project) {
-                  results.push({
-                    id: id,
-                    status: "failed",
-                    message: "Target ID not found."
-                  });
+                  results.push(failedMutationItem(id, "Target ID not found."));
                   return;
                 }
 
                 const isRepeating = Boolean(safe(() => project.repetitionRule));
                 if (mutation.previewOnly) {
-                  results.push({
-                    id: id,
-                    status: "previewed",
-                    message: requestedState === "completed" && isRepeating
+                  results.push(previewedMutationItem(
+                    id,
+                    requestedState === "completed" && isRepeating
                       ? "Validated repeating project target for completion preview."
                       : "Validated target for project completion preview."
-                  });
-                  successCount += 1;
+                  ));
                   return;
                 }
 
@@ -1524,12 +1405,11 @@
                 if (mutation.verify) {
                   const verificationError = verifyProjectCompletion(project, completedProject, requestedState);
                   if (verificationError) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Mutation applied but verification failed: " + verificationError,
-                      returnedFields: projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
-                    });
+                    results.push(failedMutationItem(
+                      id,
+                      "Mutation applied but verification failed: " + verificationError,
+                      projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
+                    ));
                     return;
                   }
                 }
@@ -1542,109 +1422,45 @@
                     message = "Repeating project completed and advanced to the next occurrence.";
                   }
                 }
-                if (mutation.verify) {
-                  message = message.replace(/\.$/, "") + " Verified.";
-                }
+                message = verifiedMutationMessage(message, mutation.verify);
 
-                results.push({
-                  id: id,
-                  status: "mutated",
-                  message: message,
-                  returnedFields: projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
-                });
-                successCount += 1;
+                results.push(mutatedMutationItem(
+                  id,
+                  message,
+                  projectCompletionResultFields(project, completedProject, requestedState, mutation.returnFields)
+                ));
               });
 
-              if (mutatedAny) {
-                safe(() => save());
-              }
-
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: successCount,
-                failureCount: results.length - successCount,
-                results: results,
-                warnings: []
-              };
+              saveIfMutated(mutatedAny);
+              response.data = mutationResponsePayload(mutation, operation, ids, results, []);
             }
           } else if (operation.kind === "move_projects") {
-            const projects = toTaskArray(safe(() => flattenedProjects));
-            const folders = toTaskArray(safe(() => flattenedFolders));
-            const projectByID = {};
-            const folderByID = {};
-            projects.forEach(project => {
-              const id = String(safe(() => project.id.primaryKey) || "");
-              if (id.length > 0) { projectByID[id] = project; }
-            });
-            folders.forEach(folder => {
-              const id = String(safe(() => folder.id.primaryKey) || "");
-              if (id.length > 0) { folderByID[id] = folder; }
-            });
+            const projectByID = indexByPrimaryKey(safe(() => flattenedProjects));
+            const folderByID = indexByPrimaryKey(safe(() => flattenedFolders));
 
             const moveError = validateProjectMoveMutation(operation.move, folderByID);
             if (moveError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: moveError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, moveError);
             } else {
               const destination = buildProjectMoveDestination(operation.move, folderByID);
               if (!destination.ok) {
-                const results = ids.map(id => ({
-                  id: id,
-                  status: "failed",
-                  message: destination.message
-                }));
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: 0,
-                  failureCount: results.length,
-                  results: results,
-                  warnings: []
-                };
+                response.data = failedMutationPayload(mutation, operation, ids, destination.message);
               } else {
                 const results = [];
-                let successCount = 0;
                 let mutatedAny = false;
 
                 ids.forEach(id => {
                   const project = projectByID[id];
                   if (!project) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Target ID not found."
-                    });
+                    results.push(failedMutationItem(id, "Target ID not found."));
                     return;
                   }
 
                   if (mutation.previewOnly) {
-                    results.push({
-                      id: id,
-                      status: "previewed",
-                      message: "Validated project move target and destination " + destination.label + " for preview."
-                    });
-                    successCount += 1;
+                    results.push(previewedMutationItem(
+                      id,
+                      "Validated project move target and destination " + destination.label + " for preview."
+                    ));
                     return;
                   }
 
@@ -1654,102 +1470,55 @@
                   if (mutation.verify) {
                     const verificationError = verifyProjectMove(project, destination);
                     if (verificationError) {
-                      results.push({
-                        id: id,
-                        status: "failed",
-                        message: "Mutation applied but verification failed: " + verificationError,
-                        returnedFields: projectReturnedFields(project, mutation.returnFields)
-                      });
+                      results.push(failedMutationItem(
+                        id,
+                        "Mutation applied but verification failed: " + verificationError,
+                        projectReturnedFields(project, mutation.returnFields)
+                      ));
                       return;
                     }
                   }
 
                   let message = "Project moved to " + destination.label + ".";
-                  if (mutation.verify) {
-                    message = message.replace(/\.$/, "") + " Verified.";
-                  }
+                  message = verifiedMutationMessage(message, mutation.verify);
 
-                  results.push({
-                    id: id,
-                    status: "mutated",
-                    message: message,
-                    returnedFields: projectReturnedFields(project, mutation.returnFields)
-                  });
-                  successCount += 1;
+                  results.push(mutatedMutationItem(
+                    id,
+                    message,
+                    projectReturnedFields(project, mutation.returnFields)
+                  ));
                 });
 
-                if (mutatedAny) {
-                  safe(() => save());
-                }
-
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: successCount,
-                  failureCount: results.length - successCount,
-                  results: results,
-                  warnings: []
-                };
+                saveIfMutated(mutatedAny);
+                response.data = mutationResponsePayload(mutation, operation, ids, results, []);
               }
             }
           } else if (operation.kind === "set_tasks_completion") {
             const completionError = validateCompletionMutation(operation.completion, "set_tasks_completion");
             if (completionError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: completionError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, completionError);
             } else {
               const requestedState = operation.completion.state;
-              const pool = toTaskArray(safe(() => flattenedTasks));
-              const tasksByID = {};
-              pool.forEach(task => {
-                const id = String(safe(() => task.id.primaryKey) || "");
-                if (id.length > 0) {
-                  tasksByID[id] = task;
-                }
-              });
+              const tasksByID = indexByPrimaryKey(safe(() => flattenedTasks));
 
               const results = [];
-              let successCount = 0;
               let mutatedAny = false;
 
               ids.forEach(id => {
                 const task = tasksByID[id];
                 if (!task) {
-                  results.push({
-                    id: id,
-                    status: "failed",
-                    message: "Target ID not found."
-                  });
+                  results.push(failedMutationItem(id, "Target ID not found."));
                   return;
                 }
 
                 const isRepeating = Boolean(safe(() => task.repetitionRule));
                 if (mutation.previewOnly) {
-                  results.push({
-                    id: id,
-                    status: "previewed",
-                    message: requestedState === "completed" && isRepeating
+                  results.push(previewedMutationItem(
+                    id,
+                    requestedState === "completed" && isRepeating
                       ? "Validated repeating task target for completion preview."
                       : "Validated target for completion preview."
-                  });
-                  successCount += 1;
+                  ));
                   return;
                 }
 
@@ -1764,12 +1533,11 @@
                 if (mutation.verify) {
                   const verificationError = verifyTaskCompletion(task, completedTask, requestedState);
                   if (verificationError) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Mutation applied but verification failed: " + verificationError,
-                      returnedFields: completionResultFields(task, completedTask, requestedState, mutation.returnFields)
-                    });
+                    results.push(failedMutationItem(
+                      id,
+                      "Mutation applied but verification failed: " + verificationError,
+                      completionResultFields(task, completedTask, requestedState, mutation.returnFields)
+                    ));
                     return;
                   }
                 }
@@ -1782,109 +1550,45 @@
                     message = "Repeating task completed and advanced to the next occurrence."
                   }
                 }
-                if (mutation.verify) {
-                  message = message.replace(/\.$/, "") + " Verified.";
-                }
+                message = verifiedMutationMessage(message, mutation.verify);
 
-                results.push({
-                  id: id,
-                  status: "mutated",
-                  message: message,
-                  returnedFields: completionResultFields(task, completedTask, requestedState, mutation.returnFields)
-                });
-                successCount += 1;
+                results.push(mutatedMutationItem(
+                  id,
+                  message,
+                  completionResultFields(task, completedTask, requestedState, mutation.returnFields)
+                ));
               });
 
-              if (mutatedAny) {
-                safe(() => save());
-              }
-
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: successCount,
-                failureCount: results.length - successCount,
-                results: results,
-                warnings: []
-              };
+              saveIfMutated(mutatedAny);
+              response.data = mutationResponsePayload(mutation, operation, ids, results, []);
             }
           } else if (operation.kind === "move_tasks") {
-            const projects = toTaskArray(safe(() => flattenedProjects));
-            const tasks = toTaskArray(safe(() => flattenedTasks));
-            const projectByID = {};
-            const taskByID = {};
-            projects.forEach(project => {
-              const id = String(safe(() => project.id.primaryKey) || "");
-              if (id.length > 0) { projectByID[id] = project; }
-            });
-            tasks.forEach(task => {
-              const id = String(safe(() => task.id.primaryKey) || "");
-              if (id.length > 0) { taskByID[id] = task; }
-            });
+            const projectByID = indexByPrimaryKey(safe(() => flattenedProjects));
+            const taskByID = indexByPrimaryKey(safe(() => flattenedTasks));
 
             const moveError = validateMoveMutation(operation.move, ids, projectByID, taskByID);
             if (moveError) {
-              const results = ids.map(id => ({
-                id: id,
-                status: "failed",
-                message: moveError
-              }));
-              response.data = {
-                targetType: targetType,
-                operationKind: operation.kind,
-                previewOnly: Boolean(mutation.previewOnly),
-                verify: Boolean(mutation.verify),
-                requestedCount: ids.length,
-                successCount: 0,
-                failureCount: results.length,
-                results: results,
-                warnings: []
-              };
+              response.data = failedMutationPayload(mutation, operation, ids, moveError);
             } else {
               const destination = buildMoveDestination(operation.move, projectByID, taskByID);
               if (!destination.ok) {
-                const results = ids.map(id => ({
-                  id: id,
-                  status: "failed",
-                  message: destination.message
-                }));
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: 0,
-                  failureCount: results.length,
-                  results: results,
-                  warnings: []
-                };
+                response.data = failedMutationPayload(mutation, operation, ids, destination.message);
               } else {
                 const results = [];
-                let successCount = 0;
                 let mutatedAny = false;
 
                 ids.forEach(id => {
                   const task = taskByID[id];
                   if (!task) {
-                    results.push({
-                      id: id,
-                      status: "failed",
-                      message: "Target ID not found."
-                    });
+                    results.push(failedMutationItem(id, "Target ID not found."));
                     return;
                   }
 
                   if (mutation.previewOnly) {
-                    results.push({
-                      id: id,
-                      status: "previewed",
-                      message: "Validated move target and destination " + destination.label + " for preview."
-                    });
-                    successCount += 1;
+                    results.push(previewedMutationItem(
+                      id,
+                      "Validated move target and destination " + destination.label + " for preview."
+                    ));
                     return;
                   }
 
@@ -1894,45 +1598,27 @@
                   if (mutation.verify) {
                     const verificationError = verifyTaskMove(task, operation.move, destination, projectByID, taskByID);
                     if (verificationError) {
-                      results.push({
-                        id: id,
-                        status: "failed",
-                        message: "Mutation applied but verification failed: " + verificationError,
-                        returnedFields: taskReturnedFields(task, mutation.returnFields)
-                      });
+                      results.push(failedMutationItem(
+                        id,
+                        "Mutation applied but verification failed: " + verificationError,
+                        taskReturnedFields(task, mutation.returnFields)
+                      ));
                       return;
                     }
                   }
 
                   let message = "Task moved to " + destination.label + ".";
-                  if (mutation.verify) {
-                    message = message.replace(/\.$/, "") + " Verified.";
-                  }
+                  message = verifiedMutationMessage(message, mutation.verify);
 
-                  results.push({
-                    id: id,
-                    status: "mutated",
-                    message: message,
-                    returnedFields: taskReturnedFields(task, mutation.returnFields)
-                  });
-                  successCount += 1;
+                  results.push(mutatedMutationItem(
+                    id,
+                    message,
+                    taskReturnedFields(task, mutation.returnFields)
+                  ));
                 });
 
-                if (mutatedAny) {
-                  safe(() => save());
-                }
-
-                response.data = {
-                  targetType: targetType,
-                  operationKind: operation.kind,
-                  previewOnly: Boolean(mutation.previewOnly),
-                  verify: Boolean(mutation.verify),
-                  requestedCount: ids.length,
-                  successCount: successCount,
-                  failureCount: results.length - successCount,
-                  results: results,
-                  warnings: []
-                };
+                saveIfMutated(mutatedAny);
+                response.data = mutationResponsePayload(mutation, operation, ids, results, []);
               }
             }
           } else {
@@ -1941,45 +1627,17 @@
             }
 
             const pool = targetType === "project" ? toTaskArray(safe(() => flattenedProjects)) : toTaskArray(safe(() => flattenedTasks));
-            const knownIDs = {};
-
-            for (let i = 0; i < pool.length; i += 1) {
-              const item = pool[i];
-              const id = String(safe(() => item.id.primaryKey) || "");
-              if (id.length > 0) {
-                knownIDs[id] = true;
-              }
-            }
+            const knownByID = indexByPrimaryKey(pool);
 
             const results = ids.map(id => {
               const normalized = String(id);
-              if (knownIDs[normalized]) {
-                return {
-                  id: normalized,
-                  status: "previewed",
-                  message: "Validated target for preview."
-                };
+              if (knownByID[normalized]) {
+                return previewedMutationItem(normalized, "Validated target for preview.");
               }
-              return {
-                id: normalized,
-                status: "failed",
-                message: "Target ID not found."
-              };
+              return failedMutationItem(normalized, "Target ID not found.");
             });
 
-            const successCount = results.filter(item => item.status === "previewed").length;
-            const failureCount = results.length - successCount;
-            response.data = {
-              targetType: targetType,
-              operationKind: operation.kind,
-              previewOnly: true,
-              verify: Boolean(mutation.verify),
-              requestedCount: ids.length,
-              successCount: successCount,
-              failureCount: failureCount,
-              results: results,
-              warnings: []
-            };
+            response.data = mutationResponsePayload(mutation, operation, ids, results, []);
           }
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
