@@ -76,6 +76,30 @@ func bridgeListInboxPagingCursorAdvancesLive() throws {
 }
 
 @Test
+func bridgeTaggedProjectRootWithChildrenLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+    guard let projectID = env["FOCUS_RELAY_TAGGED_PROJECT_ROOT_ID"], !projectID.isEmpty else {
+        return
+    }
+    guard let tag = env["FOCUS_RELAY_TAGGED_PROJECT_ROOT_TAG"], !tag.isEmpty else {
+        return
+    }
+
+    let client = BridgeClient()
+    let filter = TaskFilter(completed: false, availableOnly: false, project: projectID, tags: [tag], includeTotalCount: true)
+    let result = try client.listTasks(filter: filter, page: PageRequest(limit: 50), fields: ["id", "name", "tagNames", "available"])
+
+    #expect(result.items.contains { $0.id == projectID })
+
+    let counts = try client.getTaskCounts(filter: filter)
+    #expect(result.totalCount == counts.total)
+    #expect(counts.total >= result.items.count)
+}
+
+@Test
 func bridgeTaskCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {

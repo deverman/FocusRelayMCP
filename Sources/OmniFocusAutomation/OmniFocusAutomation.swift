@@ -461,6 +461,10 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
           return tags.length === 0;
         }
 
+        return tagCollectionMatchesFilter(tags, filterTags);
+      }
+
+      function tagCollectionMatchesFilter(tags, filterTags) {
         for (var i = 0; i < tags.length; i += 1) {
           var tag = tags[i];
           var tagID = String(safe(function() { return tag.id.primaryKey; }) || "");
@@ -474,6 +478,38 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         }
 
         return false;
+      }
+
+      function taskIdentifier(task) {
+        return String(safe(function() { return task.id.primaryKey; }) || "");
+      }
+
+      function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
+        if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
+
+        var expandedTasks = tasks.slice();
+        var seenTaskIDs = {};
+        expandedTasks.forEach(function(task) {
+          var id = taskIdentifier(task);
+          if (id.length > 0) { seenTaskIDs[id] = true; }
+        });
+
+        projects.forEach(function(project) {
+          var rootTask = safe(function() { return project.task; });
+          if (!rootTask) { return; }
+
+          var id = taskIdentifier(rootTask);
+          if (id.length === 0 || seenTaskIDs[id]) { return; }
+
+          var rootTags = safe(function() { return rootTask.tags; }) || [];
+          var projectTags = safe(function() { return project.tags; }) || [];
+          if (!tagCollectionMatchesFilter(rootTags, filterTags) && !tagCollectionMatchesFilter(projectTags, filterTags)) { return; }
+
+          expandedTasks.push(rootTask);
+          seenTaskIDs[id] = true;
+        });
+
+        return expandedTasks;
       }
 
       function taskToPayload(task) {
@@ -514,6 +550,7 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         : (filter.completed === true ? false : !isRemaining && !isEverything);
 
       var baseTasks = [];
+      var projectRootCandidates = [];
       if (filter.inboxOnly === true) {
         baseTasks = inboxTasksArray();
       } else {
@@ -522,10 +559,13 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
           baseTasks = [];
         } else if (project) {
           baseTasks = toTaskArray(safe(function() { return project.flattenedTasks; }));
+          projectRootCandidates = [project];
         } else {
           baseTasks = allTasks;
+          projectRootCandidates = allProjects;
         }
       }
+      baseTasks = appendTaggedProjectRootTasks(baseTasks, projectRootCandidates, filter.tags);
 
       var filterState = {
         completed: filter.completed,
@@ -1048,6 +1088,10 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
           return tags.length === 0;
         }
 
+        return tagCollectionMatchesFilter(tags, filterTags);
+      }
+
+      function tagCollectionMatchesFilter(tags, filterTags) {
         for (var i = 0; i < tags.length; i += 1) {
           var tag = tags[i];
           var tagID = String(safe(function() { return tag.id.primaryKey; }) || "");
@@ -1063,6 +1107,38 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         return false;
       }
 
+      function taskIdentifier(task) {
+        return String(safe(function() { return task.id.primaryKey; }) || "");
+      }
+
+      function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
+        if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
+
+        var expandedTasks = tasks.slice();
+        var seenTaskIDs = {};
+        expandedTasks.forEach(function(task) {
+          var id = taskIdentifier(task);
+          if (id.length > 0) { seenTaskIDs[id] = true; }
+        });
+
+        projects.forEach(function(project) {
+          var rootTask = safe(function() { return project.task; });
+          if (!rootTask) { return; }
+
+          var id = taskIdentifier(rootTask);
+          if (id.length === 0 || seenTaskIDs[id]) { return; }
+
+          var rootTags = safe(function() { return rootTask.tags; }) || [];
+          var projectTags = safe(function() { return project.tags; }) || [];
+          if (!tagCollectionMatchesFilter(rootTags, filterTags) && !tagCollectionMatchesFilter(projectTags, filterTags)) { return; }
+
+          expandedTasks.push(rootTask);
+          seenTaskIDs[id] = true;
+        });
+
+        return expandedTasks;
+      }
+
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
       var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
       var inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
@@ -1074,6 +1150,7 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         : (filter.completed === true ? false : !isRemaining && !isEverything);
 
       var baseTasks = [];
+      var projectRootCandidates = [];
       if (filter.inboxOnly === true) {
         baseTasks = inboxTasksArray();
       } else {
@@ -1082,10 +1159,13 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
           baseTasks = [];
         } else if (project) {
           baseTasks = toTaskArray(safe(function() { return project.flattenedTasks; }));
+          projectRootCandidates = [project];
         } else {
           baseTasks = allTasks;
+          projectRootCandidates = allProjects;
         }
       }
+      baseTasks = appendTaggedProjectRootTasks(baseTasks, projectRootCandidates, filter.tags);
 
       var filterState = {
         completed: filter.completed,
@@ -1368,6 +1448,10 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
           return tags.length === 0;
         }
 
+        return tagCollectionMatchesFilter(tags, filterTags);
+      }
+
+      function tagCollectionMatchesFilter(tags, filterTags) {
         for (var i = 0; i < tags.length; i += 1) {
           var tag = tags[i];
           var tagID = String(safe(function() { return tag.id.primaryKey; }) || "");
@@ -1381,6 +1465,38 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         }
 
         return false;
+      }
+
+      function taskIdentifier(task) {
+        return String(safe(function() { return task.id.primaryKey; }) || "");
+      }
+
+      function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
+        if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
+
+        var expandedTasks = tasks.slice();
+        var seenTaskIDs = {};
+        expandedTasks.forEach(function(task) {
+          var id = taskIdentifier(task);
+          if (id.length > 0) { seenTaskIDs[id] = true; }
+        });
+
+        projects.forEach(function(project) {
+          var rootTask = safe(function() { return project.task; });
+          if (!rootTask) { return; }
+
+          var id = taskIdentifier(rootTask);
+          if (id.length === 0 || seenTaskIDs[id]) { return; }
+
+          var rootTags = safe(function() { return rootTask.tags; }) || [];
+          var projectTags = safe(function() { return project.tags; }) || [];
+          if (!tagCollectionMatchesFilter(rootTags, filterTags) && !tagCollectionMatchesFilter(projectTags, filterTags)) { return; }
+
+          expandedTasks.push(rootTask);
+          seenTaskIDs[id] = true;
+        });
+
+        return expandedTasks;
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
@@ -1452,13 +1568,17 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
 
       var resolvedProject = resolveProject(filter.project, allProjects);
       var baseTasks = [];
+      var projectRootCandidates = [];
       if (filter.project && !resolvedProject) {
         baseTasks = [];
       } else if (resolvedProject) {
         baseTasks = toTaskArray(safe(function() { return resolvedProject.flattenedTasks; }));
+        projectRootCandidates = [resolvedProject];
       } else {
         baseTasks = allTasks;
+        projectRootCandidates = allProjects;
       }
+      baseTasks = appendTaggedProjectRootTasks(baseTasks, projectRootCandidates, filter.tags);
 
       var filterState = {
         completed: derivedCompleted,
