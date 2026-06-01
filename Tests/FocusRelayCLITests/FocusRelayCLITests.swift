@@ -61,6 +61,22 @@ func taskPatchOptionsRejectConflictingTagModes() {
 }
 
 @Test
+func setTasksCompletionParsesCompletedState() throws {
+    let command = try SetTasksCompletion.parse([
+        "task-1",
+        "task-2",
+        "--state", "completed",
+        "--verify",
+        "--return-fields", "id,name,completed"
+    ])
+
+    #expect(command.ids == ["task-1", "task-2"])
+    #expect(command.state == .completed)
+    #expect(command.verify)
+    #expect(command.returnFields == "id,name,completed")
+}
+
+@Test
 func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let contractNames = gateTaskCountContractScenarios().map(\.name)
     let parityNames = gateTaskCountParityScenarios().map(\.name)
