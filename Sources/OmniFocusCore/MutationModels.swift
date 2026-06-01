@@ -259,6 +259,19 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         reviewInterval == nil &&
         tags == nil
     }
+
+    public func validate() throws {
+        if dueDate != nil && clearDueDate {
+            throw MutationValidationError("Project patches cannot set and clear dueDate in the same request.")
+        }
+        if deferDate != nil && clearDeferDate {
+            throw MutationValidationError("Project patches cannot set and clear deferDate in the same request.")
+        }
+        if let reviewInterval, let steps = reviewInterval.steps, steps < 0 {
+            throw MutationValidationError("reviewInterval.steps must be zero or greater.")
+        }
+        try tags?.validate()
+    }
 }
 
 public struct CompletionMutation: Codable, Sendable, Equatable {
@@ -415,6 +428,7 @@ public struct MutationRequest: Codable, Sendable, Equatable {
             guard let projectPatch = operation.projectPatch, !projectPatch.isEmpty else {
                 throw MutationValidationError("update_projects requires a non-empty projectPatch.")
             }
+            try projectPatch.validate()
         case .setProjectsStatus:
             guard targetType == .project else {
                 throw MutationValidationError("set_projects_status requires project targets.")

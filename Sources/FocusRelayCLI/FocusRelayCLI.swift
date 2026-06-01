@@ -19,6 +19,8 @@ struct FocusRelayCLI: AsyncParsableCommand {
             UpdateTasks.self,
             SetTasksCompletion.self,
             MoveTasks.self,
+            UpdateProjects.self,
+            SetProjectsStatus.self,
             TaskCounts.self,
             ProjectCounts.self,
             DebugInboxProbe.self,
@@ -309,6 +311,87 @@ struct MoveTasks: AsyncParsableCommand {
                     destinationID: destinationID,
                     position: position
                 )
+            ),
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: FieldList.parse(returnFields)
+        )
+
+        let result = try await service.performMutation(request)
+        print(try encodeJSON(result))
+    }
+}
+
+struct UpdateProjects: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "update-projects",
+        abstract: "Apply one shared project patch to multiple project IDs.",
+        aliases: ["update_projects"]
+    )
+
+    @Argument(help: "Project IDs to update.")
+    var ids: [String] = []
+
+    @OptionGroup var patch: ProjectPatchOptions
+
+    @Flag(name: .customLong("preview-only"), help: "Validate and resolve targets without mutating.")
+    var previewOnly: Bool = false
+
+    @Flag(help: "Verify the final state after mutation.")
+    var verify: Bool = false
+
+    @Option(name: .customLong("return-fields"), help: "Comma-separated project fields to include in per-item results.")
+    var returnFields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let request = MutationRequest(
+            targetType: .project,
+            targetIDs: ids,
+            operation: MutationOperation(
+                kind: .updateProjects,
+                projectPatch: try patch.makeProjectPatchMutation()
+            ),
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: FieldList.parse(returnFields)
+        )
+
+        let result = try await service.performMutation(request)
+        print(try encodeJSON(result))
+    }
+}
+
+struct SetProjectsStatus: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "set-projects-status",
+        abstract: "Apply one shared project status to multiple project IDs.",
+        aliases: ["set_projects_status"]
+    )
+
+    @Argument(help: "Project IDs to update.")
+    var ids: [String] = []
+
+    @Option(help: "Project status to apply: active, on_hold, or dropped.")
+    var status: MutationProjectStatus
+
+    @Flag(name: .customLong("preview-only"), help: "Validate and resolve targets without mutating.")
+    var previewOnly: Bool = false
+
+    @Flag(help: "Verify the final state after mutation.")
+    var verify: Bool = false
+
+    @Option(name: .customLong("return-fields"), help: "Comma-separated project fields to include in per-item results.")
+    var returnFields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let request = MutationRequest(
+            targetType: .project,
+            targetIDs: ids,
+            operation: MutationOperation(
+                kind: .setProjectsStatus,
+                projectStatus: ProjectStatusMutation(status: status)
             ),
             previewOnly: previewOnly,
             verify: verify,

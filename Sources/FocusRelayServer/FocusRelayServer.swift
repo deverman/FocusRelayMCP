@@ -355,6 +355,84 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
+                    name: "update_projects",
+                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "targetIDs": .object([
+                                "type": .string("array"),
+                                "description": .string("Project IDs to update."),
+                                "items": .object(["type": .string("string")])
+                            ]),
+                            "projectPatch": .object([
+                                "type": .string("object"),
+                                "description": .string("Shared project patch applied to every project ID in targetIDs."),
+                                "properties": .object([
+                                    "name": propertySchema(type: "string", description: "Set a new project name."),
+                                    "note": propertySchema(type: "string", description: "Replace the project note."),
+                                    "noteAppend": propertySchema(type: "string", description: "Append text to the project note."),
+                                    "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
+                                    "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
+                                    "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
+                                    "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
+                                    "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
+                                    "sequential": propertySchema(type: "boolean", description: "Set whether the project's actions are sequential."),
+                                    "reviewInterval": .object([
+                                        "type": .string("object"),
+                                        "description": .string("Set the simple review interval."),
+                                        "properties": .object([
+                                            "steps": propertySchema(type: "integer", description: "Review interval step count."),
+                                            "unit": propertySchema(type: "string", description: "Review interval unit, such as days, weeks, months, or years.")
+                                        ])
+                                    ])
+                                ])
+                            ]),
+                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
+                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "returnFields": .object([
+                                "type": .string("array"),
+                                "description": .string("Optional project fields to return in per-item results after mutation."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ],
+                        required: ["targetIDs", "projectPatch"]
+                    ),
+                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                ),
+                Tool(
+                    name: "set_projects_status",
+                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "targetIDs": .object([
+                                "type": .string("array"),
+                                "description": .string("Project IDs to change."),
+                                "items": .object(["type": .string("string")])
+                            ]),
+                            "projectStatus": .object([
+                                "type": .string("object"),
+                                "description": .string("Shared project status payload applied to every project ID in targetIDs."),
+                                "properties": .object([
+                                    "status": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("active"), .string("on_hold"), .string("dropped")]),
+                                        "description": .string("Project status to apply.")
+                                    ])
+                                ])
+                            ]),
+                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
+                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "returnFields": .object([
+                                "type": .string("array"),
+                                "description": .string("Optional project fields to return in per-item results after mutation."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ],
+                        required: ["targetIDs", "projectStatus"]
+                    ),
+                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                ),
+                Tool(
                     name: "get_task_counts",
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
@@ -546,6 +624,44 @@ public enum FocusRelayServer {
                         operation: MutationOperation(
                             kind: .moveTasks,
                             move: move
+                        ),
+                        previewOnly: previewOnly,
+                        verify: verify,
+                        returnFields: returnFields
+                    )
+                    let result = try await service.performMutation(request)
+                    return .init(content: [.text(try encodeJSON(result))])
+                case "update_projects":
+                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
+                    let projectPatch = try decodeArgument(ProjectPatchMutation.self, from: params.arguments, key: "projectPatch")
+                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
+                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
+                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
+                    let request = MutationRequest(
+                        targetType: .project,
+                        targetIDs: targetIDs,
+                        operation: MutationOperation(
+                            kind: .updateProjects,
+                            projectPatch: projectPatch
+                        ),
+                        previewOnly: previewOnly,
+                        verify: verify,
+                        returnFields: returnFields
+                    )
+                    let result = try await service.performMutation(request)
+                    return .init(content: [.text(try encodeJSON(result))])
+                case "set_projects_status":
+                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
+                    let projectStatus = try decodeArgument(ProjectStatusMutation.self, from: params.arguments, key: "projectStatus")
+                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
+                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
+                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
+                    let request = MutationRequest(
+                        targetType: .project,
+                        targetIDs: targetIDs,
+                        operation: MutationOperation(
+                            kind: .setProjectsStatus,
+                            projectStatus: projectStatus
                         ),
                         previewOnly: previewOnly,
                         verify: verify,
