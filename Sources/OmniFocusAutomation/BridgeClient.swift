@@ -319,8 +319,7 @@ final class BridgeClient: @unchecked Sendable {
         let response: BridgeResponse<MutationResponse> = try sendRequest(
             request,
             responseType: MutationResponse.self,
-            timeout: configuration.mutationResponseTimeout,
-            strandedRedispatchInterval: configuration.mutationStrandedRedispatchInterval
+            timeout: configuration.mutationResponseTimeout
         )
         if response.ok, let mutationResponse = response.data {
             return mutationResponse
@@ -407,8 +406,7 @@ final class BridgeClient: @unchecked Sendable {
     private func sendRequest<T: Decodable>(
         _ request: BridgeRequest,
         responseType: T.Type,
-        timeout: TimeInterval? = nil,
-        strandedRedispatchInterval: TimeInterval? = nil
+        timeout: TimeInterval? = nil
     ) throws -> BridgeResponse<T> {
         try ensureDirectories()
         let responseURL = paths.responsesURL.appendingPathComponent("\(request.requestId).json")
@@ -425,7 +423,6 @@ final class BridgeClient: @unchecked Sendable {
                 lockURL: lockURL,
                 requestId: request.requestId,
                 timeout: responseTimeout,
-                strandedRedispatchInterval: strandedRedispatchInterval,
                 responseType: responseType
             )
             removeIfExists(url: dispatchRequestURL)
@@ -446,13 +443,11 @@ final class BridgeClient: @unchecked Sendable {
         lockURL: URL,
         requestId: String,
         timeout: TimeInterval,
-        strandedRedispatchInterval: TimeInterval?,
         responseType: T.Type
     ) throws -> BridgeResponse<T> {
         let start = Date()
         var lastReadError: Error?
-        var strandedRedispatchCount = 0
-        var nextStrandedRedispatchAt = strandedRedispatchDelay(timeout: timeout)
+        var hasRedispatchedStrandedRequest = false
         while Date().timeIntervalSince(start) < timeout {
             if fileManager.fileExists(atPath: url.path) {
                 do {
@@ -463,22 +458,17 @@ final class BridgeClient: @unchecked Sendable {
                 }
             }
 
-            let elapsed = Date().timeIntervalSince(start)
-            if shouldRedispatchStrandedRequest(
-                elapsed: elapsed,
-                nextRedispatchAt: nextStrandedRedispatchAt,
+            if !hasRedispatchedStrandedRequest,
+               shouldRedispatchStrandedRequest(
+                elapsed: Date().timeIntervalSince(start),
+                timeout: timeout,
                 requestURL: requestURL,
                 responseURL: url,
                 lockURL: lockURL
-            ) {
-                strandedRedispatchCount += 1
-                if let strandedRedispatchInterval {
-                    nextStrandedRedispatchAt = elapsed + strandedRedispatchInterval
-                } else {
-                    nextStrandedRedispatchAt = .greatestFiniteMagnitude
-                }
+               ) {
                 do {
                     try triggerOmniFocus(requestId: requestId)
+                    hasRedispatchedStrandedRequest = true
                 } catch {
                     lastReadError = error
                 }
@@ -527,7 +517,7 @@ final class BridgeClient: @unchecked Sendable {
             lockExists: lockExists
         )
         throw AutomationError.executionFailed(
-            "Bridge response timed out after \(timeoutSeconds)s (requestId=\(requestId), pickupState=\(pickupState), requestExists=\(requestExists), responseExists=\(responseExists), lockExists=\(lockExists), strandedRedispatches=\(strandedRedispatchCount), lastReadError=\(lastReadDetail))"
+            "Bridge response timed out after \(timeoutSeconds)s (requestId=\(requestId), pickupState=\(pickupState), requestExists=\(requestExists), responseExists=\(responseExists), lockExists=\(lockExists), strandedRedispatched=\(hasRedispatchedStrandedRequest), lastReadError=\(lastReadDetail))"
         )
     }
 
@@ -578,12 +568,12 @@ final class BridgeClient: @unchecked Sendable {
 
     private func shouldRedispatchStrandedRequest(
         elapsed: TimeInterval,
-        nextRedispatchAt: TimeInterval,
+        timeout: TimeInterval,
         requestURL: URL,
         responseURL: URL,
         lockURL: URL
     ) -> Bool {
-        guard elapsed >= nextRedispatchAt else {
+        guard elapsed >= strandedRedispatchDelay(timeout: timeout) else {
             return false
         }
         return fileManager.fileExists(atPath: requestURL.path)
@@ -608,7 +598,6 @@ final class BridgeClient: @unchecked Sendable {
 struct BridgeClientConfiguration: Equatable {
     let responseTimeout: TimeInterval
     let mutationResponseTimeout: TimeInterval
-    let mutationStrandedRedispatchInterval: TimeInterval
     let responsePollInterval: TimeInterval
     let dispatchTransport: BridgeDispatchTransport
     let dispatchTimeout: TimeInterval
@@ -619,9 +608,6 @@ struct BridgeClientConfiguration: Equatable {
 
         let parsedMutationTimeout = environment["FOCUS_RELAY_BRIDGE_MUTATION_RESPONSE_TIMEOUT_SECONDS"].flatMap(TimeInterval.init)
         let mutationTimeout = (parsedMutationTimeout ?? 0) > 0 ? parsedMutationTimeout! : 300.0
-
-        let parsedMutationRedispatchInterval = environment["FOCUS_RELAY_BRIDGE_MUTATION_STRANDED_REDISPATCH_INTERVAL_SECONDS"].flatMap(TimeInterval.init)
-        let mutationRedispatchInterval = (parsedMutationRedispatchInterval ?? 0) > 0 ? parsedMutationRedispatchInterval! : 15.0
 
         let parsedPollInterval = environment["FOCUS_RELAY_BRIDGE_RESPONSE_POLL_MS"]
             .flatMap(Double.init)
@@ -635,7 +621,6 @@ struct BridgeClientConfiguration: Equatable {
         return BridgeClientConfiguration(
             responseTimeout: timeout,
             mutationResponseTimeout: mutationTimeout,
-            mutationStrandedRedispatchInterval: mutationRedispatchInterval,
             responsePollInterval: pollInterval,
             dispatchTransport: dispatchTransport,
             dispatchTimeout: dispatchTimeout
