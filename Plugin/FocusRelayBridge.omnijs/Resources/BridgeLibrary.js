@@ -240,7 +240,14 @@
     function taskReturnedFields(task, returnFields) {
       const fields = normalizeIdentifierArray(returnFields);
       if (fields.length === 0) { return null; }
-      return taskToPayload(task, fields);
+      const payload = taskToPayload(task, fields);
+      const compact = {};
+      fields.forEach(field => {
+        if (Object.prototype.hasOwnProperty.call(payload, field)) {
+          compact[field] = payload[field];
+        }
+      });
+      return compact;
     }
 
     function validateCompletionMutation(completion) {
@@ -1076,7 +1083,6 @@
               };
             }
           } else if (operation.kind === "move_tasks") {
-          } else if (operation.kind === "move_tasks") {
             const projects = toTaskArray(safe(() => flattenedProjects));
             const tasks = toTaskArray(safe(() => flattenedTasks));
             const projectByID = {};
@@ -1130,7 +1136,6 @@
               } else {
                 const results = [];
                 let successCount = 0;
-                let mutatedAny = false;
 
                 ids.forEach(id => {
                   const task = taskByID[id];
@@ -1154,7 +1159,7 @@
                   }
 
                   moveTasks([task], destination.location);
-                  mutatedAny = true;
+                  safe(() => save());
 
                   if (mutation.verify) {
                     const verificationError = verifyTaskMove(task, operation.move, destination, projectByID, taskByID);
@@ -1182,10 +1187,6 @@
                   });
                   successCount += 1;
                 });
-
-                if (mutatedAny) {
-                  safe(() => save());
-                }
 
                 response.data = {
                   targetType: targetType,
