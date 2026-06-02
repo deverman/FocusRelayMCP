@@ -9,6 +9,7 @@ Scope:
 
 Workflow companion:
 - [`docs/mutation-change-checklist.md`](./mutation-change-checklist.md)
+- [`docs/mutation-workflows.md`](./mutation-workflows.md)
 
 Primary source:
 - [OmniFocus Omni Automation index](https://omni-automation.com/omnifocus/index.html)

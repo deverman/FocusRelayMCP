@@ -62,7 +62,9 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with inbox filter
 - `list_projects` (for categorization context)
-- Write tools (future): `update_task`, `move_task_to_project`
+- `update_tasks` (rename, flag, tag, due/defer dates, estimates)
+- `move_tasks` (move inbox items to a project or parent task)
+- Future: `create_task`, `create_project` when an inbox item needs a new destination
 
 ---
 
@@ -81,7 +83,7 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with estimatedMinutes field
 - `list_tasks` with due date filters
-- Write tools (future): `update_task` to set estimates
+- `update_tasks` to set estimates
 
 ---
 
@@ -100,6 +102,7 @@ This document captures real-world use cases and questions users ask AI about the
 - `list_projects` (to find related project)
 - `get_task` (to check for duplicates)
 - Write tools (future): `create_task`, `create_project`
+- Current write tools can update or move existing tasks, but cannot create new tasks/projects in v1
 
 ---
 
@@ -159,6 +162,8 @@ This document captures real-world use cases and questions users ask AI about the
 - `list_tasks` by project
 - `get_project_counts`
 - `get_task_counts`
+- `set_projects_status` (put projects on hold, reactivate, or drop)
+- `set_projects_completion` (complete or uncomplete projects)
 
 ---
 
@@ -296,44 +301,64 @@ This document captures real-world use cases and questions users ask AI about the
 
 ## Implementation Status
 
-### Read-Only Use Cases (Current Capabilities)
+### Current Read Capabilities
 ✅ **Working Today**:
 - Daily planning with available tasks
 - Project priority analysis
 - Basic task listing by project
 - Flagged item identification
+- Date-based queries for due, defer, planned, and completed windows
+- Duration filtering with estimated minutes
+- Tag-based task filtering
+- Completed task/project analysis
+- Project and task counts
 
-⚠️ **Partial** (Needs Enhancement):
-- Date-based queries (need date range filters)
-- Duration filtering (need min/max filters)
-- Tag-based queries (need tag filter)
-- Completed task analysis (need completion dates)
+### Current Write Capabilities
+✅ **Working Today**:
+- Update existing task fields with `update_tasks`
+- Complete or uncomplete tasks with `set_tasks_completion`
+- Move tasks to inbox, project, or parent task with `move_tasks`
+- Update existing project fields with `update_projects`
+- Set project active/on-hold/dropped status with `set_projects_status`
+- Complete or uncomplete projects with `set_projects_completion`
+- Move projects to a known folder ID or root library with `move_projects`
 
-❌ **Not Yet** (Requires Write Access):
-- Inbox processing/organization
-- Task estimation updates
-- Creating tasks from discussions
-- Project creation
+⚠️ **Important Constraints**:
+- Writes target IDs only; use read tools first to resolve names to IDs.
+- Bulk writes are homogeneous; one call applies one patch, state, or destination to all IDs.
+- Use `previewOnly` before risky or broad changes.
+- Use `verify` and compact `returnFields` for post-write readback.
+
+❌ **Not Yet In V1**:
+- Creating tasks, projects, folders, or tags
+- Deleting tasks or projects
+- Mixed-operation `batch_mutate_tasks`
+- Name-based or fuzzy mutation targeting
+- Planned-date writes
+- Public folder discovery for project moves
 
 ## Priority Roadmap
 
-### Phase 1: Read-Only Enhancement (High Priority)
-1. Add date range filters (`dueBefore`, `dueAfter`, etc.)
-2. Add duration filtering (`maxEstimatedMinutes`)
-3. Add tag-based filtering
-4. Add creation and completion dates
+### Phase 1: Read And Write Foundation
+1. Date range filters (`dueBefore`, `dueAfter`, completion windows)
+2. Duration filtering (`maxEstimatedMinutes`)
+3. Tag-based filtering
+4. Completion date parity
+5. V1 mutation tools for existing tasks and projects
 
 ### Phase 2: Search & Discovery (Medium Priority)
 1. Add `search_projects` tool
 2. Add `search_tags` tool
 3. Add per-project task counts
-4. Add analytics endpoints
+4. Add folder discovery for project moves
+5. Add analytics endpoints
 
-### Phase 3: Write Operations (Future)
+### Phase 3: Creation And Advanced Writes (Future)
 1. Task creation tools
-2. Task update tools
-3. Inbox processing automation
-4. Project management tools
+2. Project creation tools
+3. Inbox processing automation that can create missing destinations
+4. Delete/archive tools with explicit confirmation
+5. Advanced batch workflows if a clear safe contract emerges
 
 ## Success Metrics
 
