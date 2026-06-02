@@ -106,3 +106,30 @@ func lateStrandedRecoveryOnlyAppliesToURLTransportWithoutLock() {
         lockExists: false
     ))
 }
+
+@Test
+func bridgePickupStateNamesTimeoutCause() {
+    #expect(bridgePickupState(
+        requestExists: true,
+        responseExists: false,
+        lockExists: false
+    ) == "stranded_not_picked_up")
+
+    #expect(bridgePickupState(
+        requestExists: true,
+        responseExists: false,
+        lockExists: true
+    ) == "bridge_processing")
+
+    #expect(bridgePickupState(
+        requestExists: true,
+        responseExists: true,
+        lockExists: false
+    ) == "response_written")
+
+    #expect(bridgePickupState(
+        requestExists: false,
+        responseExists: false,
+        lockExists: false
+    ) == "request_missing")
+}

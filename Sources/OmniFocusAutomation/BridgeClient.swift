@@ -500,8 +500,13 @@ final class BridgeClient: @unchecked Sendable {
 
         let timeoutSeconds = String(format: "%.1f", timeout)
         let lastReadDetail = lastReadError.map { String(describing: $0) } ?? "none"
+        let pickupState = bridgePickupState(
+            requestExists: requestExists,
+            responseExists: responseExists,
+            lockExists: lockExists
+        )
         throw AutomationError.executionFailed(
-            "Bridge response timed out after \(timeoutSeconds)s (requestId=\(requestId), requestExists=\(requestExists), responseExists=\(responseExists), lockExists=\(lockExists), lastReadError=\(lastReadDetail))"
+            "Bridge response timed out after \(timeoutSeconds)s (requestId=\(requestId), pickupState=\(pickupState), requestExists=\(requestExists), responseExists=\(responseExists), lockExists=\(lockExists), strandedRedispatched=\(hasRedispatchedStrandedRequest), lastReadError=\(lastReadDetail))"
         )
     }
 
@@ -609,6 +614,13 @@ struct BridgeClientConfiguration: Equatable {
 
 func strandedRedispatchDelay(timeout: TimeInterval) -> TimeInterval {
     min(2.0, max(0.5, timeout * 0.1))
+}
+
+func bridgePickupState(requestExists: Bool, responseExists: Bool, lockExists: Bool) -> String {
+    if responseExists { return "response_written" }
+    if lockExists { return "bridge_processing" }
+    if requestExists { return "stranded_not_picked_up" }
+    return "request_missing"
 }
 
 func lateStrandedRecoveryGrace(timeout: TimeInterval) -> TimeInterval {
