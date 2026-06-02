@@ -21,6 +21,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
             MoveTasks.self,
             UpdateProjects.self,
             SetProjectsStatus.self,
+            SetProjectsCompletion.self,
             TaskCounts.self,
             ProjectCounts.self,
             DebugInboxProbe.self,
@@ -392,6 +393,47 @@ struct SetProjectsStatus: AsyncParsableCommand {
             operation: MutationOperation(
                 kind: .setProjectsStatus,
                 projectStatus: ProjectStatusMutation(status: status)
+            ),
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: FieldList.parse(returnFields)
+        )
+
+        let result = try await service.performMutation(request)
+        print(try encodeJSON(result))
+    }
+}
+
+struct SetProjectsCompletion: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "set-projects-completion",
+        abstract: "Apply one shared project completion state to multiple project IDs.",
+        aliases: ["set_projects_completion"]
+    )
+
+    @Argument(help: "Project IDs to update.")
+    var ids: [String] = []
+
+    @Option(help: "Lifecycle state to apply: active or completed.")
+    var state: MutationCompletionState
+
+    @Flag(name: .customLong("preview-only"), help: "Validate and resolve targets without mutating.")
+    var previewOnly: Bool = false
+
+    @Flag(help: "Verify the final state after mutation.")
+    var verify: Bool = false
+
+    @Option(name: .customLong("return-fields"), help: "Comma-separated project fields to include in per-item results.")
+    var returnFields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let request = MutationRequest(
+            targetType: .project,
+            targetIDs: ids,
+            operation: MutationOperation(
+                kind: .setProjectsCompletion,
+                completion: CompletionMutation(state: state)
             ),
             previewOnly: previewOnly,
             verify: verify,

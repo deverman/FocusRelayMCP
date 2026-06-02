@@ -132,6 +132,22 @@ func setProjectsStatusParsesOnHoldState() throws {
 }
 
 @Test
+func setProjectsCompletionParsesCompletedState() throws {
+    let command = try SetProjectsCompletion.parse([
+        "project-1",
+        "project-2",
+        "--state", "completed",
+        "--verify",
+        "--return-fields", "id,name,status,completionDate"
+    ])
+
+    #expect(command.ids == ["project-1", "project-2"])
+    #expect(command.state == .completed)
+    #expect(command.verify)
+    #expect(command.returnFields == "id,name,status,completionDate")
+}
+
+@Test
 func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let contractNames = gateTaskCountContractScenarios().map(\.name)
     let parityNames = gateTaskCountParityScenarios().map(\.name)
