@@ -320,7 +320,7 @@ public struct MoveMutation: Codable, Sendable, Equatable {
                 throw MutationValidationError("Only task moves can target projects.")
             }
             guard let destinationID, !destinationID.isEmpty else {
-                throw MutationValidationError("Project moves require a destinationID.")
+                throw MutationValidationError("Task project moves require a destinationID.")
             }
         case .parentTask:
             if targetType != .task {
@@ -333,8 +333,8 @@ public struct MoveMutation: Codable, Sendable, Equatable {
             if targetType != .project {
                 throw MutationValidationError("Only project moves can target folders.")
             }
-            guard let destinationID, !destinationID.isEmpty else {
-                throw MutationValidationError("Folder moves require a destinationID.")
+            if let destinationID, destinationID.isEmpty {
+                throw MutationValidationError("Folder moves require a non-empty destinationID when provided.")
             }
         }
     }

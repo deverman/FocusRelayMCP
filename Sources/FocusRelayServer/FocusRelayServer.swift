@@ -466,6 +466,46 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
+                    name: "move_projects",
+                    description: "Move multiple project IDs to one shared folder or the root library. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    inputSchema: toolSchema(
+                        properties: [
+                            "targetIDs": .object([
+                                "type": .string("array"),
+                                "description": .string("Project IDs to move."),
+                                "items": .object(["type": .string("string")])
+                            ]),
+                            "move": .object([
+                                "type": .string("object"),
+                                "description": .string("Shared move payload applied to every project ID in targetIDs."),
+                                "properties": .object([
+                                    "destinationKind": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("folder")]),
+                                        "description": .string("Destination kind. Use folder for both folder and root-library project moves.")
+                                    ]),
+                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID. Omit to move projects to the root library."),
+                                    "position": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("beginning"), .string("ending")]),
+                                        "description": .string("Placement inside the folder or root library."),
+                                        "default": .string("ending")
+                                    ])
+                                ])
+                            ]),
+                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
+                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "returnFields": .object([
+                                "type": .string("array"),
+                                "description": .string("Optional project fields to return in per-item results after mutation."),
+                                "items": .object(["type": .string("string")])
+                            ])
+                        ],
+                        required: ["targetIDs", "move"]
+                    ),
+                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                ),
+                Tool(
                     name: "get_task_counts",
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
@@ -714,6 +754,25 @@ public enum FocusRelayServer {
                         operation: MutationOperation(
                             kind: .setProjectsCompletion,
                             completion: completion
+                        ),
+                        previewOnly: previewOnly,
+                        verify: verify,
+                        returnFields: returnFields
+                    )
+                    let result = try await service.performMutation(request)
+                    return .init(content: [.text(try encodeJSON(result))])
+                case "move_projects":
+                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
+                    let move = try decodeArgument(MoveMutation.self, from: params.arguments, key: "move")
+                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
+                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
+                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
+                    let request = MutationRequest(
+                        targetType: .project,
+                        targetIDs: targetIDs,
+                        operation: MutationOperation(
+                            kind: .moveProjects,
+                            move: move
                         ),
                         previewOnly: previewOnly,
                         verify: verify,
