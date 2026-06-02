@@ -24,9 +24,7 @@ final class BridgeClient: @unchecked Sendable {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.encoder = encoder
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        self.decoder = decoder
+        self.decoder = BridgeDateDecoding.makeJSONDecoder()
     }
 
     func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
@@ -316,11 +314,7 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
-        let response: BridgeResponse<MutationResponse> = try sendRequest(
-            request,
-            responseType: MutationResponse.self,
-            timeout: configuration.mutationResponseTimeout
-        )
+        let response: BridgeResponse<MutationResponse> = try sendRequest(request, responseType: MutationResponse.self)
         if response.ok, let mutationResponse = response.data {
             return mutationResponse
         }
@@ -403,16 +397,11 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed("Bridge dispatch failed: \(result.error ?? "unknown dispatch error")")
     }
 
-    private func sendRequest<T: Decodable>(
-        _ request: BridgeRequest,
-        responseType: T.Type,
-        timeout: TimeInterval? = nil
-    ) throws -> BridgeResponse<T> {
+    private func sendRequest<T: Decodable>(_ request: BridgeRequest, responseType: T.Type) throws -> BridgeResponse<T> {
         try ensureDirectories()
         let responseURL = paths.responsesURL.appendingPathComponent("\(request.requestId).json")
         let requestURL = paths.requestsURL.appendingPathComponent("\(request.requestId).json")
         let lockURL = paths.locksURL.appendingPathComponent("\(request.requestId).lock")
-        let responseTimeout = timeout ?? configuration.responseTimeout
         do {
             try writeRequest(request, requestId: request.requestId)
             try writeDispatchRequestId(request.requestId)
@@ -422,7 +411,7 @@ final class BridgeClient: @unchecked Sendable {
                 requestURL: requestURL,
                 lockURL: lockURL,
                 requestId: request.requestId,
-                timeout: responseTimeout,
+                timeout: configuration.responseTimeout,
                 responseType: responseType
             )
             removeIfExists(url: dispatchRequestURL)
@@ -592,7 +581,6 @@ final class BridgeClient: @unchecked Sendable {
 
 struct BridgeClientConfiguration: Equatable {
     let responseTimeout: TimeInterval
-    let mutationResponseTimeout: TimeInterval
     let responsePollInterval: TimeInterval
     let dispatchTransport: BridgeDispatchTransport
     let dispatchTimeout: TimeInterval
@@ -600,9 +588,6 @@ struct BridgeClientConfiguration: Equatable {
     static func fromEnvironment(_ environment: [String: String]) -> BridgeClientConfiguration {
         let parsedTimeout = environment["FOCUS_RELAY_BRIDGE_RESPONSE_TIMEOUT_SECONDS"].flatMap(TimeInterval.init)
         let timeout = (parsedTimeout ?? 0) > 0 ? parsedTimeout! : 45.0
-
-        let parsedMutationTimeout = environment["FOCUS_RELAY_BRIDGE_MUTATION_RESPONSE_TIMEOUT_SECONDS"].flatMap(TimeInterval.init)
-        let mutationTimeout = (parsedMutationTimeout ?? 0) > 0 ? parsedMutationTimeout! : 300.0
 
         let parsedPollInterval = environment["FOCUS_RELAY_BRIDGE_RESPONSE_POLL_MS"]
             .flatMap(Double.init)
@@ -615,7 +600,6 @@ struct BridgeClientConfiguration: Equatable {
 
         return BridgeClientConfiguration(
             responseTimeout: timeout,
-            mutationResponseTimeout: mutationTimeout,
             responsePollInterval: pollInterval,
             dispatchTransport: dispatchTransport,
             dispatchTimeout: dispatchTimeout
