@@ -32,6 +32,13 @@ Stop clicking through endless task lists. Just ask:
 - "Find my flagged items"
 - "What did I accomplish this week?"
 
+**Safe Task And Project Updates**
+- "Flag these tasks and set the due date"
+- "Complete these tasks after I confirm the IDs"
+- "Move these inbox tasks into the right project"
+- "Put this project on hold"
+- "Move this project back to the root library"
+
 ## Features
 
 - **Time-based Queries**: Natural language time period filtering
@@ -39,6 +46,7 @@ Stop clicking through endless task lists. Just ask:
 - **Context Awareness**: Tag-based filtering and availability
 - **Completion Date Filtering**: Query completed tasks/projects by specific date ranges
 - **Smart Filtering**: By tags, due dates, defer dates, completion, duration
+- **V1 Write Tools**: Update, complete/uncomplete, and move tasks/projects with preview and verification support
 - **Timezone Aware**: Automatic local timezone detection and handling
 - **High Performance**: Single-pass filtering with early exit optimization
 
@@ -211,9 +219,23 @@ focusrelay bridge-health-check
 
 # List tasks with total count (shows returnedCount and totalCount)
 focusrelay list-tasks --fields name --limit 10 --include-total-count
+
+# Preview a task field patch before writing
+focusrelay update-tasks <task-id> --flagged true --preview-only --return-fields id,name,flagged
+
+# Complete tasks with post-write verification
+focusrelay set-tasks-completion <task-id> --state completed --verify --return-fields id,name,completed,completionDate
+
+# Move tasks to a project
+focusrelay move-tasks <task-id> --destination-kind project --destination-id <project-id> --verify --return-fields id,name,projectID,projectName
+
+# Put a project on hold
+focusrelay set-projects-status <project-id> --status on_hold --verify --return-fields id,name,status
 ```
 
 Dates should be ISO8601 (e.g. `2026-02-04T12:00:00Z`).
+
+For write workflows, tool routing, and low-token MCP examples, see [`docs/mutation-workflows.md`](docs/mutation-workflows.md).
 
 ## Usage Examples
 
@@ -323,6 +345,29 @@ Get counts of projects and actions. Supports completion date filtering:
 - **Use case**: "How many projects did I complete this month?" without listing all items
 
 Example: Count projects completed in the last 30 days
+
+### Mutation tools
+FocusRelay v1 write tools are available through both MCP and CLI. They use the same shared request models and validation rules.
+
+Core rules:
+- Mutations target IDs only; use read tools first to resolve names to IDs.
+- Bulk writes are homogeneous; one call applies one shared patch, state, or destination to every ID.
+- Use `previewOnly` before risky or bulk writes.
+- Use `verify` for post-write readback.
+- Use `returnFields` to keep responses compact.
+
+Task tools:
+- `update_tasks`: Field patches such as name, note, flagged, estimated minutes, due/defer date, and tag add/remove/set/clear.
+- `set_tasks_completion`: Complete or uncomplete tasks with `state: completed` or `state: active`.
+- `move_tasks`: Move tasks to inbox, a project, or a parent task.
+
+Project tools:
+- `update_projects`: Field patches such as name, note, flagged, due/defer date, sequential, and review interval.
+- `set_projects_status`: Set project status to `active`, `on_hold`, or `dropped`.
+- `set_projects_completion`: Complete or uncomplete projects with `state: completed` or `state: active`.
+- `move_projects`: Move projects to a known folder ID or omit destination ID to move to the root library.
+
+See [`docs/mutation-workflows.md`](docs/mutation-workflows.md) for CLI and MCP examples.
 
 ## Timezone Handling
 
