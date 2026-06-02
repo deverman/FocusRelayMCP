@@ -209,7 +209,10 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
     public let deferDate: Date?
     public let clearDeferDate: Bool
     public let sequential: Bool?
+    public let containsSingletonActions: Bool?
+    public let completedByChildren: Bool?
     public let reviewInterval: ReviewInterval?
+    public let tags: TagMutation?
 
     public init(
         name: String? = nil,
@@ -221,7 +224,10 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         deferDate: Date? = nil,
         clearDeferDate: Bool = false,
         sequential: Bool? = nil,
-        reviewInterval: ReviewInterval? = nil
+        containsSingletonActions: Bool? = nil,
+        completedByChildren: Bool? = nil,
+        reviewInterval: ReviewInterval? = nil,
+        tags: TagMutation? = nil
     ) {
         self.name = name
         self.note = note
@@ -232,7 +238,10 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         self.deferDate = deferDate
         self.clearDeferDate = clearDeferDate
         self.sequential = sequential
+        self.containsSingletonActions = containsSingletonActions
+        self.completedByChildren = completedByChildren
         self.reviewInterval = reviewInterval
+        self.tags = tags
     }
 
     public var isEmpty: Bool {
@@ -245,7 +254,10 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         deferDate == nil &&
         !clearDeferDate &&
         sequential == nil &&
-        reviewInterval == nil
+        containsSingletonActions == nil &&
+        completedByChildren == nil &&
+        reviewInterval == nil &&
+        tags == nil
     }
 
     public func validate() throws {
@@ -258,6 +270,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         if let reviewInterval, let steps = reviewInterval.steps, steps < 0 {
             throw MutationValidationError("reviewInterval.steps must be zero or greater.")
         }
+        try tags?.validate()
     }
 }
 
@@ -303,14 +316,23 @@ public struct MoveMutation: Codable, Sendable, Equatable {
                 throw MutationValidationError("Inbox moves must not include a destinationID.")
             }
         case .project:
+            if targetType != .task {
+                throw MutationValidationError("Only task moves can target projects.")
+            }
             guard let destinationID, !destinationID.isEmpty else {
                 throw MutationValidationError("Project moves require a destinationID.")
             }
         case .parentTask:
+            if targetType != .task {
+                throw MutationValidationError("Only task moves can target parent tasks.")
+            }
             guard let destinationID, !destinationID.isEmpty else {
                 throw MutationValidationError("Parent task moves require a destinationID.")
             }
         case .folder:
+            if targetType != .project {
+                throw MutationValidationError("Only project moves can target folders.")
+            }
             guard let destinationID, !destinationID.isEmpty else {
                 throw MutationValidationError("Folder moves require a destinationID.")
             }
