@@ -80,3 +80,24 @@ func projectItemReviewRoundTrip() throws {
     #expect(decoded.reviewInterval?.steps == interval.steps)
     #expect(decoded.reviewInterval?.unit == interval.unit)
 }
+
+@Test
+func folderItemRoundTrip() throws {
+    let folder = FolderItem(
+        id: "folder-1",
+        name: "Travel",
+        parentID: "parent-1",
+        parentName: "Personal",
+        projectCount: 3,
+        childFolderCount: 2
+    )
+
+    let data = try JSONEncoder().encode(folder)
+    let decoded = try JSONDecoder().decode(FolderItem.self, from: data)
+
+    #expect(decoded.id == folder.id)
+    #expect(decoded.name == folder.name)
+    #expect(decoded.parentID == folder.parentID)
+    #expect(decoded.projectCount == folder.projectCount)
+    #expect(decoded.childFolderCount == folder.childFolderCount)
+}

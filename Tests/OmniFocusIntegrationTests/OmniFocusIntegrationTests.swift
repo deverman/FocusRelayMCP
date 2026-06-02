@@ -549,6 +549,23 @@ func bridgeTagsPagingLive() throws {
     }
 }
 
+@Test
+func bridgeFoldersPagingLive() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
+        return
+    }
+
+    let client = BridgeClient()
+    let first = try client.listFolders(page: PageRequest(limit: 2), fields: ["id", "name"])
+    #expect(first.items.count <= 2)
+    #expect((first.totalCount ?? 0) >= first.items.count)
+    if let cursor = first.nextCursor {
+        let second = try client.listFolders(page: PageRequest(limit: 2, cursor: cursor), fields: ["id", "name", "parentID"])
+        #expect(second.items.count <= 2)
+    }
+}
+
 // MARK: - Status Edge Case Tests
 
 @Test

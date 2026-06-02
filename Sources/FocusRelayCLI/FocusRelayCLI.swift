@@ -16,6 +16,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
             GetTask.self,
             ListProjects.self,
             ListTags.self,
+            ListFolders.self,
             UpdateTasks.self,
             SetTasksCompletion.self,
             MoveTasks.self,
@@ -187,6 +188,32 @@ struct ListTags: AsyncParsableCommand {
         let result = try await service.listTags(page: pageRequest, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
         let fieldSet: Set<String> = ["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"]
         let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
+        let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
+        print(try encodeJSON(output))
+    }
+}
+
+struct ListFolders: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list-folders",
+        abstract: "List OmniFocus folders for project move destination discovery.",
+        aliases: ["list_folders"]
+    )
+
+    @OptionGroup var page: PageOptions
+
+    @Option(help: "Comma-separated field names to return.")
+    var fields: String?
+
+    func run() async throws {
+        let service = OmniFocusBridgeService()
+        let pageRequest = page.makePageRequest(defaultLimit: 150)
+        let fieldList = FieldList.parse(fields)
+        let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
+
+        let result = try await service.listFolders(page: pageRequest, fields: selectedFields)
+        let fieldSet = Set(selectedFields)
+        let items = result.items.map { makeFolderOutput(from: $0, fields: fieldSet) }
         let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
         print(try encodeJSON(output))
     }
@@ -459,7 +486,7 @@ struct MoveProjects: AsyncParsableCommand {
     @Option(help: "Destination kind: folder. Omit destination-id to move to the root library.")
     var destinationKind: MutationMoveDestinationKind = .folder
 
-    @Option(help: "Destination folder ID. Omit to move to the root library.")
+    @Option(help: "Destination folder ID from list-folders. Omit to move to the root library.")
     var destinationID: String?
 
     @Option(help: "Placement within the destination: beginning or ending.")

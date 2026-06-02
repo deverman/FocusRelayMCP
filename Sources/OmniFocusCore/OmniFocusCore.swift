@@ -158,6 +158,31 @@ public struct TagItem: Codable, Sendable {
     }
 }
 
+public struct FolderItem: Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let parentID: String?
+    public let parentName: String?
+    public let projectCount: Int?
+    public let childFolderCount: Int?
+
+    public init(
+        id: String,
+        name: String,
+        parentID: String? = nil,
+        parentName: String? = nil,
+        projectCount: Int? = nil,
+        childFolderCount: Int? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.parentID = parentID
+        self.parentName = parentName
+        self.projectCount = projectCount
+        self.childFolderCount = childFolderCount
+    }
+}
+
 public struct TaskCounts: Codable, Sendable {
     public let total: Int
     public let completed: Int
@@ -333,6 +358,7 @@ public protocol OmniFocusService: Sendable {
         fields: [String]?
     ) async throws -> Page<ProjectItem>
     func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem>
+    func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem>
     func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts
     func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts
     func performMutation(_ request: MutationRequest) async throws -> MutationResponse

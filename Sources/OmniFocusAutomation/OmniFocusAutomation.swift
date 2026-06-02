@@ -157,6 +157,10 @@ public final class OmniAutomationService: OmniFocusService {
         throw AutomationError.notImplemented
     }
 
+    public func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {
+        try BridgeClient().listFolders(page: page, fields: fields)
+    }
+
     public func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts {
         let request = TaskCountsRequest(filter: filter)
         let requestData = try requestEncoder.encode(request)

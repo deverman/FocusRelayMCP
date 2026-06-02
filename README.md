@@ -328,6 +328,12 @@ Query tags with task counts:
 - `statusFilter`: active, onHold, dropped, all
 - `includeTaskCounts`: Get task counts per tag
 
+### list_folders
+Query folders for project move destinations:
+- Default compact fields: `id`, `name`
+- Optional fields: `parentID`, `parentName`, `projectCount`, `childFolderCount`
+- Use before `move_projects` when the destination folder ID is not already known
+
 ### get_task_counts
 Get aggregate counts for any filter combination. Supports full task filtering including:
 - All task filters: completed, completedAfter/Before, tags, project, availableOnly, etc.
@@ -365,7 +371,7 @@ Project tools:
 - `update_projects`: Field patches such as name, note, flagged, due/defer date, sequential, and review interval.
 - `set_projects_status`: Set project status to `active`, `on_hold`, or `dropped`.
 - `set_projects_completion`: Complete or uncomplete projects with `state: completed` or `state: active`.
-- `move_projects`: Move projects to a known folder ID or omit destination ID to move to the root library.
+- `move_projects`: Move projects to a folder ID discovered with `list_folders`, or omit destination ID to move to the root library.
 
 See [`docs/mutation-workflows.md`](docs/mutation-workflows.md) for CLI and MCP examples.
 

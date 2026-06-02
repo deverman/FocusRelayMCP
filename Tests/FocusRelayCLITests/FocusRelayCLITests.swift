@@ -166,6 +166,19 @@ func moveProjectsAllowsRootLibraryDestination() throws {
 }
 
 @Test
+func listFoldersParsesFieldsAndPagination() throws {
+    let command = try ListFolders.parse([
+        "--fields", "id,name,parentID",
+        "--limit", "5",
+        "--cursor", "10"
+    ])
+
+    #expect(command.fields == "id,name,parentID")
+    #expect(command.page.limit == 5)
+    #expect(command.page.cursor == "10")
+}
+
+@Test
 func setProjectsCompletionParsesCompletedState() throws {
     let command = try SetProjectsCompletion.parse([
         "project-1",
