@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- MCP mutation annotations now identify edits, lifecycle changes, and moves as
+  destructive updates so clients can present appropriate approval UX; schemas
+  also state when omitting preview or verification performs an immediate write.
 - Mutation save, per-target apply, verification, and returned-field failures can
   no longer be reported as successful writes.
 - Children of completed or dropped parent tasks no longer appear as remaining or
