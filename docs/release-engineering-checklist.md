@@ -110,13 +110,20 @@ gh run list --repo deverman/FocusRelayMCP --workflow release.yml --limit 5
 ## 8. Update The Homebrew Tap
 
 Repository:
-- `/Users/deverman/Documents/Code/swift/homebrew-focus-relay`
+- `https://github.com/deverman/homebrew-focus-relay`
+- authoritative formula: `focusrelay.rb`
 
 Steps:
 1. update the formula URL
 2. update the formula SHA256 from the actual release asset
 3. add/update explicit `version` if needed
 4. commit and push the tap
+
+Do not add a second formula to the FocusRelayMCP repository. Validate the published tap with:
+
+```bash
+./scripts/test-homebrew-formula.sh
+```
 
 ## 9. Test Homebrew Installation
 
