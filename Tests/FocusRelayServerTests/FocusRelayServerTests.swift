@@ -1,6 +1,7 @@
 import Testing
 @testable import FocusRelayServer
 import FocusRelayVersion
+import MCP
 
 @Test
 func mcpServerReportsEmbeddedBuildVersion() {
@@ -53,4 +54,54 @@ func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
     ])
     #expect(FocusRelayServer.mutationToolNames.isSubset(of: Set(FocusRelayServer.publicToolNames)))
     #expect(FocusRelayServer.publicToolNames.count - FocusRelayServer.mutationToolNames.count == 7)
+}
+
+@Test
+func sharedTaskFilterSchemaCoversCompleteModelSurface() {
+    let expectedPropertyNames: Set<String> = [
+        "completed",
+        "flagged",
+        "availableOnly",
+        "inboxView",
+        "project",
+        "tags",
+        "dueBefore",
+        "dueAfter",
+        "deferBefore",
+        "deferAfter",
+        "plannedBefore",
+        "plannedAfter",
+        "completedBefore",
+        "completedAfter",
+        "search",
+        "inboxOnly",
+        "projectView",
+        "maxEstimatedMinutes",
+        "minEstimatedMinutes",
+        "includeTotalCount"
+    ]
+
+    #expect(FocusRelayServer.taskFilterPropertyNames == expectedPropertyNames)
+
+    guard case let .object(schema) = FocusRelayServer.makeTaskFilterSchema(),
+          case let .object(properties)? = schema["properties"] else {
+        Issue.record("Expected an object task-filter schema with object properties")
+        return
+    }
+
+    #expect(Set(properties.keys) == expectedPropertyNames)
+
+    guard case let .object(maximumEstimate)? = properties["maxEstimatedMinutes"],
+          case let .object(minimumEstimate)? = properties["minEstimatedMinutes"] else {
+        Issue.record("Expected estimate filter schemas")
+        return
+    }
+    #expect(maximumEstimate["minimum"] == .int(0))
+    #expect(minimumEstimate["minimum"] == .int(0))
+
+    guard case let .object(includeTotalCount)? = properties["includeTotalCount"] else {
+        Issue.record("Expected includeTotalCount filter schema")
+        return
+    }
+    #expect(includeTotalCount["default"] == .bool(false))
 }

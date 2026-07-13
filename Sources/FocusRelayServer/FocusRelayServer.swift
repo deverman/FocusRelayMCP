@@ -47,6 +47,109 @@ public enum FocusRelayServer {
         "move_projects"
     ]
 
+    static let taskFilterPropertyNames: Set<String> = [
+        "completed",
+        "flagged",
+        "availableOnly",
+        "inboxView",
+        "project",
+        "tags",
+        "dueBefore",
+        "dueAfter",
+        "deferBefore",
+        "deferAfter",
+        "plannedBefore",
+        "plannedAfter",
+        "completedBefore",
+        "completedAfter",
+        "search",
+        "inboxOnly",
+        "projectView",
+        "maxEstimatedMinutes",
+        "minEstimatedMinutes",
+        "includeTotalCount"
+    ]
+
+    static func makeTaskFilterSchema() -> Value {
+        let dateExample = Value.string("2026-01-30T12:00:00Z")
+        let properties: [String: Value] = [
+            "completed": propertySchema(
+                type: "boolean",
+                description: "Match completed (true) or remaining (false) tasks. Omit to use the selected view's default."
+            ),
+            "flagged": propertySchema(
+                type: "boolean",
+                description: "Match tasks whose flagged state equals this value."
+            ),
+            "availableOnly": propertySchema(
+                type: "boolean",
+                description: "When true, require OmniFocus's native available task status, including active project and parent status."
+            ),
+            "inboxView": .object([
+                "type": .string("string"),
+                "description": .string("Task status view. This does not scope results to the inbox; set inboxOnly=true for that."),
+                "enum": .array([.string("available"), .string("remaining"), .string("everything")])
+            ]),
+            "project": propertySchema(
+                type: "string",
+                description: "Match one containing project by exact ID or exact name."
+            ),
+            "tags": .object([
+                "type": .string("array"),
+                "description": .string("Match tag IDs or exact tag names. An empty array selects untagged tasks."),
+                "items": .object(["type": .string("string")]),
+                "examples": .array([.array([.string("work"), .string("urgent")]), .array([.string("personal")])])
+            ]),
+            "dueBefore": dateFilterSchema("Match tasks due on or before this ISO8601 timestamp.", example: dateExample),
+            "dueAfter": dateFilterSchema("Match tasks due on or after this ISO8601 timestamp.", example: dateExample),
+            "deferBefore": dateFilterSchema("Match tasks deferred until on or before this ISO8601 timestamp.", example: dateExample),
+            "deferAfter": dateFilterSchema("Match tasks deferred until on or after this ISO8601 timestamp.", example: dateExample),
+            "plannedBefore": dateFilterSchema("Match tasks planned on or before this ISO8601 timestamp.", example: dateExample),
+            "plannedAfter": dateFilterSchema("Match tasks planned on or after this ISO8601 timestamp.", example: dateExample),
+            "completedBefore": dateFilterSchema("Match tasks completed on or before this ISO8601 timestamp.", example: dateExample),
+            "completedAfter": dateFilterSchema("Match tasks completed on or after this ISO8601 timestamp.", example: dateExample),
+            "search": propertySchema(
+                type: "string",
+                description: "Search task names and notes."
+            ),
+            "inboxOnly": propertySchema(
+                type: "boolean",
+                description: "When true, scope the query to inbox tasks."
+            ),
+            "projectView": .object([
+                "type": .string("string"),
+                "description": .string("Match tasks by containing project status. Use all to include every project status."),
+                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")])
+            ]),
+            "maxEstimatedMinutes": .object([
+                "type": .string("integer"),
+                "minimum": .int(0),
+                "description": .string("Match tasks whose estimate is at most this many minutes.")
+            ]),
+            "minEstimatedMinutes": .object([
+                "type": .string("integer"),
+                "minimum": .int(0),
+                "description": .string("Match tasks whose estimate is at least this many minutes.")
+            ]),
+            "includeTotalCount": propertySchema(
+                type: "boolean",
+                description: "For list_tasks, include the full filtered count before pagination. get_task_counts always returns dedicated counts, so this value is unnecessary there.",
+                defaultValue: .bool(false)
+            )
+        ]
+
+        precondition(
+            Set(properties.keys) == taskFilterPropertyNames,
+            "The shared MCP task filter schema must cover the intentional TaskFilter surface."
+        )
+
+        return .object([
+            "type": .string("object"),
+            "description": .string("Shared task filter accepted by list_tasks and get_task_counts. Date bounds are inclusive ISO8601 timestamps."),
+            "properties": .object(properties)
+        ])
+    }
+
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler: StreamLogHandler
@@ -76,71 +179,7 @@ public enum FocusRelayServer {
                     description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, planned dates, tags, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY TAGS:\n- Tagged project root tasks are included when they match, even if OmniFocus omits them from flattenedTasks because the project has child tasks.\n- If you want tagged project headers that are not currently actionable, set completed=false and availableOnly=false.\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
                     inputSchema: toolSchema(
                         properties: [
-                            "filter": .object([
-                                "type": .string("object"),
-                                "description": .string("Task filters including time periods. For 'morning tasks', use deferAfter=06:00 and deferBefore=12:00 in local timezone converted to UTC."),
-                                "properties": .object([
-                                    "completed": propertySchema(
-                                        type: "boolean",
-                                        description: "Filter by completion status. Use with completedAfter/completedBefore to filter completed tasks by date (e.g., completed=true + completedAfter='2026-02-10T00:00:00Z' = today's completions)"
-                                    ),
-                                    "completedAfter": propertySchema(
-                                        type: "string",
-                                        description: "Filter tasks completed AFTER this date/time (inclusive). Use ISO8601 UTC format. Example: To get today's completions, use today's date at 00:00:00Z. Can be used with or without completed=true.",
-                                        examples: [.string("2026-01-31T00:00:00Z")]
-                                    ),
-                                    "completedBefore": propertySchema(
-                                        type: "string",
-                                        description: "Filter tasks completed BEFORE this date/time (exclusive). Use ISO8601 UTC format. Example: To get today's completions, use tomorrow's date at 00:00:00Z as the upper bound.",
-                                        examples: [.string("2026-02-01T00:00:00Z")]
-                                    ),
-                                    "flagged": propertySchema(type: "boolean", description: "Filter flagged tasks only"),
-                                    "availableOnly": propertySchema(type: "boolean", description: "Only show tasks that are currently available (not blocked by defer dates)"),
-                                    "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'. NOTE: this controls view mode only; use inboxOnly=true to scope to inbox."),
-                                    "project": propertySchema(type: "string", description: "Filter by project ID or name"),
-                                    "tags": .object([
-                                        "type": .string("array"),
-                                        "description": .string("Filter by tag IDs or names"),
-                                        "items": .object(["type": .string("string")]),
-                                        "examples": .array([.array([.string("work"), .string("urgent")]), .array([.string("personal")])])
-                                    ]),
-                                    "dueBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks due before this time. For morning tasks due today, use today's date at 12:00:00Z",
-                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T23:59:59Z")]
-                                    ),
-                                    "dueAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks due after this time",
-                                        examples: [.string("2026-01-30T00:00:00Z")]
-                                    ),
-                                    "plannedBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks planned before this time.",
-                                        examples: [.string("2026-01-30T23:59:59Z")]
-                                    ),
-                                    "plannedAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks planned after this time.",
-                                        examples: [.string("2026-01-30T00:00:00Z")]
-                                    ),
-                                    "deferBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks deferred until before this time. For morning tasks, use today's date at 12:00:00Z",
-                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T18:00:00Z")]
-                                    ),
-                                    "deferAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks deferred until after this time (become available). For morning tasks starting at 6am, use today's date at 06:00:00Z",
-                                        examples: [.string("2026-01-30T06:00:00Z"), .string("2026-01-30T12:00:00Z")]
-                                    ),
-
-                                    "search": propertySchema(type: "string", description: "Search tasks by name or note content"),
-                                    "inboxOnly": propertySchema(type: "boolean", description: "Only show inbox tasks"),
-                                    "projectView": propertySchema(type: "string", description: "Project view filter: 'active', 'onHold', etc."),
-                                    "includeTotalCount": propertySchema(type: "boolean", description: "Include totalCount for all tasks matching filter (before pagination). Recommended when comparing with get_task_counts.")
-                                ])
-                            ]),
+                            "filter": makeTaskFilterSchema(),
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
@@ -563,7 +602,7 @@ public enum FocusRelayServer {
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
                         properties: [
-                            "filter": .object(["type": .string("object")])
+                            "filter": makeTaskFilterSchema()
                         ]
                     ),
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
@@ -894,6 +933,15 @@ private func propertySchema(
         schema["default"] = defaultValue
     }
     return .object(schema)
+}
+
+private func dateFilterSchema(_ description: String, example: Value) -> Value {
+    .object([
+        "type": .string("string"),
+        "format": .string("date-time"),
+        "description": .string(description),
+        "examples": .array([example])
+    ])
 }
 
 private func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {

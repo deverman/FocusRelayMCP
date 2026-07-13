@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `list_tasks` and `get_task_counts` now publish the same complete task-filter
+  schema, including estimate bounds, enum choices, date formats, and count
+  behavior.
 - Internal bridge health and inbox diagnostics remain available to operators
   through the CLI but are no longer part of the model-facing MCP tool catalog.
 - Builds now use Swift 6.3.3 through Swiftly and CI, with Swift tools 6.3 and
