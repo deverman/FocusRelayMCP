@@ -38,10 +38,10 @@ unverified write.
 ## Performance And Reliability
 
 FocusRelay is designed to be one of the fastest OmniFocus MCP integrations for
-everyday use. We test performance on a real OmniFocus library with 1,908
-non-completed tasks and 465 completed tasks—not a tiny sample database.
+everyday use. We test performance against thousands of OmniFocus tasks—not a
+tiny sample database.
 
-- Focused inbox reads typically return in about one second on this library.
+- Focused inbox reads typically returned in about one second during testing.
 - Single-pass filtering avoids repeatedly scanning the same tasks.
 - Early-stop paging stops processing as soon as FocusRelay has enough results
   for the requested page.
@@ -49,8 +49,8 @@ non-completed tasks and 465 completed tasks—not a tiny sample database.
   task queries remain uncached and current.
 - Updating several selected items at once and returning only the requested
   details avoids unnecessary round trips.
-- Across 1,486 measured calls in smoke and sustained benchmark runs, FocusRelay
-  completed every call without an error or timeout.
+- Across more than 1,400 measured calls in smoke and sustained benchmark runs,
+  FocusRelay completed every call without an error or timeout.
 
 ## Current Limits
 

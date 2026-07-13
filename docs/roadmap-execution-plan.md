@@ -113,10 +113,9 @@ Create focused issues without combining unrelated variables or duplicating exist
 - [x] Safe task creation: [#82](https://github.com/deverman/FocusRelayMCP/issues/82).
 - [x] Safe project creation: [#83](https://github.com/deverman/FocusRelayMCP/issues/83).
 
-Issues #82 and #83 are roadmap enhancements, not current release blockers. If
-creation becomes part of the `v0.10.0-beta` headline promise, promote them into
-the release scope and complete their API, duplicate-safety, test, and benchmark
-acceptance work before publishing the beta.
+Issues #82 and #83 are post-beta roadmap enhancements and do not block
+`v0.10.0-beta`. Each still requires API, duplicate-safety, test, and benchmark
+acceptance work before its own release.
 
 ## Performance Decision
 
@@ -150,8 +149,7 @@ Existing feature issues remain:
 2. Publish the release candidate for GitHub CI/review after approval.
 3. Merge only after green CI and review, then tag `v0.10.0-beta` after explicit approval.
 4. Update and verify the external Homebrew tap with the actual release-asset SHA256.
-5. Decide whether #82 and #83 belong in this beta or the next release; implement
-   task creation before project creation if they move into scope.
+5. Implement post-beta task creation in #82, then project creation in #83.
 6. Implement #11, then #22, then #18 as separate branches.
 7. Add native task-status filters and general sorting as separate branches.
 8. Run a documented feasibility phase before implementing #10 custom perspectives.

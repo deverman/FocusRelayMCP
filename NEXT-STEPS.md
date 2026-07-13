@@ -85,9 +85,8 @@ Prioritize user-visible, low-risk improvements as isolated branches:
    dispatch from the supported runtime and retain pure JXA only as an internal
    parity oracle until fixtures replace it.
 
-If task and project creation are required for the `v0.10.0-beta` headline,
-move #82 and #83 into the pre-release checklist instead of publishing the
-current update-only candidate.
+Task and project creation are planned post-beta enhancements and do not block
+`v0.10.0-beta`.
 
 Treat [#73](https://github.com/deverman/FocusRelayMCP/issues/73), immediate IPC
 cleanup, as an experiment rather than a release blocker. Keep it only if the
