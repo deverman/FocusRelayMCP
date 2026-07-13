@@ -1303,6 +1303,33 @@
       return isTaskAvailableWithStatus(task, taskStatus(task), undefined);
     }
 
+    function summarizeProjectTaskCounts(project, tasks) {
+      const counts = {
+        availableTasks: 0,
+        remainingTasks: 0,
+        completedTasks: 0,
+        droppedTasks: 0,
+        totalTasks: tasks.length
+      };
+
+      tasks.forEach(task => {
+        const status = taskStatus(task);
+        if (isCompletedStatusValue(status)) {
+          counts.completedTasks += 1;
+        } else if (isDroppedStatusValue(status)) {
+          counts.droppedTasks += 1;
+        } else if (isRemainingStatusWithStatus(task, status)) {
+          counts.remainingTasks += 1;
+        }
+
+        if (isTaskAvailableWithStatus(task, status, project)) {
+          counts.availableTasks += 1;
+        }
+      });
+
+      return counts;
+    }
+
     // ============================================================
     // END STATUS MODULE
     // ============================================================
@@ -1691,6 +1718,7 @@
               if (!project) { return false; }
               const pid = String(safe(() => project.id.primaryKey) || "");
               const pname = String(safe(() => project.name) || "");
+              if (taskIdentifier(t) === pid) { return false; }
               return pid === projectFilter || pname === projectFilter;
             });
           }
@@ -2259,34 +2287,13 @@
             
             // Calculate task counts from flattenedTasks
             if (includeTaskCounts) {
-              const flattenedTasks = safe(() => p.flattenedTasks) || [];
-              
-              // Count tasks by status
-              let available = 0;
-              let remaining = 0;
-              let completed = 0;
-              let dropped = 0;
-              
-              for (const task of flattenedTasks) {
-                const taskStatus = safe(() => task.taskStatus);
-                if (taskStatus === Task.Status.Completed) {
-                  completed++;
-                } else if (taskStatus === Task.Status.Dropped) {
-                  dropped++;
-                } else {
-                  remaining++;
-                  if (taskStatus === Task.Status.Available || taskStatus === Task.Status.Next) {
-                    available++;
-                  }
-                }
-              }
-              
-              item.availableTasks = available;
-              item.remainingTasks = remaining;
-              item.completedTasks = completed;
-              item.droppedTasks = dropped;
-              item.totalTasks = flattenedTasks.length;
-
+              const flattenedTasks = toTaskArray(safe(() => p.flattenedTasks));
+              const counts = summarizeProjectTaskCounts(p, flattenedTasks);
+              item.availableTasks = counts.availableTasks;
+              item.remainingTasks = counts.remainingTasks;
+              item.completedTasks = counts.completedTasks;
+              item.droppedTasks = counts.droppedTasks;
+              item.totalTasks = counts.totalTasks;
             }
             
             // Add hasChildren for stalled project detection
