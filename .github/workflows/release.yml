@@ -31,7 +31,7 @@ jobs:
             "https://download.swift.org/swiftly/darwin/swiftly-${SWIFTLY_VERSION}.pkg" \
             --output "$RUNNER_TEMP/swiftly.pkg"
           installer -pkg "$RUNNER_TEMP/swiftly.pkg" -target CurrentUserHomeDirectory
-          "$HOME/local/bin/swiftly" init --assume-yes --skip-install --no-modify-profile
+          "$HOME/.swiftly/bin/swiftly" init --assume-yes --skip-install --no-modify-profile
           source "$HOME/.swiftly/env.sh"
           swiftly install --assume-yes
           echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
