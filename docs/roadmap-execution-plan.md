@@ -110,6 +110,13 @@ Create focused issues without combining unrelated variables or duplicating exist
 - [x] Advertised task-search behavior: [#79](https://github.com/deverman/FocusRelayMCP/issues/79).
 - [x] Production transport consolidation follow-up: [#80](https://github.com/deverman/FocusRelayMCP/issues/80).
 - [x] Complete benchmark scenario rotation: [#81](https://github.com/deverman/FocusRelayMCP/issues/81).
+- [x] Safe task creation: [#82](https://github.com/deverman/FocusRelayMCP/issues/82).
+- [x] Safe project creation: [#83](https://github.com/deverman/FocusRelayMCP/issues/83).
+
+Issues #82 and #83 are roadmap enhancements, not current release blockers. If
+creation becomes part of the `v0.10.0-beta` headline promise, promote them into
+the release scope and complete their API, duplicate-safety, test, and benchmark
+acceptance work before publishing the beta.
 
 ## Performance Decision
 
@@ -143,10 +150,12 @@ Existing feature issues remain:
 2. Publish the release candidate for GitHub CI/review after approval.
 3. Merge only after green CI and review, then tag `v0.10.0-beta` after explicit approval.
 4. Update and verify the external Homebrew tap with the actual release-asset SHA256.
-5. Implement #11, then #22, then #18 as separate branches.
-6. Add native task-status filters and general sorting as separate branches.
-7. Run a documented feasibility phase before implementing #10 custom perspectives.
-8. Re-scope #16 after verifying the current official planned-date setter contract.
+5. Decide whether #82 and #83 belong in this beta or the next release; implement
+   task creation before project creation if they move into scope.
+6. Implement #11, then #22, then #18 as separate branches.
+7. Add native task-status filters and general sorting as separate branches.
+8. Run a documented feasibility phase before implementing #10 custom perspectives.
+9. Re-scope #16 after verifying the current official planned-date setter contract.
 
 ## Validation Record
 

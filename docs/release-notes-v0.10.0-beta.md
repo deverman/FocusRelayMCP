@@ -1,33 +1,35 @@
 # FocusRelay 0.10.0-beta
 
-FocusRelay can now safely update existing OmniFocus tasks and projects as well
-as read them. This beta keeps the model-facing surface intentionally compact:
-14 product tools cover task, project, tag, and folder reads plus seven focused
-task/project mutation operations.
+FocusRelay now writes to OmniFocus. Any MCP-compatible assistant can read your
+data and safely update existing tasks and projects instead of only suggesting
+what you should change. This beta provides 14 purposeful tools: seven for
+reading OmniFocus and seven for making changes.
 
 ## Highlights
 
 - Update task and project names, notes, flags, dates, estimates, tags, review
   settings, and other supported fields.
 - Complete, reactivate, change status, and move existing tasks or projects.
-- Preview risky or bulk changes, verify real writes, and request compact
-  post-write fields without a second model round trip.
-- Discover folder IDs for project moves with `list_folders`.
-- Search task names and notes with the same filter contract used by
-  `list_tasks` and `get_task_counts`.
-- Keep internal health and inbox probes out of the public MCP catalog while
-  retaining them as operator CLI diagnostics.
+- Preview an important change before applying it and confirm afterward that
+  OmniFocus saved it.
+- Apply the same change to several selected tasks or projects in one request.
+- Find tasks using words from either their names or notes.
+- Find the right OmniFocus folder when moving a project.
+- Get consistent answers when asking an assistant to show matching tasks or
+  count them.
+- Keep the assistant focused with a compact tool catalog that does not spend
+  context on internal troubleshooting commands.
 
 ## Safety And Correctness
 
-- Writes target stable OmniFocus IDs and apply one homogeneous operation per
-  call; name-based and mixed-operation mutations are intentionally unsupported.
-- All mutation tools now advertise truthful destructive/write annotations so
-  MCP clients can present appropriate approval UX.
-- Save, per-target apply, verification, and returned-field failures cannot be
-  reported as successful writes.
-- Task and project availability/counts use OmniFocus native status values and
-  respect completed or dropped parent chains.
+- FocusRelay changes the exact tasks and projects selected by their stable
+  OmniFocus IDs.
+- MCP clients can recognize which actions write to OmniFocus and show the
+  appropriate approval prompt first.
+- FocusRelay reports success only after OmniFocus applies and saves the requested
+  change. When confirmation is requested, it checks the saved result too.
+- Task and project results follow OmniFocus's own status rules, including
+  on-hold or dropped projects and work beneath completed parent tasks.
 
 Use `previewOnly=true` before broad changes and `verify=true` for real writes
 when post-write confirmation matters. Omitting both performs an immediate,
@@ -35,20 +37,29 @@ unverified write.
 
 ## Performance And Reliability
 
-- Plugin URL dispatch remains the production architecture after corrected
-  transport comparisons and the current release validation. Pure JXA remains
-  an internal parity/benchmark reference for now.
-- Focused inbox reads are typically around one second through the plugin in the
-  current database, versus roughly six to eight seconds through JXA.
-- Projects and tags retain five-minute actor-backed caching; tasks stay fresh.
-- Bulk mutations and compact verified return fields avoid unnecessary bridge
-  round trips.
+FocusRelay is designed to be one of the fastest OmniFocus MCP integrations for
+everyday use. We test performance on a real OmniFocus library with 1,908
+non-completed tasks and 465 completed tasks—not a tiny sample database.
+
+- Focused inbox reads typically return in about one second on this library.
+- Single-pass filtering avoids repeatedly scanning the same tasks.
+- Early-stop paging stops processing as soon as FocusRelay has enough results
+  for the requested page.
+- Five-minute project and tag caching makes repeated lookups much faster while
+  task queries remain uncached and current.
+- Updating several selected items at once and returning only the requested
+  details avoids unnecessary round trips.
+- Across 1,486 measured calls in smoke and sustained benchmark runs, FocusRelay
+  completed every call without an error or timeout.
 
 ## Current Limits
 
-This v1 write surface does not create or delete tasks/projects, edit repetition
-rules, or write planned dates. Those operations remain out of scope until their
-contracts and safety UX are designed separately.
+This beta updates existing tasks and projects but does not create or delete
+them. Task creation is tracked in
+[#82](https://github.com/deverman/FocusRelayMCP/issues/82), and project creation
+is tracked in [#83](https://github.com/deverman/FocusRelayMCP/issues/83). The
+beta also does not edit repetition rules or planned dates. We will add those
+capabilities only after defining equally clear safety and verification behavior.
 
 ## Upgrade Notes
 

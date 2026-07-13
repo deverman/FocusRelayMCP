@@ -65,21 +65,29 @@ are the source of truth for individual deliverables.
 
 Prioritize user-visible, low-risk improvements as isolated branches:
 
-1. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
+1. [#82](https://github.com/deverman/FocusRelayMCP/issues/82) — safely create
+   tasks in the inbox, a project, or beneath a parent task.
+2. [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — safely create
+   projects at the root or in an existing folder.
+3. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
    links in existing query output.
-2. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
+4. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
    modified timestamps and filters.
-3. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
+5. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
    dates and filters.
-4. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
+6. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
    status filters.
-5. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
+7. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
    sorting.
-6. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
+8. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
    text responses off deprecated MCP SDK overloads.
-7. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
+9. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
    dispatch from the supported runtime and retain pure JXA only as an internal
    parity oracle until fixtures replace it.
+
+If task and project creation are required for the `v0.10.0-beta` headline,
+move #82 and #83 into the pre-release checklist instead of publishing the
+current update-only candidate.
 
 Treat [#73](https://github.com/deverman/FocusRelayMCP/issues/73), immediate IPC
 cleanup, as an experiment rather than a release blocker. Keep it only if the
