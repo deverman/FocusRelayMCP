@@ -47,6 +47,41 @@ public enum FocusRelayServer {
         "move_projects"
     ]
 
+    static let listProjectsToolDescription = """
+    List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include child-task counts.
+
+    PROJECT MAINTENANCE AND HEALTH:
+    - For completion, cleanup, or stalled-project recommendations, start with statusFilter='active'. Use 'all' only when historical done/dropped projects are relevant.
+    - Always inspect project status before interpreting task counts. A project with remainingTasks=0 is not automatically a completion candidate.
+    - totalTasks=0 means the project is empty or unplanned, not completed.
+    - An active project whose child tasks are all completed may be a completion candidate. If all child tasks are dropped, treat it as a drop/review candidate instead.
+    - availableTasks=0 does not mean a project is stalled. Request and use 'isStalled', and do not classify on-hold projects as stalled.
+    - Do not infer that a project is stale from task counts alone.
+    - Default fields are 'id' and 'name'. When statusFilter='all' or includeTaskCounts=true, the defaults also include 'status'.
+
+    COMPLETED PROJECTS (matches OmniFocus Completed perspective):
+    - Use completedAfter/completedBefore with ISO8601 dates to find completed projects in time windows.
+    - Excludes dropped projects (only status=done projects with completion dates).
+    - Results are sorted by completionDate descending (most recent first).
+    - Include 'completionDate' in fields to see when projects were completed.
+
+    REVIEW PERSPECTIVE:
+    - Use reviewPerspective=true to return projects pending review (excludes dropped/done and applies nextReviewDate <= now when reviewDueBefore is omitted).
+    - Optionally set reviewDueBefore/reviewDueAfter (ISO8601 UTC) to bound nextReviewDate.
+    """
+
+    public static func resolvedProjectFields(
+        requestedFields: [String],
+        statusFilter: String,
+        includeTaskCounts: Bool
+    ) -> [String] {
+        guard requestedFields.isEmpty else { return requestedFields }
+        if statusFilter.caseInsensitiveCompare("all") == .orderedSame || includeTaskCounts {
+            return ["id", "name", "status"]
+        }
+        return ["id", "name"]
+    }
+
     static let taskFilterPropertyNames: Set<String> = [
         "completed",
         "flagged",
@@ -218,7 +253,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "list_projects",
-                    description: "List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include task counts. Use statusFilter to show only projects with a specific status, and includeTaskCounts to get the number of tasks associated with each project.\n\nCOMPLETED PROJECTS (matches OmniFocus Completed perspective):\n- Use completedAfter/completedBefore with ISO8601 dates to find completed projects in time windows\n- Excludes dropped projects (only status=done projects with completion dates)\n- Results sorted by completionDate descending (most recent first)\n- IMPORTANT: Include 'completionDate' in fields to see when projects were completed\n\nREVIEW PERSPECTIVE:\n- Use reviewPerspective=true to return projects pending review (excludes dropped/done and applies nextReviewDate <= now when reviewDueBefore is omitted).\n- Optionally set reviewDueBefore/reviewDueAfter (ISO8601 UTC) to bound nextReviewDate.",
+                    description: listProjectsToolDescription,
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -230,7 +265,7 @@ public enum FocusRelayServer {
                             ]),
                             "statusFilter": .object([
                                 "type": .string("string"),
-                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'"),
+                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'. Use 'active' for current-project maintenance. 'all' includes historical done/dropped projects, so inspect each returned status before making recommendations."),
                                 "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
                                 "default": .string("active")
                             ]),
@@ -251,7 +286,7 @@ public enum FocusRelayServer {
                             ]),
                             "includeTaskCounts": .object([
                                 "type": .string("boolean"),
-                                "description": .string("Include task counts for each project (available, remaining, completed, dropped, total)"),
+                                "description": .string("Include child-task counts for each project (available, remaining, completed, dropped, total). Counts do not determine project status: inspect the returned project status, treat empty projects separately, and use isStalled rather than availableTasks=0 for stalled-project analysis."),
                                 "default": .bool(false)
                             ]),
                             "reviewPerspective": .object([
@@ -271,8 +306,13 @@ public enum FocusRelayServer {
                             ),
                             "fields": .object([
                                 "type": .string("array"),
-                                "description": .string("Specify which fields to return. IMPORTANT review fields: 'lastReviewDate', 'nextReviewDate', 'reviewInterval' (object with steps/unit)."),
-                                "items": .object(["type": .string("string")])
+                                "description": .string("Specify which fields to return. Useful fields: 'id', 'name', 'note', 'status', 'flagged', 'completionDate', 'lastReviewDate', 'nextReviewDate', 'reviewInterval', 'hasChildren', 'nextTask', 'containsSingletonActions', and 'isStalled'. Always include 'status' when comparing projects across statuses. Task-count fields are included by includeTaskCounts."),
+                                "items": .object(["type": .string("string")]),
+                                "examples": .array([
+                                    .array([.string("id"), .string("name"), .string("status"), .string("isStalled")]),
+                                    .array([.string("id"), .string("name"), .string("status"), .string("completionDate")]),
+                                    .array([.string("id"), .string("name"), .string("status"), .string("lastReviewDate"), .string("nextReviewDate")])
+                                ])
                             ])
                         ]
                     ),
@@ -708,7 +748,11 @@ public enum FocusRelayServer {
                     let completedBefore = try decodeArgument(Date.self, from: params.arguments, key: "completedBefore")
                     let completedAfter = try decodeArgument(Date.self, from: params.arguments, key: "completedAfter")
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
-                    let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
+                    let fields = resolvedProjectFields(
+                        requestedFields: requestedFields,
+                        statusFilter: statusFilter,
+                        includeTaskCounts: includeTaskCounts
+                    )
                     let result = try await service.listProjects(
                         page: page,
                         statusFilter: statusFilter,

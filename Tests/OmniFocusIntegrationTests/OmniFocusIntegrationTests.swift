@@ -507,7 +507,7 @@ func bridgeProjectTaskCountsIncludedLive() throws {
     }
 
     let client = BridgeClient()
-    // Emulate server default field behavior (id/name) while includeTaskCounts is enabled.
+    // Emulate server default field behavior: counted project results also include status.
     let page = try client.listProjects(
         page: PageRequest(limit: 10),
         statusFilter: "active",
@@ -518,7 +518,7 @@ func bridgeProjectTaskCountsIncludedLive() throws {
         completed: nil,
         completedBefore: nil,
         completedAfter: nil,
-        fields: ["id", "name"]
+        fields: ["id", "name", "status"]
     )
 
     guard !page.items.isEmpty else {
@@ -530,6 +530,7 @@ func bridgeProjectTaskCountsIncludedLive() throws {
     #expect(page.items.allSatisfy { $0.completedTasks != nil })
     #expect(page.items.allSatisfy { $0.droppedTasks != nil })
     #expect(page.items.allSatisfy { $0.totalTasks != nil })
+    #expect(page.items.allSatisfy { !$0.status.isEmpty })
 }
 
 @Test

@@ -143,7 +143,11 @@ struct ListProjects: AsyncParsableCommand {
         let service = OmniFocusBridgeService()
         let pageRequest = page.makePageRequest(defaultLimit: 150)
         let fieldList = FieldList.parse(fields)
-        let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
+        let selectedFields = FocusRelayServer.resolvedProjectFields(
+            requestedFields: fieldList,
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts
+        )
         let reviewBeforeDate = try ISO8601DateParser.parseOptional(reviewDueBefore, argumentName: "--review-due-before")
         let reviewAfterDate = try ISO8601DateParser.parseOptional(reviewDueAfter, argumentName: "--review-due-after")
         let completedBeforeDate = try ISO8601DateParser.parseOptional(completedBefore, argumentName: "--completed-before")

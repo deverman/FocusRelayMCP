@@ -57,6 +57,43 @@ func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
 }
 
 @Test
+func projectDefaultsIncludeStatusWhenCountsOrHistoricalStatusesNeedInterpretation() {
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: false
+    ) == ["id", "name"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "all",
+        includeTaskCounts: false
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: true
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: ["id", "name", "completionDate"],
+        statusFilter: "all",
+        includeTaskCounts: true
+    ) == ["id", "name", "completionDate"])
+}
+
+@Test
+func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
+    let description = FocusRelayServer.listProjectsToolDescription
+    #expect(description.contains("start with statusFilter='active'"))
+    #expect(description.contains("remainingTasks=0 is not automatically a completion candidate"))
+    #expect(description.contains("totalTasks=0 means the project is empty or unplanned"))
+    #expect(description.contains("If all child tasks are dropped, treat it as a drop/review candidate"))
+    #expect(description.contains("availableTasks=0 does not mean a project is stalled"))
+}
+
+@Test
 func sharedTaskFilterSchemaCoversCompleteModelSurface() {
     let expectedPropertyNames: Set<String> = [
         "completed",
