@@ -40,8 +40,17 @@ Relevant reference pages:
 - `project.status`
 - `project.task`
 - `project.tags`
+- `project.completionDate`
+- `project.containsSingletonActions`
+- `project.flagged`
+- `project.hasChildren`
 - `project.id`
+- `project.lastReviewDate`
 - `project.name`
+- `project.nextReviewDate`
+- `project.nextTask`
+- `project.note`
+- `project.reviewInterval`
 
 ### Task enumeration and status
 - `task.taskStatus`
@@ -65,6 +74,19 @@ Relevant reference pages:
 - Enumerate `flattenedProjects` and filter by `project.status`.
 - Resolve project-scoped task queries from `project.flattenedTasks`.
 - Derive remaining/available/completed views from documented status values.
+
+## Project task-count contract
+
+When `list_projects(includeTaskCounts=true)` is requested, counts are derived from `project.flattenedTasks`:
+
+- `availableTasks` includes tasks whose native status is Available, Next, DueSoon, or Overdue only when the containing project is active and every parent task is remaining.
+- `remainingTasks` includes tasks whose native status is neither Completed nor Dropped and whose parent chain contains no completed or dropped task.
+- `completedTasks` and `droppedTasks` classify each task by its own native status.
+- `totalTasks` is the number of tasks in the documented flattened project collection.
+
+Consequently, children hidden by a completed or dropped parent remain part of `totalTasks` but are not reported as available or remaining. Projects that are on hold, dropped, or done report zero available tasks.
+
+Project-scoped `list_tasks` queries exclude the project's invisible root task so they enumerate the same action set as `project.flattenedTasks`. A tag-filtered query may still return a tagged project root intentionally, as documented by the task-query contract.
 
 ## Banned undocumented core-query patterns
 Do not use these as the primary production query path unless the official docs explicitly document them in the future.
