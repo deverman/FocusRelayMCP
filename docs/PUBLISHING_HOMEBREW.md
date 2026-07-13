@@ -1,108 +1,74 @@
-# Publishing FocusRelayMCP to Homebrew
+# Publishing FocusRelay Through Homebrew
+
+The authoritative formula lives in the external tap:
+
+- Repository: `deverman/homebrew-focus-relay`
+- Formula: `focusrelay.rb`
+- Install name: `focusrelay`
+
+FocusRelayMCP intentionally does not keep a second formula in this repository. Two formula copies drifted in the past and made it unclear which URL, version, and SHA256 users should trust.
 
 ## Prerequisites
 
-1. **GitHub Release Created** with:
-- Binary: `focusrelay` (from `.build/release/`)
-   - Run the MCP server with `focusrelay serve` (no-args shows help)
-   - Plugin: `FocusRelayBridge.omnijs` (from `Plugin/`)
-   - Packaged as: `focus-relay-mcp-1.0.0.tar.gz`
-   
-2. **SHA256 Calculated** for the release tarball
+Before updating the tap:
 
-3. **Formula Updated** with real SHA256 (replace PLACEHOLDER_SHA256)
+- the GitHub release exists;
+- `focusrelay-VERSION.tar.gz` is uploaded;
+- `focusrelay-VERSION.sha256` is uploaded;
+- the release workflow completed successfully;
+- the release asset contains `focusrelay`, `FocusRelayBridge.omnijs`, and `README.md`.
 
-## Publishing Steps
+Always take the SHA256 from the actual release asset. Recreating a release or tag can change the archive and therefore the checksum even when the version string is unchanged.
 
-### Option A: Personal Tap (Recommended - Fastest)
-
-1. **Create a new GitHub repo**: `deverman/homebrew-focus-relay`
-   - Can be empty, just needs to exist
-
-2. **Push the formula to that repo:**
-   ```bash
-   git clone https://github.com/deverman/homebrew-focus-relay.git
-   cd homebrew-focus-relay
-   cp ../FocusRelayMCP/homebrew/focus-relay-mcp.rb .
-   git add .
-   git commit -m "Add FocusRelayMCP formula v1.0.0"
-   git push origin main
-   ```
-
-3. **Users can now install:**
-   ```bash
-   brew tap deverman/focus-relay
-   brew install focus-relay-mcp
-   ```
-
-### Option B: Homebrew Core (Official - More Discoverable)
-
-1. **Fork Homebrew/homebrew-core**
-
-2. **Add your formula:**
-   ```bash
-   cd homebrew-core
-   cp ../FocusRelayMCP/homebrew/focus-relay-mcp.rb Formula/f/focus-relay-mcp.rb
-   ```
-
-3. **Submit PR to Homebrew:**
-   ```bash
-   git checkout -b add-focus-relay-mcp
-   git add Formula/f/focus-relay-mcp.rb
-   git commit -m "focus-relay-mcp 1.0.0 (new formula)"
-   git push origin add-focus-relay-mcp
-   # Then create PR on GitHub
-   ```
-
-4. **Requirements for Homebrew Core:**
-   - Repository must be 30+ days old
-   - Notable project (stars, forks)
-   - Passing CI tests
-   - Good documentation
-
-## Post-Publishing
-
-### Update README
-Once published, update the README to show:
-
-```markdown
-### Quick Install (Homebrew)
+## Update The Tap
 
 ```bash
+git clone https://github.com/deverman/homebrew-focus-relay.git
+cd homebrew-focus-relay
+```
+
+Update `focusrelay.rb`:
+
+```ruby
+version "VERSION"
+url "https://github.com/deverman/FocusRelayMCP/releases/download/vVERSION/focusrelay-VERSION.tar.gz"
+sha256 "SHA256_FROM_RELEASE_ASSET"
+```
+
+Then validate and publish the tap change:
+
+```bash
+brew audit --strict ./focusrelay.rb
+brew style ./focusrelay.rb
+git add focusrelay.rb
+git commit -m "Update focusrelay to VERSION"
+git push origin main
+```
+
+## Validate A Fresh Installation
+
+Refresh the tap before trusting the result:
+
+```bash
+brew untap deverman/focus-relay
 brew tap deverman/focus-relay
-brew install focus-relay-mcp
+brew reinstall focusrelay
+focusrelay --help
+focusrelay --version
 ```
 
-The formula automatically:
-- Installs the MCP server binary
-- Installs the OmniFocus plugin
-- Shows configuration instructions
+Run the repository validation helper to check the published formula:
+
+```bash
+./scripts/test-homebrew-formula.sh
 ```
 
-For MCP clients, the command should be `focusrelay serve`.
+After installation:
 
-### Version Updates
+1. Install the bundled plugin with `./scripts/install-plugin.sh` when validating from this repository, or copy the plugin installed by Homebrew.
+2. Quit and fully restart OmniFocus.
+3. Run a real read query.
+4. Run a safe mutation preview.
+5. Run a reversible verified mutation and restore the original state.
 
-When you release v1.0.1:
-
-1. Create new GitHub release with updated binary
-2. Calculate new SHA256
-3. Update formula:
-   ```ruby
-   url "https://github.com/deverman/FocusRelayMCP/releases/download/v1.0.1/focus-relay-mcp-1.0.1.tar.gz"
-   sha256 "NEW_SHA256_HERE"
-   ```
-4. Commit and push to tap repo
-5. Users get update via `brew upgrade`
-
-## Testing Checklist
-
-Before publishing, verify:
-
-- [ ] Formula installs without errors
-- [ ] Binary works: `focusrelay --help`
-- [ ] Plugin installs to correct OmniFocus directory
-- [ ] Caveats are displayed clearly
-- [ ] Uninstall works: `brew uninstall focus-relay-mcp`
-- [ ] Audit passes: `brew audit --strict focus-relay-mcp`
-- [ ] Style passes: `brew style focus-relay-mcp`
+The release is not complete until the fresh Homebrew installation passes these checks.

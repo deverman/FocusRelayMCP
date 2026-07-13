@@ -62,7 +62,7 @@ Unlike traditional Omni Automation approaches that can be slow, we built a **nov
 Homebrew (easiest):
 ```bash
 brew tap deverman/focus-relay
-brew install focus-relay-mcp
+brew install focusrelay
 ```
 
 The installed binary is `focusrelay`. Run the MCP server with:
@@ -93,7 +93,7 @@ Questions? Issues? https://github.com/deverman/FocusRelayMCP
 - Description: Query OmniFocus tasks via natural language
 - Repository: https://github.com/deverman/FocusRelayMCP
 - Tags: productivity, gtd, macos, omnifocus
-- Installation: brew install focus-relay-mcp (binary is `focusrelay`)
+- Installation: brew install focusrelay
 
 ### 2. GitHub MCP Registry (GitHub Blog)
 **URL:** https://github.com/modelcontextprotocol/registry
@@ -146,7 +146,7 @@ Questions? Issues? https://github.com/deverman/FocusRelayMCP
     "task-management"
   ],
   "installation": {
-    "brew": "brew tap deverman/focus-relay && brew install focus-relay-mcp"
+    "brew": "brew tap deverman/focus-relay && brew install focusrelay"
   },
   "examples": [
     "What should I do today?",
