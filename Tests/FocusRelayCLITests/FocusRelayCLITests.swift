@@ -239,6 +239,33 @@ func benchmarkGateListTaskScenariosCoverRegressionShapes() {
 }
 
 @Test
+func listTaskBenchmarkRotatesEveryScenarioPerTransportPair() {
+    #expect((0..<8).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 4) } == [0, 1, 2, 3, 0, 1, 2, 3])
+    #expect((0..<7).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 3) } == [0, 1, 2, 0, 1, 2, 0])
+}
+
+@Test
+func listTaskBenchmarkReportsMissingMeasuredCoverage() {
+    var success = ListTaskStats()
+    success.success = 1
+    var failure = ListTaskStats()
+    failure.errors = 1
+    let complete = [
+        "first": ["plugin": success, "jxa": success],
+        "second": ["plugin": failure, "jxa": success]
+    ]
+
+    #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: complete).isEmpty)
+
+    let incomplete = ["first": ["plugin": success]]
+    #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: incomplete) == [
+        "first:jxa",
+        "second:plugin",
+        "second:jxa"
+    ])
+}
+
+@Test
 func benchmarkGateProjectCountScenariosCoverCompletedWindowParity() {
     let names = gateProjectCountParityScenarios().map(\.name)
 

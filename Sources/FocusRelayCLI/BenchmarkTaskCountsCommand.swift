@@ -197,6 +197,8 @@ private struct BenchmarkScenario {
     let filter: TaskFilter
 }
 
+private let taskCountsNoMatchSearch = "__focusrelay_benchmark_no_match_7f43d9__"
+
 private func benchmarkScenarios(completedAfter: Date) -> [BenchmarkScenario] {
     [
         BenchmarkScenario(name: "default", filter: TaskFilter()),
@@ -206,7 +208,11 @@ private func benchmarkScenarios(completedAfter: Date) -> [BenchmarkScenario] {
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: completedAfter)
         ),
-        BenchmarkScenario(name: "flagged_only", filter: TaskFilter(flagged: true))
+        BenchmarkScenario(name: "flagged_only", filter: TaskFilter(flagged: true)),
+        BenchmarkScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: taskCountsNoMatchSearch)
+        )
     ]
 }
 
