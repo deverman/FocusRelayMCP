@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The list-task benchmark now rotates scenarios per plugin/JXA pair and fails
+  when any declared scenario lacks measured coverage.
 - Task name/note search now applies case-insensitive substring filtering in
   both task listing and task counts, with matching plugin and JXA semantics.
 - MCP mutation annotations now identify edits, lifecycle changes, and moves as

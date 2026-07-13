@@ -89,8 +89,10 @@ struct BenchmarkListTasks: AsyncParsableCommand {
         let end = start.addingTimeInterval(durationHours * 3600)
         print("Measured phase started at \(listTaskISO8601(start)); ending at \(listTaskISO8601(end))")
 
+        var measuredPairIndex = 0
         while Date() < end {
-            let scenario = scenarios[callIndex % scenarios.count]
+            let scenario = scenarios[listTaskScenarioIndex(pairIndex: measuredPairIndex, scenarioCount: scenarios.count)]
+            measuredPairIndex += 1
 
             let pluginEvent = try await listTaskBenchCall(
                 transport: "plugin",
@@ -139,9 +141,17 @@ struct BenchmarkListTasks: AsyncParsableCommand {
         )
         try summary.write(to: summaryURL, atomically: true, encoding: .utf8)
 
+        let missingCoverage = listTaskMissingMeasuredCoverage(
+            scenarios: scenarios.map(\.name),
+            stats: stats
+        )
+
         print("Benchmark complete.")
         print("Raw data: \(rawURL.path)")
         print("Summary: \(summaryURL.path)")
+        if !missingCoverage.isEmpty {
+            throw ValidationError("Measured benchmark coverage is incomplete: \(missingCoverage.joined(separator: ", "))")
+        }
     }
 }
 
@@ -167,13 +177,13 @@ private struct ListTaskEvent: Codable {
     let lastItemID: String?
 }
 
-private struct ListTaskStats {
+struct ListTaskStats {
     var success: Int = 0
     var errors: Int = 0
     var timeouts: Int = 0
     var latencies: [Double] = []
 
-    mutating func ingest(_ event: ListTaskEvent) {
+    fileprivate mutating func ingest(_ event: ListTaskEvent) {
         if event.ok {
             success += 1
             latencies.append(event.latencyMs)
@@ -183,6 +193,8 @@ private struct ListTaskStats {
         }
     }
 }
+
+private let listTaskNoMatchSearch = "__focusrelay_benchmark_no_match_7f43d9__"
 
 private struct ListTaskTimeoutQueueSnapshot: Codable {
     let basePath: String
@@ -233,8 +245,18 @@ private func listTaskScenarios(completedAfter: Date) -> [ListTaskScenario] {
         ListTaskScenario(name: "available_only_no_total", filter: TaskFilter(availableOnly: true, includeTotalCount: false)),
         ListTaskScenario(name: "completed_after_anchor", filter: TaskFilter(completed: true, completedAfter: completedAfter, includeTotalCount: true)),
         ListTaskScenario(name: "flagged_only", filter: TaskFilter(flagged: true, includeTotalCount: true)),
-        ListTaskScenario(name: "flagged_only_no_total", filter: TaskFilter(flagged: true, includeTotalCount: false))
+        ListTaskScenario(name: "flagged_only_no_total", filter: TaskFilter(flagged: true, includeTotalCount: false)),
+        ListTaskScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: listTaskNoMatchSearch, includeTotalCount: true)
+        )
     ]
+}
+
+func listTaskScenarioIndex(pairIndex: Int, scenarioCount: Int) -> Int {
+    precondition(pairIndex >= 0, "Pair index must be non-negative.")
+    precondition(scenarioCount > 0, "At least one benchmark scenario is required.")
+    return pairIndex % scenarioCount
 }
 
 private func listTaskBenchCall(
@@ -342,6 +364,18 @@ private func listTaskEventsMatch(_ lhs: ListTaskEvent, _ rhs: ListTaskEvent) -> 
     lhs.lastItemID == rhs.lastItemID
 }
 
+func listTaskMissingMeasuredCoverage(
+    scenarios: [String],
+    stats: [String: [String: ListTaskStats]]
+) -> [String] {
+    scenarios.flatMap { scenario in
+        ["plugin", "jxa"].compactMap { transport in
+            let scoped = stats[scenario]?[transport] ?? ListTaskStats()
+            return scoped.success + scoped.errors == 0 ? "\(scenario):\(transport)" : nil
+        }
+    }
+}
+
 private func renderListTaskSummary(
     startedAt: Date,
     endedAt: Date,
@@ -363,6 +397,11 @@ private func renderListTaskSummary(
     lines.append("- Started: \(listTaskISO8601(startedAt))")
     lines.append("- Ended: \(listTaskISO8601(endedAt))")
     lines.append("- Scenarios: \(scenarios.joined(separator: ", "))")
+    let missingCoverage = listTaskMissingMeasuredCoverage(scenarios: scenarios, stats: stats)
+    lines.append("- Measured coverage complete: \(missingCoverage.isEmpty ? "yes" : "no")")
+    if !missingCoverage.isEmpty {
+        lines.append("- Missing measured coverage: \(missingCoverage.joined(separator: ", "))")
+    }
     lines.append("")
     lines.append("## Scenario Stats")
     lines.append("")
