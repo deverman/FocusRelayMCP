@@ -20,6 +20,23 @@ public enum FocusRelayServer {
         .standardError
     }
 
+    static let publicToolNames = [
+        "list_tasks",
+        "get_task",
+        "list_projects",
+        "list_tags",
+        "list_folders",
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects",
+        "get_task_counts",
+        "get_project_counts"
+    ]
+
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler: StreamLogHandler
@@ -571,26 +588,13 @@ public enum FocusRelayServer {
                         ]
                     ),
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "debug_inbox_probe",
-                    description: "Debug inbox query behavior (counts and samples)",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "debug_inbox_probe_alt",
-                    description: "Debug inbox query behavior using alternate queries and timings",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "bridge_health_check",
-                    description: "Check OmniFocus bridge plug-in availability and responsiveness",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
                 )
             ]
+
+            precondition(
+                tools.map(\.name) == publicToolNames,
+                "The MCP tool catalog must match the intentional public tool surface."
+            )
 
             return .init(tools: tools)
         }
@@ -824,22 +828,6 @@ public enum FocusRelayServer {
                     let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     let counts = try await service.getProjectCounts(filter: filter)
                     return .init(content: [.text(try encodeJSON(counts))])
-                case "debug_inbox_probe":
-                    if let automation = service as? OmniAutomationService {
-                        let result = try await automation.debugInboxProbe()
-                        return .init(content: [.text(try encodeJSON(result))])
-                    }
-                    return .init(content: [.text("debug_inbox_probe is only available in JXA mode")], isError: true)
-                case "debug_inbox_probe_alt":
-                    if let automation = service as? OmniAutomationService {
-                        let result = try await automation.debugInboxProbeAlt()
-                        return .init(content: [.text(try encodeJSON(result))])
-                    }
-                    return .init(content: [.text("debug_inbox_probe_alt is only available in JXA mode")], isError: true)
-                case "bridge_health_check":
-                    let bridge = OmniFocusBridgeService()
-                    let result = try bridge.healthCheck()
-                    return .init(content: [.text(try encodeJSON(result))])
                 default:
                     return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
                 }
