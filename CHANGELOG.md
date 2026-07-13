@@ -56,6 +56,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI artifact upload and manual/tag release version selection now fail clearly
   instead of silently publishing incomplete assets.
 
+## [0.9.4beta] - 2026-03-16
+
+### Changed
+
+- Rebuilt task and project count/query paths around documented Omni Automation
+  collections and native status values.
+- Added single-pass filtering, early-stop paging, completion-sorted top-K
+  paging, and targeted count fast paths.
+- Kept plugin URL dispatch as the production transport after a corrected
+  transport comparison; retained JXA as a parity and benchmark reference.
+
+### Fixed
+
+- Hardened list-task timeout recovery and added semantic gates, timeout
+  diagnostics, and decision-safe benchmark tooling.
+
+## [0.9.3-beta] - 2026-02-28
+
+### Added
+
+- Task planned-date reads and filters across the plugin, Swift API, CLI, and MCP
+  schema.
+
 ## [0.9.2-beta] - 2026-02-19
 
 ### Fixed
@@ -86,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Removed staleThreshold**: Removed deprecated convenience filter in favor of explicit date windows
 
 
-## [1.0.0] - 2026-01-31
+## [0.9.0-beta] - 2026-02-02
 
 ### Added
 - Complete MCP server implementation

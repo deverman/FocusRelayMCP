@@ -83,7 +83,10 @@
 
 ## Notes for Testing
 
-- Questions 11, 12, 13 require write capabilities (currently read-only)
+- Questions 11 and 12 exercise supported v1 task updates and moves; use stable
+  IDs, preview broad changes, and verify real writes.
+- Questions 9, 13, 17, and 20 require task/project creation, recurrence setup,
+  or external calendar integration and remain outside the v1 write surface.
 - Questions 6, 7, 8 require metadata fields (estimatedMinutes, tags)
 - Questions 3, 4, 5 require AI reasoning beyond simple filtering
 - Questions 15, 19 are OmniFocus-specific (projects vs single actions)

@@ -1,6 +1,6 @@
 # FocusRelayMCP
 
-A Model Context Protocol (MCP) server for OmniFocus on macOS. Query tasks, projects, and tags using natural language through AI assistants like Claude.
+A Model Context Protocol (MCP) server for OmniFocus on macOS. Read and safely update tasks and projects using natural language through AI assistants like Claude.
 
 ![Demo: Ask your OmniFocus tasks naturally](imgs/omnifocusaiquery.gif)
 
@@ -66,7 +66,7 @@ If you have [Homebrew](https://brew.sh) installed, this is the easiest method:
 # Add the tap (once)
 brew tap deverman/focus-relay
 
-# Install the MCP server and OmniFocus plugin
+# Install the MCP server and bundled OmniFocus plugin
 brew install focusrelay
 ```
 

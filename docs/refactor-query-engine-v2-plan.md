@@ -1,7 +1,8 @@
 # Refactor Plan: Query Engine V2
 
 Date: 2026-02-19
-Status: Draft for implementation
+Status: Historical draft, partially superseded by the current query contract and
+[`roadmap-execution-plan.md`](roadmap-execution-plan.md)
 Target: Long-term branch (no immediate release tag)
 
 ## Purpose
@@ -266,4 +267,3 @@ It contains two versions of the same program:
 3. Integration tests prove parity across major scope/view combinations.
 4. Docs/schemas/runtime behavior stay synchronized.
 5. Transport resiliency improvements are measured and documented.
-

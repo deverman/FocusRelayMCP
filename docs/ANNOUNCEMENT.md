@@ -1,5 +1,10 @@
 # FocusRelayMCP - Beta Release Announcement
 
+> Historical note: this was the `v0.9.0-beta` launch announcement. Its
+> read-only and performance claims describe that release, not the current
+> `v0.10.0-beta` release candidate. See the README and changelog for current
+> read/write capabilities and validated performance.
+
 ## For OmniFocus Forum/Reddit
 
 ### Headline Options:
