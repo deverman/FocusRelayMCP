@@ -96,9 +96,11 @@ Then continue with **Step 2: Install the OmniFocus Plugin** below.
 git clone <repository-url>
 cd FocusRelayMCP
 swift build -c release
+.build/release/focusrelay --version
 ```
 
 The binary will be at `.build/release/focusrelay` (CLI + MCP server).
+Ordinary source builds report `0.0.0-dev`. Tagged release builds embed the tag-derived semantic version, and the MCP initialization response reports that same version.
 
 Then continue with **Step 2: Install the OmniFocus Plugin** below.
 
@@ -150,7 +152,7 @@ Add to your opencode.json or Claude Desktop config:
 }
 ```
 
-Note: `focusrelay` without arguments shows help; use `focusrelay serve` to run the MCP server.
+Note: `focusrelay` without arguments shows help; use `focusrelay --version` to verify an installation and `focusrelay serve` to run the MCP server.
 
 ### Step 4: Restart OmniFocus
 

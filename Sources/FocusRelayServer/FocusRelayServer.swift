@@ -4,8 +4,13 @@ import MCP
 import OmniFocusAutomation
 import OmniFocusCore
 import FocusRelayOutput
+import FocusRelayVersion
 
 public enum FocusRelayServer {
+    public static var version: String {
+        FocusRelayBuildVersion.current
+    }
+
     enum LogOutputTarget {
         case standardOutput
         case standardError
@@ -31,7 +36,7 @@ public enum FocusRelayServer {
         let logger = Logger(label: "focus.relay.mcp")
         let server = Server(
             name: "FocusRelayMCP",
-            version: "0.1.0",
+            version: version,
             capabilities: .init(tools: .init(listChanged: true))
         )
 

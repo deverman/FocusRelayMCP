@@ -30,7 +30,14 @@ jobs:
             ${{ runner.os }}-spm-
             
       - name: Build Release
-        run: swift build -c release
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          ./scripts/set-version.sh "$VERSION"
+          swift build -c release
         
       - name: Package Release
         id: package
