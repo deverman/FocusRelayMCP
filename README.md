@@ -87,7 +87,7 @@ Then continue with **Step 2: Install the OmniFocus Plugin** below.
 #### Prerequisites
 
 - macOS with OmniFocus installed (4.x recommended)
-- Swift 6.2+ toolchain
+- Swift 6.3.3 toolchain. The checked-in `.swift-version` lets [Swiftly](https://github.com/swiftlang/swiftly) select the project toolchain automatically.
 - This has been tested on [opencode](https://opencode.ai) but should work with Claude Desktop or other tools with MCP integration
 
 #### Step 1: Clone and Build
