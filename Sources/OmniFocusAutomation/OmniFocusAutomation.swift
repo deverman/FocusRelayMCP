@@ -391,7 +391,7 @@ private func listTasksEvaluateScript(requestJSON: String) -> String {
     """
 }
 
-private func listTasksOmniAutomationScript(requestJSON: String) -> String {
+func listTasksOmniAutomationScript(requestJSON: String) -> String {
     return """
     (function() {
       var request = \(requestJSON);
@@ -409,6 +409,20 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
 
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
+      }
+
+      function normalizeTaskSearchQuery(value) {
+        if (typeof value !== "string") { return null; }
+        var normalized = value.trim().toLowerCase();
+        return normalized.length > 0 ? normalized : null;
+      }
+
+      function taskMatchesSearch(task, normalizedQuery) {
+        if (!normalizedQuery) { return true; }
+        var name = String(safe(function() { return task.name; }) || "").toLowerCase();
+        if (name.indexOf(normalizedQuery) !== -1) { return true; }
+        var note = String(safe(function() { return task.note; }) || "").toLowerCase();
+        return note.indexOf(normalizedQuery) !== -1;
       }
 
       function toTaskArray(collection) {
@@ -692,7 +706,8 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         tags: Array.isArray(filter.tags) ? filter.tags : null,
         untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
         maxEstimatedMinutes: filter.maxEstimatedMinutes,
-        minEstimatedMinutes: filter.minEstimatedMinutes
+        minEstimatedMinutes: filter.minEstimatedMinutes,
+        searchQuery: normalizeTaskSearchQuery(filter.search)
       };
 
       function matchesFilters(task) {
@@ -707,6 +722,8 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         if (filterState.flagged !== undefined) {
           if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
         }
+
+        if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
 
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
@@ -1146,7 +1163,7 @@ private func projectCountsEvaluateScript(requestJSON: String) -> String {
     """
 }
 
-private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
+func taskCountsOmniAutomationScript(requestJSON: String) -> String {
     return """
     (function() {
       var request = \(requestJSON);
@@ -1154,6 +1171,20 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
 
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
+      }
+
+      function normalizeTaskSearchQuery(value) {
+        if (typeof value !== "string") { return null; }
+        var normalized = value.trim().toLowerCase();
+        return normalized.length > 0 ? normalized : null;
+      }
+
+      function taskMatchesSearch(task, normalizedQuery) {
+        if (!normalizedQuery) { return true; }
+        var name = String(safe(function() { return task.name; }) || "").toLowerCase();
+        if (name.indexOf(normalizedQuery) !== -1) { return true; }
+        var note = String(safe(function() { return task.note; }) || "").toLowerCase();
+        return note.indexOf(normalizedQuery) !== -1;
       }
 
       function toTaskArray(collection) {
@@ -1410,7 +1441,8 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         tags: Array.isArray(filter.tags) ? filter.tags : null,
         untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
         maxEstimatedMinutes: filter.maxEstimatedMinutes,
-        minEstimatedMinutes: filter.minEstimatedMinutes
+        minEstimatedMinutes: filter.minEstimatedMinutes,
+        searchQuery: normalizeTaskSearchQuery(filter.search)
       };
 
       function matchesFilters(task) {
@@ -1425,6 +1457,8 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         if (filterState.flagged !== undefined) {
           if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
         }
+
+        if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
 
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
@@ -1839,6 +1873,8 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         if (filterState.flagged !== undefined) {
           if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
         }
+
+
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
         if (filterState.projectFilter) {

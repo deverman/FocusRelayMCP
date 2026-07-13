@@ -1333,6 +1333,24 @@
 
     // ============================================================
     // END STATUS MODULE
+
+    // TASK SEARCH MODULE - Shared name/note matching semantics
+    function normalizeTaskSearchQuery(value) {
+      if (typeof value !== "string") { return null; }
+      const normalized = value.trim().toLowerCase();
+      return normalized.length > 0 ? normalized : null;
+    }
+
+    function taskMatchesSearch(task, normalizedQuery) {
+      if (!normalizedQuery) { return true; }
+
+      const name = String(safe(() => task.name) || "").toLowerCase();
+      if (name.indexOf(normalizedQuery) !== -1) { return true; }
+
+      const note = String(safe(() => task.note) || "").toLowerCase();
+      return note.indexOf(normalizedQuery) !== -1;
+    }
+    // END TASK SEARCH MODULE
     // ============================================================
 
     // Date parsing helper - available to all operations
@@ -1680,6 +1698,7 @@
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
           const debugListTasks = filter.search === "__debug_list_tasks__";
+          const searchQuery = debugListTasks ? null : normalizeTaskSearchQuery(filter.search);
           const listTasksDebug = debugListTasks ? {
             requestId: requestId,
             op: request.op,
@@ -1796,6 +1815,9 @@
             // Duration filters
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
             minEstimatedMinutes: filter.minEstimatedMinutes,
+
+            // Content filter (normalized once per request)
+            searchQuery: searchQuery,
             
             // Tag filters
             tags: Array.isArray(filter.tags) ? filter.tags : null,
@@ -1818,6 +1840,7 @@
               const taskFlagged = Boolean(t.flagged);
               if (taskFlagged !== filterState.flagged) return false;
             }
+            if (!taskMatchesSearch(t, filterState.searchQuery)) return false;
             let project = knownProject === undefined ? null : knownProject;
             if (filterState.availableOnly) {
               if (!isTaskAvailableWithStatus(t, taskStatusValue, project === null ? undefined : project)) return false;
@@ -1913,7 +1936,8 @@
             filterState.maxEstimatedMinutes !== undefined ||
             filterState.minEstimatedMinutes !== undefined ||
             Boolean(filterState.tags) ||
-            Boolean(filter.search);
+            Boolean(filterState.searchQuery) ||
+            debugListTasks;
           const useStreamedSimplePath =
             !requiresCompletionSort &&
             filterState.availableOnly &&
@@ -2436,6 +2460,7 @@
         } else if (request.op === "get_task_counts") {
           const filter = request.filter || {};
           const debugTaskCounts = filter.search === "__debug_task_counts__";
+          const searchQuery = debugTaskCounts ? null : normalizeTaskSearchQuery(filter.search);
           const taskCountsDebug = debugTaskCounts ? {
             requestId: requestId,
             op: request.op,
@@ -2550,7 +2575,8 @@
             tags: Array.isArray(filter.tags) ? filter.tags : null,
             untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
-            minEstimatedMinutes: filter.minEstimatedMinutes
+            minEstimatedMinutes: filter.minEstimatedMinutes,
+            searchQuery: searchQuery
           };
 
           const statusGateSample = [];
@@ -2570,7 +2596,9 @@
           const hasTagOrEstimateFilters =
             Boolean(filterState.tags) ||
             filterState.maxEstimatedMinutes !== undefined ||
-            filterState.minEstimatedMinutes !== undefined;
+            filterState.minEstimatedMinutes !== undefined ||
+            Boolean(filterState.searchQuery) ||
+            debugTaskCounts;
           const useSimpleAvailableFastPath =
             filterState.availableOnly &&
             filterState.completed !== true &&
@@ -2683,6 +2711,7 @@
                 taskFlagged = Boolean(t.flagged);
                 if (taskFlagged !== filterState.flagged) return;
               }
+              if (!taskMatchesSearch(t, filterState.searchQuery)) return;
               let project = null;
               if (filterState.projectFilter) {
                 project = safe(() => t.containingProject);

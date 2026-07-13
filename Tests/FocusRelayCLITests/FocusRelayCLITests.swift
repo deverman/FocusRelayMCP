@@ -220,6 +220,8 @@ func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     #expect(contractNames.contains("completed_after_anchor"))
     #expect(parityNames.contains("flagged_only"))
     #expect(parityNames.contains("completed_after_anchor"))
+    #expect(parityNames.contains("search_no_match"))
+    #expect(gateTaskCountParityScenarios().first { $0.name == "search_no_match" }?.expectedTotal == 0)
 }
 
 @Test
@@ -230,6 +232,8 @@ func benchmarkGateListTaskScenariosCoverRegressionShapes() {
     #expect(baseNames.contains("flagged_only"))
     #expect(baseNames.contains("flagged_only_no_total"))
     #expect(baseNames.contains("completed_after_anchor"))
+    #expect(baseNames.contains("search_no_match"))
+    #expect(gateListTaskParityScenarios(projectID: nil).first { $0.name == "search_no_match" }?.expectedTotal == 0)
     #expect(!baseNames.contains("project_scoped_simple"))
     #expect(projectNames.contains("project_scoped_simple"))
 }
