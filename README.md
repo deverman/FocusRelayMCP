@@ -279,6 +279,10 @@ All completion queries match the OmniFocus Completed perspective:
 
 ## Available Tools
 
+The MCP catalog exposes 14 product tools. Bridge health and inbox diagnostic
+commands remain available through the CLI for setup, support, and benchmark
+readiness, but are intentionally not advertised to models during normal use.
+
 ### list_tasks
 Query tasks with various filters:
 - `dueBefore`, `dueAfter`: Filter by due dates
