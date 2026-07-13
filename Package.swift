@@ -18,6 +18,9 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "FocusRelayVersion"
+        ),
+        .target(
             name: "OmniFocusCore"
         ),
         .target(
@@ -30,6 +33,7 @@ let package = Package(
                 "OmniFocusCore",
                 "OmniFocusAutomation",
                 "FocusRelayOutput",
+                "FocusRelayVersion",
                 .product(name: "MCP", package: "swift-sdk"),
                 .product(name: "Logging", package: "swift-log")
             ]
@@ -48,6 +52,7 @@ let package = Package(
                 "OmniFocusAutomation",
                 "FocusRelayOutput",
                 "FocusRelayServer",
+                "FocusRelayVersion",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
@@ -70,13 +75,15 @@ let package = Package(
         .testTarget(
             name: "FocusRelayCLITests",
             dependencies: [
-                "FocusRelayCLI"
+                "FocusRelayCLI",
+                "FocusRelayVersion"
             ]
         ),
         .testTarget(
             name: "FocusRelayServerTests",
             dependencies: [
-                "FocusRelayServer"
+                "FocusRelayServer",
+                "FocusRelayVersion"
             ]
         )
     ]

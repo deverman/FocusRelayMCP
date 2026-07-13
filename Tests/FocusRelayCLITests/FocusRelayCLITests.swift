@@ -1,7 +1,25 @@
 import Foundation
 import Testing
 @testable import FocusRelayCLI
+import FocusRelayVersion
 import OmniFocusCore
+
+@Test
+func cliVersionFlagReportsEmbeddedBuildVersion() throws {
+    #expect(FocusRelayCLI.configuration.version == FocusRelayBuildVersion.current)
+
+    let coreVersion = FocusRelayBuildVersion.current.split(separator: "-", maxSplits: 1)[0]
+    let numericComponents = coreVersion.split(separator: ".")
+    #expect(numericComponents.count == 3)
+    #expect(numericComponents.allSatisfy { Int($0) != nil })
+
+    do {
+        _ = try FocusRelayCLI.parseAsRoot(["--version"])
+        Issue.record("Expected --version to exit after printing the embedded version")
+    } catch {
+        #expect(FocusRelayCLI.fullMessage(for: error) == FocusRelayBuildVersion.current)
+    }
+}
 
 @Test
 func fieldListParsesCommaSeparatedValues() {

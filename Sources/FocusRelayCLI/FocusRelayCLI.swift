@@ -4,12 +4,14 @@ import FocusRelayServer
 import OmniFocusAutomation
 import OmniFocusCore
 import FocusRelayOutput
+import FocusRelayVersion
 
 @main
 struct FocusRelayCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "focusrelay",
         abstract: "Query OmniFocus data from the command line or run the MCP server.",
+        version: FocusRelayBuildVersion.current,
         subcommands: [
             Serve.self,
             ListTasks.self,
