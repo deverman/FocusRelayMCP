@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task name/note search now applies case-insensitive substring filtering in
+  both task listing and task counts, with matching plugin and JXA semantics.
 - MCP mutation annotations now identify edits, lifecycle changes, and moves as
   destructive updates so clients can present appropriate approval UX; schemas
   also state when omitting preview or verification performs an immediate write.

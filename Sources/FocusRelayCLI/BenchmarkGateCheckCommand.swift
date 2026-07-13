@@ -82,11 +82,25 @@ private struct GateCheck: Codable {
 struct GateTaskCountScenario {
     let name: String
     let filter: TaskFilter
+    let expectedTotal: Int?
+
+    init(name: String, filter: TaskFilter, expectedTotal: Int? = nil) {
+        self.name = name
+        self.filter = filter
+        self.expectedTotal = expectedTotal
+    }
 }
 
 struct GateListTaskScenario {
     let name: String
     let filter: TaskFilter
+    let expectedTotal: Int?
+
+    init(name: String, filter: TaskFilter, expectedTotal: Int? = nil) {
+        self.name = name
+        self.filter = filter
+        self.expectedTotal = expectedTotal
+    }
 }
 
 struct GateProjectCountScenario {
@@ -95,6 +109,7 @@ struct GateProjectCountScenario {
 }
 
 private let gateCompletedAfterAnchor = Date(timeIntervalSince1970: 0)
+private let gateNoMatchSearch = "__focusrelay_semantic_gate_no_match_7f43d9__"
 
 private func checkBridgeHealth(using service: OmniFocusBridgeService) async -> GateCheck {
     do {
@@ -130,6 +145,11 @@ func gateTaskCountContractScenarios() -> [GateTaskCountScenario] {
         GateTaskCountScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        ),
+        GateTaskCountScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch, includeTotalCount: true),
+            expectedTotal: 0
         )
     ]
 }
@@ -143,6 +163,11 @@ func gateTaskCountParityScenarios() -> [GateTaskCountScenario] {
         GateTaskCountScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
+        ),
+        GateTaskCountScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch),
+            expectedTotal: 0
         )
     ]
 }
@@ -160,6 +185,11 @@ func gateListTaskParityScenarios(projectID: String?) -> [GateListTaskScenario] {
         GateListTaskScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        ),
+        GateListTaskScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch, includeTotalCount: true),
+            expectedTotal: 0
         )
     ]
 
@@ -195,10 +225,11 @@ private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async
             guard let total = page.totalCount else {
                 return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: "list_tasks returned nil totalCount")
             }
+            let matchesExpectedTotal = scenario.expectedTotal.map { counts.total == $0 && total == $0 } ?? true
             return GateCheck(
                 name: "task_counts_contract_\(scenario.name)",
-                ok: counts.total == total,
-                detail: "counts.total=\(counts.total) list.totalCount=\(total)"
+                ok: counts.total == total && matchesExpectedTotal,
+                detail: "counts.total=\(counts.total) list.totalCount=\(total) expected=\(scenario.expectedTotal.map(String.init) ?? "any")"
             )
         } catch {
             return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: error.localizedDescription)
@@ -221,6 +252,7 @@ private func taskCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAuto
                 && bridgeCounts.completed == jxaCounts.completed
                 && bridgeCounts.available == jxaCounts.available
                 && bridgeCounts.flagged == jxaCounts.flagged
+                && (scenario.expectedTotal.map { bridgeCounts.total == $0 && jxaCounts.total == $0 } ?? true)
             return GateCheck(
                 name: "task_counts_parity_\(scenario.name)",
                 ok: ok,
@@ -251,6 +283,10 @@ private func listTaskParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutom
                 && bridgePage.returnedCount == jxaPage.returnedCount
                 && bridgePage.nextCursor == jxaPage.nextCursor
                 && bridgeIDs == jxaIDs
+                && (scenario.expectedTotal.map {
+                    bridgePage.totalCount == $0 && jxaPage.totalCount == $0 &&
+                        bridgePage.returnedCount == $0 && jxaPage.returnedCount == $0
+                } ?? true)
             return GateCheck(
                 name: "list_tasks_parity_\(scenario.name)",
                 ok: ok,
