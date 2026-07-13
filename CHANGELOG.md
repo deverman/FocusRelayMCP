@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A preview-first write surface for homogeneous bulk task and project updates,
+  completion changes, status changes, and moves, with compact verified return
+  fields.
+- Public folder discovery through `list_folders` for project move destinations.
+- `focusrelay --version`, shared CLI/MCP build metadata, and release-time version
+  synchronization for the binary and OmniFocus plugin.
+- Write contracts, mutation workflow guidance, query/benchmark gates, and release
+  engineering checklists.
+
+### Changed
+
+- Builds now use Swift 6.3.3 through Swiftly and CI, with Swift tools 6.3 and
+  `swift-sdk` 0.12 compatibility.
+- Project task counts now use the same native OmniFocus status semantics as task
+  queries, including parent and project status constraints.
+- Release packaging now produces and verifies the `focusrelay` binary, plugin,
+  archive, checksum, prerelease metadata, and tag-derived version consistently.
+- Homebrew formula ownership now points exclusively to the external
+  `deverman/homebrew-focus-relay` tap.
+
+### Fixed
+
+- Mutation save, per-target apply, verification, and returned-field failures can
+  no longer be reported as successful writes.
+- Children of completed or dropped parent tasks no longer appear as remaining or
+  available.
+- Tagged project roots are retained in task query results.
+- Project-scoped task results and project task counts now agree across bridge and
+  documented JXA fallback paths.
+- Catalog cache keys now distinguish filter state.
+- Bridge timeout diagnostics now report pickup state and stranded redispatch
+  information.
+- CI artifact upload and manual/tag release version selection now fail clearly
+  instead of silently publishing incomplete assets.
+
 ## [0.9.2-beta] - 2026-02-19
 
 ### Fixed
@@ -36,25 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - **Removed staleThreshold**: Removed deprecated convenience filter in favor of explicit date windows
 
-## [1.0.0] - 2026-01-31
-
-### Added
-- Complete MCP server implementation
-- OmniFocus Bridge plugin for automation
-- Time-based task queries (morning/afternoon/evening)
-- Project health tracking (isStalled, nextTask)
-- Tag-based task counts
-- Stale threshold filtering (7days, 30days, 90days, 180days, 270days, 365days)
-- Homebrew formula for easy installation
-- Comprehensive documentation
-
-### Features
-- Query tasks by due dates, defer dates, completion status
-- Filter by tags, projects, duration
-- Timezone detection for accurate time queries
-- Single-pass filtering for performance
-- Cache layer for projects and tags
-- Security prompt handling for first-time users
 
 ## [1.0.0] - 2026-01-31
 
