@@ -37,6 +37,16 @@ public enum FocusRelayServer {
         "get_project_counts"
     ]
 
+    static let mutationToolNames: Set<String> = [
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects"
+    ]
+
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler: StreamLogHandler
@@ -279,7 +289,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "update_tasks",
-                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
+                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -312,8 +322,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -322,11 +332,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "taskPatch"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_tasks_completion",
-                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
+                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -345,8 +355,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -355,11 +365,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "completion"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "move_tasks",
-                    description: "Move or reparent multiple task IDs to one shared destination. This tool owns structural task relocation and keeps move semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared destination for all targets\n- supported destination kinds: inbox, project, parent_task\n- supported placement values: beginning, ending\n- no field edits\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    description: "Move or reparent multiple task IDs to one shared destination. This tool owns structural task relocation and keeps move semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared destination for all targets\n- supported destination kinds: inbox, project, parent_task\n- supported placement values: beginning, ending\n- no field edits\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -385,8 +395,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -395,11 +405,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "move"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "update_projects",
-                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
+                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -430,8 +440,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -440,11 +450,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "projectPatch"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_projects_status",
-                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state.",
+                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -463,8 +473,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -473,11 +483,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "projectStatus"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_projects_completion",
-                    description: "Apply one shared lifecycle state to multiple project IDs. This tool owns project complete and uncomplete behavior and keeps lifecycle semantics out of update_projects and set_projects_status.\n\nV1 constraints:\n- project IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no status-only transitions\n- no folder moves\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. For repeating projects, OmniFocus completes a generated project occurrence and advances the original project, so result messages may describe that special case.",
+                    description: "Apply one shared lifecycle state to multiple project IDs. This tool owns project complete and uncomplete behavior and keeps lifecycle semantics out of update_projects and set_projects_status.\n\nV1 constraints:\n- project IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no status-only transitions\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating projects, OmniFocus completes a generated project occurrence and advances the original project, so result messages may describe that special case.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -496,8 +506,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -506,11 +516,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "completion"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "move_projects",
-                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -536,8 +546,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -546,7 +556,7 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "move"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "get_task_counts",
@@ -594,6 +604,15 @@ public enum FocusRelayServer {
             precondition(
                 tools.map(\.name) == publicToolNames,
                 "The MCP tool catalog must match the intentional public tool surface."
+            )
+            precondition(
+                tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
+                    $0.annotations.readOnlyHint == false &&
+                        $0.annotations.destructiveHint == true &&
+                        $0.annotations.idempotentHint == false &&
+                        $0.annotations.openWorldHint == false
+                },
+                "Mutation tool annotations must truthfully describe write risk."
             )
 
             return .init(tools: tools)
@@ -858,13 +877,21 @@ private func toolSchema(properties: [String: Value], required: [String] = []) ->
     return .object(schema)
 }
 
-private func propertySchema(type: String, description: String = "", examples: [Value]? = nil) -> Value {
+private func propertySchema(
+    type: String,
+    description: String = "",
+    examples: [Value]? = nil,
+    defaultValue: Value? = nil
+) -> Value {
     var schema: [String: Value] = ["type": .string(type)]
     if !description.isEmpty {
         schema["description"] = .string(description)
     }
     if let examples = examples {
         schema["examples"] = .array(examples)
+    }
+    if let defaultValue {
+        schema["default"] = defaultValue
     }
     return .object(schema)
 }
