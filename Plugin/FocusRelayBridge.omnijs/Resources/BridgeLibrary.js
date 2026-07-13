@@ -40,6 +40,7 @@
    */
   
   const lib = new PlugIn.Library(new Version("1.0"));
+  const FOCUSRELAY_VERSION = "0.0.0-dev";
 
   lib.handleRequest = function(requestId, basePath) {
     const requestPath = basePath + "/requests/" + requestId + ".json";
@@ -1448,7 +1449,7 @@
       writeLock(lockPath);
       const request = readJSON(requestPath);
         if (request.op === "ping") {
-          response.data = { ok: true, plugin: "FocusRelay Bridge", version: "0.1.0" };
+          response.data = { ok: true, plugin: "FocusRelay Bridge", version: FOCUSRELAY_VERSION };
         } else if (request.op === "perform_mutation") {
           const mutation = request.mutation || {};
           const targetType = mutation.targetType;

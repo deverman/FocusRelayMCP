@@ -100,7 +100,7 @@ swift build -c release
 ```
 
 The binary will be at `.build/release/focusrelay` (CLI + MCP server).
-Ordinary source builds report `0.0.0-dev`. Tagged release builds embed the tag-derived semantic version, and the MCP initialization response reports that same version.
+Ordinary source builds report `0.0.0-dev`. Tagged release builds embed the tag-derived semantic version in the binary and plugin health response. The OmniFocus manifest uses the numeric core because Omni requires a numeric plug-in version.
 
 Then continue with **Step 2: Install the OmniFocus Plugin** below.
 

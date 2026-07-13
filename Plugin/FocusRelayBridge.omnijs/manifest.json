@@ -2,7 +2,7 @@
   "identifier": "com.focusrelay.bridge",
   "name": "FocusRelay Bridge",
   "author": "FocusRelayMCP",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Bridge for FocusRelayMCP IPC requests",
   "libraries": [
     {
