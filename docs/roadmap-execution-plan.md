@@ -9,7 +9,7 @@ This document tracks the repository cleanup, release preparation, and next produ
 - `master` is clean and matches `origin/master` at `74190b5`; the combined local
   release candidate is `integration/v0.10.0-beta-rc`.
 - The latest `master` GitHub Actions run passed.
-- The combined candidate passes 113 Swift Testing tests with Swiftly-managed
+- The combined candidate passes 114 Swift Testing tests with Swiftly-managed
   Swift 6.3.3, including the live OmniFocus integration tests enabled in the
   current environment.
 - `master` is 22 commits ahead of the latest release, `v0.9.4beta`.
@@ -58,16 +58,17 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
   `1.0.0` entry.
 - [x] Add a version-reporting issue covering `focusrelay --version`, release injection, and the MCP server's hard-coded `0.1.0` version: [#58](https://github.com/deverman/FocusRelayMCP/issues/58).
 - [x] Create a release tracker for the 22 commits currently ahead of `v0.9.4beta`: [#63](https://github.com/deverman/FocusRelayMCP/issues/63).
-- [ ] Run the required semantic gates and realistic single-user validation before tagging.
+- [x] Run the required semantic gates and realistic single-user validation before tagging.
 - [ ] Update the external Homebrew tap with the release asset's actual SHA256 and verify a clean reinstall.
 
 ### Confirmed release blockers
 
 - [ ] **P1** [#71](https://github.com/deverman/FocusRelayMCP/issues/71): make mutation save and per-target failures impossible to report as success. The scoped fix is integrated locally and has unit, JavaScriptCore, and live write/restore evidence; it still needs publication, CI, and combined-candidate release validation before closure.
-- [ ] **P2** [#61](https://github.com/deverman/FocusRelayMCP/issues/61): align project available-task counts with shared task availability semantics. The fix is integrated locally with documented bridge/JXA semantics, root-task exclusion, unit/live tests, a passing semantic gate, and a clean 10-minute smoke. The required combined-candidate realistic validation remains before closure.
+- [ ] **P2** [#61](https://github.com/deverman/FocusRelayMCP/issues/61): align project available-task counts with shared task availability semantics. The fix is integrated locally with documented bridge/JXA semantics, root-task exclusion, unit/live tests, semantic gates, a clean 10-minute smoke, and a clean 30-minute project-count phase in the realistic suite. Publication and CI remain before closure.
 - [ ] **P2** [#64](https://github.com/deverman/FocusRelayMCP/issues/64): fix CI artifact upload, manual release version selection, and prerelease metadata. The fix is integrated locally and a `0.10.0-beta` archive/checksum was validated end to end; publication and GitHub CI remain.
 - [ ] **P2** [#72](https://github.com/deverman/FocusRelayMCP/issues/72): remove the stale checked-in formula and validate the authoritative tap at `/Users/deverman/Documents/code/homebrew-focus-relay`. Ownership changes are integrated locally and the tap has local formula syntax/style corrections. Both repositories still need publication, followed by validation against the actual release SHA256.
 - [ ] **Release prerequisite** [#58](https://github.com/deverman/FocusRelayMCP/issues/58): unify CLI, MCP, plugin, and release version metadata. The integrated candidate now synchronizes the full SemVer across binary/MCP/plugin health and uses the numeric core required by the OmniFocus manifest. Local release injection and packaging pass; publication and CI remain.
+- [ ] **Release UX** [#76](https://github.com/deverman/FocusRelayMCP/issues/76): keep internal bridge health and inbox probes out of the model-facing tool catalog. The local fix exposes 14 product tools, retains the three CLI diagnostics, passes a direct MCP handshake, and passes the 114-test suite. Publication and CI remain.
 
 ### Swift toolchain alignment
 
@@ -123,6 +124,7 @@ Existing feature issues remain:
 - [#22](https://github.com/deverman/FocusRelayMCP/issues/22): task added/modified timestamps and filters.
 - [#10](https://github.com/deverman/FocusRelayMCP/issues/10): custom perspectives.
 - [#16](https://github.com/deverman/FocusRelayMCP/issues/16): planned-date writes.
+- [#75](https://github.com/deverman/FocusRelayMCP/issues/75): migrate deprecated MCP text response construction without changing wire behavior.
 
 ## Proposed Delivery Order
 
@@ -148,5 +150,7 @@ Existing feature issues remain:
 - 2026-07-13: Release-packaging branch passed workflow YAML parsing, shell syntax, the 98-test suite, a Swift 6.3.3 release build, archive/checksum creation, archive-content inspection, packaged-binary help, and invalid-version rejection.
 - 2026-07-13: The authoritative Homebrew tap checkout was confirmed at `/Users/deverman/Documents/code/homebrew-focus-relay`. Its formula passes Ruby syntax after local fixes for component order and an invalid escaped space; published-tap style/audit validation remains pending publication of those fixes.
 - 2026-07-13: Version-reporting branch passed 100 Swift 6.3.3 tests. The local binary reports `0.0.0-dev`; a release build injected from `v0.10.0-beta` reported `0.10.0-beta`; malformed versions were rejected; workflow YAML, shell syntax, and diff checks passed.
-- 2026-07-13: Project-count parity branch passed 104 Swift 6.3.3 tests, live per-project task-query consistency, live bridge/JXA count parity, and the `project-counts` semantic gate. Its 10-minute smoke completed 55/55 plugin and 55/55 JXA calls with zero errors, timeouts, or parity mismatches. RSS increased during sustained automation, so the post-integration 1-hour realistic run remains required before release.
-- 2026-07-13: The combined `integration/v0.10.0-beta-rc` candidate passed 113 Swift 6.3.3 tests. A release-injected `0.10.0-beta` binary, matching plugin health version, numeric `0.10.0` OmniFocus manifest, archive contents, and SHA256 all validated; packaging correctly rejected a mismatched binary and malformed legacy version.
+- 2026-07-13: Project-count parity branch passed 104 Swift 6.3.3 tests, live per-project task-query consistency, live bridge/JXA count parity, and the `project-counts` semantic gate. Its 10-minute smoke completed 55/55 plugin and 55/55 JXA calls with zero errors, timeouts, or parity mismatches. RSS increased during sustained automation, which was carried forward into the completed post-integration realistic run below.
+- 2026-07-13: Before the tool-surface follow-up, the combined `integration/v0.10.0-beta-rc` candidate passed 113 Swift 6.3.3 tests. A release-injected `0.10.0-beta` binary, matching plugin health version, numeric `0.10.0` OmniFocus manifest, archive contents, and SHA256 all validated; packaging correctly rejected a mismatched binary and malformed legacy version.
+- 2026-07-13: The combined realistic suite ran for 1.5 hours with 750 measured calls, zero errors, zero timeouts, and all three fresh semantic gates passing. Project counts completed 256/256 calls with zero parity mismatches. Task listing completed 260/260 with zero mismatches. Task counts completed 234/234; its one paired mismatch coincided with the live inbox count changing between the plugin and JXA calls. OmniFocus RSS exceeded 1 GB under sustained alternating automation but reclaimed during the final phase, which ended 70 MB below its phase start.
+- 2026-07-13: The public-tool-surface follow-up raised the combined suite to 114 tests. A direct MCP initialize and `tools/list` handshake returned exactly 14 product tools; bridge health and both inbox probes remained operational through the CLI.
