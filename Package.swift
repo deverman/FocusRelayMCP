@@ -62,6 +62,9 @@ let package = Package(
             dependencies: [
                 "OmniFocusAutomation",
                 "OmniFocusCore"
+            ],
+            linkerSettings: [
+                .linkedFramework("JavaScriptCore")
             ]
         ),
         .testTarget(

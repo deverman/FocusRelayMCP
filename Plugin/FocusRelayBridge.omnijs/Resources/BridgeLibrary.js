@@ -220,8 +220,66 @@
 
     function executeTargetMutation(ids, targetByID, mutation, options) {
       const results = [];
-      let mutatedAny = false;
+      const batchApplied = [];
       const saveMode = options.saveMode || "perItem";
+
+      function errorDetail(error) {
+        return error && error.message ? String(error.message) : String(error);
+      }
+
+      function stageFailure(id, stage, error) {
+        return {
+          id: id,
+          status: "failed",
+          message: "Mutation " + stage + " failed: " + errorDetail(error) + " Target may require inspection before retrying."
+        };
+      }
+
+      function finalizeSavedMutation(id, target, context) {
+        if (mutation.verify && options.verify) {
+          let verificationError = null;
+          try {
+            verificationError = options.verify(target, context, id);
+          } catch (error) {
+            return {
+              id: id,
+              status: "failed",
+              message: "Mutation saved but verification failed: " + errorDetail(error) + " Inspect the target before retrying."
+            };
+          }
+
+          if (verificationError) {
+            let returnedFields = null;
+            try {
+              returnedFields = options.returnedFields(target, context, id);
+            } catch (error) {}
+            return {
+              id: id,
+              status: "failed",
+              message: "Mutation applied but verification failed: " + verificationError,
+              returnedFields: returnedFields
+            };
+          }
+        }
+
+        let successMessage = "Mutation saved.";
+        try {
+          successMessage = options.mutatedMessage(target, context, id);
+        } catch (error) {
+          successMessage = "Mutation saved, but unable to format success message: " + errorDetail(error);
+        }
+        const result = {
+          id: id,
+          status: "mutated",
+          message: successMessage
+        };
+        try {
+          result.returnedFields = options.returnedFields(target, context, id);
+        } catch (error) {
+          result.message = result.message.replace(/\.$/, "") + ". Saved, but unable to return requested fields: " + errorDetail(error);
+        }
+        return result;
+      }
 
       ids.forEach(id => {
         const target = targetByID[id];
@@ -235,44 +293,62 @@
         }
 
         if (mutation.previewOnly) {
-          results.push({
-            id: id,
-            status: "previewed",
-            message: options.previewMessage(target, id)
-          });
+          try {
+            results.push({
+              id: id,
+              status: "previewed",
+              message: options.previewMessage(target, id)
+            });
+          } catch (error) {
+            results.push(stageFailure(id, "preview validation", error));
+          }
           return;
         }
 
-        const context = options.apply(target, id) || {};
-        if (saveMode === "perItem") {
-          safe(() => save());
-        } else {
-          mutatedAny = true;
+        let context = {};
+        try {
+          context = options.apply(target, id) || {};
+        } catch (error) {
+          results.push(stageFailure(id, "apply", error));
+          return;
         }
 
-        if (mutation.verify && options.verify) {
-          const verificationError = options.verify(target, context, id);
-          if (verificationError) {
-            results.push({
-              id: id,
-              status: "failed",
-              message: "Mutation applied but verification failed: " + verificationError,
-              returnedFields: options.returnedFields(target, context, id)
-            });
+        if (saveMode === "perItem") {
+          try {
+            save();
+          } catch (error) {
+            results.push(stageFailure(id, "save", error));
             return;
           }
+          results.push(finalizeSavedMutation(id, target, context));
+        } else {
+          const resultIndex = results.length;
+          results.push(null);
+          batchApplied.push({ id: id, target: target, context: context, resultIndex: resultIndex });
         }
-
-        results.push({
-          id: id,
-          status: "mutated",
-          message: options.mutatedMessage(target, context, id),
-          returnedFields: options.returnedFields(target, context, id)
-        });
       });
 
-      if (saveMode === "batch" && mutatedAny) {
-        safe(() => save());
+      if (saveMode === "batch" && batchApplied.length > 0) {
+        let saveError = null;
+        try {
+          save();
+        } catch (error) {
+          saveError = error;
+        }
+
+        if (saveError) {
+          batchApplied.forEach(applied => {
+            results[applied.resultIndex] = stageFailure(applied.id, "save", saveError);
+          });
+        } else {
+          batchApplied.forEach(applied => {
+            results[applied.resultIndex] = finalizeSavedMutation(
+              applied.id,
+              applied.target,
+              applied.context
+            );
+          });
+        }
       }
 
       return results;
