@@ -1,65 +1,43 @@
 # FocusRelay 0.10.0-beta
 
-FocusRelay now writes to OmniFocus. Any MCP-compatible assistant can read your
-data and safely update existing tasks and projects instead of only suggesting
-what you should change. This beta provides 14 purposeful tools: seven for
-reading OmniFocus and seven for making changes.
+FocusRelay now brings safe write support to OmniFocus. Any MCP-compatible
+assistant can read and update existing tasks and projects through 14 focused
+tools: seven for reading and seven for making changes.
 
 ## Highlights
 
 - Update task and project names, notes, flags, dates, estimates, tags, review
   settings, and other supported fields.
 - Complete, reactivate, change status, and move existing tasks or projects.
-- Preview an important change before applying it and confirm afterward that
-  OmniFocus saved it.
+- Preview changes before applying them and verify that OmniFocus saved them.
 - Apply the same change to several selected tasks or projects in one request.
-- Find tasks using words from either their names or notes.
-- Find the right OmniFocus folder when moving a project.
-- Get consistent answers when asking an assistant to show matching tasks or
-  count them.
-- Keep the assistant focused with a compact tool catalog that does not spend
-  context on internal troubleshooting commands.
+- Search task names and notes, and find folders when moving projects.
+- Get consistent task lists and counts from the same filters.
+- Keep the assistant focused with a compact catalog that excludes internal
+  diagnostics.
 
-## Safety And Correctness
+## Safe And Fast By Design
 
-- FocusRelay changes the exact tasks and projects selected by their stable
-  OmniFocus IDs.
-- MCP clients can recognize which actions write to OmniFocus and show the
-  appropriate approval prompt first.
-- FocusRelay reports success only after OmniFocus applies and saves the requested
-  change. When confirmation is requested, it checks the saved result too.
-- Task and project results follow OmniFocus's own status rules, including
-  on-hold or dropped projects and work beneath completed parent tasks.
+FocusRelay targets stable OmniFocus IDs, identifies write actions so MCP clients
+can request approval, and reports success only after OmniFocus applies and saves
+the change. Queries follow OmniFocus's native status rules, including on-hold or
+dropped projects and completed parent tasks.
 
 Use `previewOnly=true` before broad changes and `verify=true` for real writes
-when post-write confirmation matters. Omitting both performs an immediate,
-unverified write.
+when confirmation matters. Omitting both applies the change immediately.
 
-## Performance And Reliability
-
-FocusRelay is designed to be one of the fastest OmniFocus MCP integrations for
-everyday use. We test performance against thousands of OmniFocus tasks—not a
-tiny sample database.
-
-- Focused inbox reads typically returned in about one second during testing.
-- Single-pass filtering avoids repeatedly scanning the same tasks.
-- Early-stop paging stops processing as soon as FocusRelay has enough results
-  for the requested page.
-- Five-minute project and tag caching makes repeated lookups much faster while
-  task queries remain uncached and current.
-- Updating several selected items at once and returning only the requested
-  details avoids unnecessary round trips.
-- Across more than 1,400 measured calls in smoke and sustained benchmark runs,
-  FocusRelay completed every call without an error or timeout.
+FocusRelay aims to be one of the fastest OmniFocus MCP integrations. Testing
+covered thousands of tasks and more than 1,400 measured calls without an error
+or timeout; focused inbox reads typically returned in about one second.
+Single-pass filtering, early-stop paging, project/tag caching, and bulk updates
+keep common requests efficient while task queries remain current.
 
 ## Current Limits
 
-This beta updates existing tasks and projects but does not create or delete
-them. Task creation is tracked in
-[#82](https://github.com/deverman/FocusRelayMCP/issues/82), and project creation
-is tracked in [#83](https://github.com/deverman/FocusRelayMCP/issues/83). The
-beta also does not edit repetition rules or planned dates. We will add those
-capabilities only after defining equally clear safety and verification behavior.
+This beta does not create or delete tasks or projects, edit repetition rules, or
+write planned dates. Task and project creation are tracked in
+[#82](https://github.com/deverman/FocusRelayMCP/issues/82) and
+[#83](https://github.com/deverman/FocusRelayMCP/issues/83).
 
 ## Upgrade Notes
 
@@ -73,17 +51,10 @@ The plugin JavaScript and binary must stay in sync. After upgrading:
 
 ## Validation
 
-- 120 Swift Testing tests pass with Swiftly-managed Swift 6.3.3.
-- All task-list, task-count, and project-count semantic gates pass.
-- The combined pre-follow-up realistic suite completed 750 measured calls with
-  zero errors or timeouts.
-- Corrected task-search smokes completed 192 measured calls with complete
-  scenario coverage and no error, timeout, or parity mismatch.
-- The post-search 30-minute realistic list phase completed 266 measured calls
-  across all ten scenarios with no error, timeout, or parity mismatch.
-- The corresponding 30-minute realistic count phase completed 278 measured
-  calls across all six scenarios with no error, timeout, or parity mismatch;
-  OmniFocus ended 447 MB below its phase-start RSS.
+- All 120 Swift Testing tests and task-list, task-count, and project-count
+  semantic gates pass with Swift 6.3.3.
+- Smoke and sustained benchmarks completed with full scenario coverage and no
+  errors, timeouts, or parity mismatches in the final validation.
 
 ## Contributors
 
