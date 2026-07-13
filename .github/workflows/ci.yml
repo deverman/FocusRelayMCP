@@ -38,6 +38,7 @@ jobs:
       - name: Upload Release Binary
         uses: actions/upload-artifact@v4
         with:
-          name: focus-relay-mcp-macos
-          path: .build/release/focus-relay-mcp
+          name: focusrelay-macos
+          path: .build/release/focusrelay
+          if-no-files-found: error
           retention-days: 5
