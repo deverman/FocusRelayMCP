@@ -59,6 +59,8 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
 - [x] Add a version-reporting issue covering `focusrelay --version`, release injection, and the MCP server's hard-coded `0.1.0` version: [#58](https://github.com/deverman/FocusRelayMCP/issues/58).
 - [x] Create a release tracker for the 22 commits currently ahead of `v0.9.4beta`: [#63](https://github.com/deverman/FocusRelayMCP/issues/63).
 - [x] Run the required semantic gates and realistic single-user validation before tagging.
+- [x] Record sparse MCP field updates, including flag changes, as the explicitly
+  accepted beta known issue [#89](https://github.com/deverman/FocusRelayMCP/issues/89).
 - [ ] Update the external Homebrew tap with the release asset's actual SHA256 and verify a clean reinstall.
 
 ### Confirmed release blockers
@@ -124,10 +126,15 @@ Create focused issues without combining unrelated variables or duplicating exist
 - [x] Effective flagged-item semantics: [#86](https://github.com/deverman/FocusRelayMCP/issues/86).
 - [x] Server-side project-health filters: [#87](https://github.com/deverman/FocusRelayMCP/issues/87).
 - [x] Project folder membership and root filtering: [#88](https://github.com/deverman/FocusRelayMCP/issues/88).
+- [x] Sparse MCP task/project mutation decoding: [#89](https://github.com/deverman/FocusRelayMCP/issues/89).
 
 Issues #82 and #83 are post-beta roadmap enhancements and do not block
 `v0.10.0-beta`. Each still requires API, duplicate-safety, test, and benchmark
 acceptance work before its own release.
+
+Issue #89 is the first post-beta correctness fix. The user explicitly accepted
+it as a documented `v0.10.0-beta` limitation after UAT showed that normal sparse
+MCP field patches fail during Swift decoding before reaching OmniFocus.
 
 ## Performance Decision
 
