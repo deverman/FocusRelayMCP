@@ -1,132 +1,149 @@
-# FocusRelayMCP
+# FocusRelay
 
-A Model Context Protocol (MCP) server for OmniFocus on macOS. Read and safely update tasks and projects using natural language through AI assistants like Claude.
+## Plan your day and keep OmniFocus up to date with AI
 
-![Demo: Ask your OmniFocus tasks naturally](imgs/omnifocusaiquery.gif)
+FocusRelay is a fast, native Swift MCP server and CLI that helps AI assistants
+read and safely update OmniFocus using documented OmniFocus APIs.
 
-*Just ask "What should I do today?" and get instant, filtered results.*
+[Install with Homebrew](#install-with-homebrew) ·
+[See what it can do](#ask-review-update) ·
+[Star FocusRelay](https://github.com/deverman/FocusRelayMCP) ·
+[Contribute](#help-shape-focusrelay)
 
-## What You Can Do
+![Demo: Ask an AI assistant about your OmniFocus tasks](imgs/omnifocusaiquery.gif)
 
-Stop clicking through endless task lists. Just ask:
+Ask about the work already in OmniFocus, review the answer, and make approved
+changes without clicking through long task lists.
 
-**Daily Planning**
-- "What should I be doing today?" - Tasks due today, respecting your timezone
-- "What about this morning?" - Available tasks for 6am-12pm
-- "What can I do this afternoon?" - Tasks for 12pm-6pm  
-- "What should I work on this evening?" - Tasks for 6pm-10pm
+## Ask. Review. Update.
 
-**Project Management**
-- "What projects have no next actions?" - Find stalled projects
-- "Show me my stalled projects" - Projects with tasks but nothing available
-- "What tasks do I have in my [Project Name] project?"
+FocusRelay is designed for targeted questions and compact answers, so the
+assistant does not need your entire OmniFocus database for routine requests.
 
-**Context Switching**
-- "What contexts do I have available?" - See which tags have actionable tasks
-- "Show me tasks I can do on my Mac" - Filter by context
-- "What calls do I need to make?"
+Try prompts like:
 
-**Task Discovery**
-- "What have I been avoiding?" - Tasks deferred 365+ days ago
-- "What am I procrastinating on?" - Tasks deferred recently
-- "Find my flagged items"
-- "What did I accomplish this week?"
+- “How many flagged items do I have?”
+- “Show me the first three available tasks in my inbox.”
+- “Find my task called [task name], flag it, and verify the change.”
+- “Set [task name] due tomorrow at 5 PM in my local timezone and verify the
+  change.”
 
-**Safe Task And Project Updates**
-- "Flag these tasks and set the due date"
-- "Complete these tasks after I confirm the IDs"
-- "Move these inbox tasks into the right project"
-- "Put this project on hold"
-- "Move this project back to the root library"
+These read, flag, and due-date workflows were tested against the released
+Homebrew build with Kimi K2.7 Code; the inbox query was also verified with a
+second MCP-capable model. In the tested update workflows, the assistant resolved
+the item first, changed the stable OmniFocus ID, and read the result back before
+reporting success.
 
-## Features
+The write prompts were tested with a unique task name. If more than one task
+matches in your library, ask the assistant to show the candidates before
+changing anything.
 
-- **Time-based Queries**: Natural language time period filtering
-- **Project Health**: Detect stalled projects and missing next actions
-- **Context Awareness**: Tag-based filtering and availability
-- **Completion Date Filtering**: Query completed tasks/projects by specific date ranges
-- **Smart Filtering**: By tags, due dates, defer dates, completion, duration
-- **V1 Write Tools**: Update, complete/uncomplete, and move tasks/projects with preview and verification support
-- **Timezone Aware**: Automatic local timezone detection and handling
-- **High Performance**: Single-pass filtering with early exit optimization
+FocusRelay 0.10.0-beta can:
 
-## Installation
+- find and count tasks using dates, flags, tags, projects, availability, inbox
+  state, completion, estimates, and text search;
+- review projects, folders, tags, task counts, and stalled work;
+- update names, notes, flags, dates, estimates, tags, project settings, and
+  review intervals;
+- complete, reactivate, change status, and move existing tasks and projects;
+- preview a proposed change and verify the saved result.
 
-**Quick Overview:** Regardless of which installation method you choose, you'll need to complete these steps:
-1. **Install the binary** (via Homebrew, manual download, or build from source)
-2. **Install the OmniFocus plugin** (Step 2 below)
-3. **Configure MCP** in your client (Step 3 below)  
-4. **Restart OmniFocus** (Step 4 below)
+The current beta updates existing tasks and projects. Creating or deleting
+items is not part of this release; creation is tracked in
+[#82](https://github.com/deverman/FocusRelayMCP/issues/82) and
+[#83](https://github.com/deverman/FocusRelayMCP/issues/83).
 
-### Option A: Homebrew Installation (Recommended for macOS)
+## Why FocusRelay?
 
-If you have [Homebrew](https://brew.sh) installed, this is the easiest method:
+### Keep the assistant focused
+
+FocusRelay exposes 14 model-facing tools—seven for reading and seven for making
+supported changes. Internal diagnostics stay in the CLI, count commands avoid
+returning long item lists, and field selection keeps responses compact.
+
+### Use one native tool two ways
+
+The same Swift executable provides both the MCP server and a full CLI. Use MCP
+from any compatible assistant, or let an agent with shell access call the CLI
+and request only the counts or fields it needs. Both routes share the same
+models, validation, and OmniFocus behavior.
+
+### Work through documented OmniFocus APIs
+
+Production queries use documented Omni Automation collections and native task
+and project statuses. This keeps results aligned with OmniFocus’s own view of
+available, completed, dropped, and on-hold work.
+
+### Make changes you can check
+
+Update tools target stable IDs and support previews, per-item results, compact
+return fields, and optional verification. A failed save, update, or verification
+is reported as a failure—not success.
+
+### Stay fast at real-library scale
+
+FocusRelay uses single-pass filtering, early-stop pagination, and a short-lived
+project and tag cache. Focused inbox reads typically return in about one second.
+Validation covered databases at the scale of thousands of tasks and thousands
+of measured calls without errors or timeouts in the final benchmark runs. See
+the [0.10.0-beta release notes](docs/release-notes-v0.10.0-beta.md) for the
+current evidence and limits.
+
+## Install with Homebrew
+
+Requirements:
+
+- macOS on Apple silicon;
+- OmniFocus 4;
+- Homebrew;
+- an MCP-compatible assistant or a shell-capable AI agent.
+
+### 1. Install and trust the formula
+
+Homebrew 6 requires explicit trust for formulae from non-official taps. Trust
+only the FocusRelay formula, then install it:
 
 ```bash
-# Add the tap (once)
 brew tap deverman/focus-relay
-
-# Install the MCP server and bundled OmniFocus plugin
+brew trust --formula deverman/focus-relay/focusrelay
 brew install focusrelay
 ```
 
-Then continue with **Step 2: Install the OmniFocus Plugin** below.
+Formula-specific trust authorizes FocusRelay without trusting every current or
+future formula in the tap. See Homebrew’s
+[Tap Trust documentation](https://docs.brew.sh/Tap-Trust) for details.
 
-### Option B: Manual Binary Installation
-
-If you don't want to use Homebrew, download a pre-built binary:
-
-1. Download the latest release from the [Releases](../../releases) page
-2. Extract the binary to a location in your PATH (e.g., `~/bin/` or `/usr/local/bin/`)
-3. Download the plugin: `FocusRelayBridge.omnijs` from the same release
-
-Then continue with **Step 2: Install the OmniFocus Plugin** below.
-
-### Option C: Developer Installation (Build from Source)
-
-#### Prerequisites
-
-- macOS with OmniFocus installed (4.x recommended)
-- Swift 6.3.3 toolchain. The checked-in `.swift-version` lets [Swiftly](https://github.com/swiftlang/swiftly) select the project toolchain automatically.
-- This has been tested on [opencode](https://opencode.ai) but should work with Claude Desktop or other tools with MCP integration
-
-#### Step 1: Clone and Build
+### 2. Install the OmniFocus plugin
 
 ```bash
-git clone <repository-url>
-cd FocusRelayMCP
-swift build -c release
-.build/release/focusrelay --version
+mkdir -p "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
+cp -R "$(brew --prefix focusrelay)/share/focusrelay/Plugin/FocusRelayBridge.omnijs" \
+  "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins/"
 ```
 
-The binary will be at `.build/release/focusrelay` (CLI + MCP server).
-Ordinary source builds report `0.0.0-dev`. Tagged release builds embed the tag-derived semantic version in the binary and plugin health response. The OmniFocus manifest uses the numeric core because Omni requires a numeric plug-in version.
+The plugin and binary must stay on the same version. Repeat this copy step after
+upgrading FocusRelay.
 
-Then continue with **Step 2: Install the OmniFocus Plugin** below.
+### 3. Restart OmniFocus
 
-### Step 2: Install the OmniFocus Plugin
+Quit OmniFocus completely and reopen it so the updated plugin is loaded:
 
-**Homebrew users:** Copy the plugin from the Homebrew installation:
 ```bash
-cp -r $(brew --prefix focusrelay)/share/focusrelay/Plugin/FocusRelayBridge.omnijs \
-  ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/Plug-Ins/
+osascript -e 'tell application "OmniFocus" to quit'
+sleep 2
+open -a "OmniFocus"
 ```
 
-**Developer installation:**
-```bash
-./scripts/install-plugin.sh
-```
+### 4. Add FocusRelay to your AI assistant
 
-This installs the FocusRelay Bridge plugin to your OmniFocus plugin directory.
+Configure a local stdio MCP server with:
 
-**⚠️ IMPORTANT: When upgrading, you must reinstall the plugin!**
-The plugin JavaScript changes frequently and must stay in sync with the binary.
+- command: `/opt/homebrew/bin/focusrelay`
+- arguments: `serve`
 
-### Step 3: Configure MCP
+<details>
+<summary>OpenCode configuration example</summary>
 
-Add to your opencode.json or Claude Desktop config:
-
-**For Homebrew installations (recommended):**
 ```json
 {
   "mcp": {
@@ -139,331 +156,138 @@ Add to your opencode.json or Claude Desktop config:
 }
 ```
 
-**For developer installations (build from source):**
-```json
-{
-  "mcp": {
-    "focusrelay": {
-      "type": "local",
-      "command": ["/path/to/FocusRelayMCP/.build/release/focusrelay", "serve"],
-      "enabled": true
-    }
-  }
-}
-```
+</details>
 
-Note: `focusrelay` without arguments shows help; use `focusrelay --version` to verify an installation and `focusrelay serve` to run the MCP server.
+On the first query, OmniFocus asks whether to allow the automation. Choose
+**Run Script**. If the prompt is hidden, bring OmniFocus to the front.
 
-### Step 4: Restart OmniFocus
-
-⚠️ **Important**: After installing or updating the plugin, you **must restart OmniFocus**:
+### 5. Check the connection
 
 ```bash
-osascript -e 'tell application "OmniFocus" to quit' && sleep 2 && open -a "OmniFocus"
-```
-
-Or manually: Quit OmniFocus completely and reopen it.
-
-### Step 5: First Time Setup (Security Approval)
-
-⚠️ **Critical**: The first time you query OmniFocus, a security dialog will appear:
-
-1. Ask your AI assistant: "What should I do today?" (or any OmniFocus query)
-2. OmniFocus will show a security prompt: **"Allow script to control OmniFocus?"**
-3. **Click "Run Script"** (not "Cancel")
-4. If you don't see the prompt, check if OmniFocus is behind other windows
-
-**What happens if you don't approve:**
-- You'll see "Bridge timed out" or "Plugin not responding" errors
-- The MCP server cannot communicate with OmniFocus
-- Queries will fail silently or with timeout errors
-
-**To fix approval issues:**
-- In OmniFocus: **Automation → Configure Plug-ins...**
-- Find "FocusRelay Bridge" in the list
-- Check if it's enabled, or try removing and reinstalling it
-- Restart OmniFocus and try again
-
-### Quick Validation After Setup
-
-After Step 5, verify the install path end to end:
-
-```bash
+focusrelay --version
 focusrelay bridge-health-check
 focusrelay list-tasks --fields id,name --limit 1
 ```
 
-Expected result:
-- `bridge-health-check` reports `ok: true`
-- the first `list-tasks` query may trigger the OmniFocus approval prompt
-- after approval, `list-tasks` returns real task data instead of timing out
+Then ask:
 
-## CLI Usage
+> How many flagged items do I have in OmniFocus?
 
-The `focusrelay` binary provides command-line equivalents of the MCP tools.
-Run `focusrelay --help` for the full command list.
+<details>
+<summary>Manual download or source build</summary>
+
+Download the latest binary and `FocusRelayBridge.omnijs` from
+[GitHub Releases](https://github.com/deverman/FocusRelayMCP/releases), or build
+with the Swift 6.3.3 toolchain selected by the checked-in `.swift-version`:
 
 ```bash
-# List tasks with selected fields
-focusrelay list-tasks --fields id,name,completionDate --completed true --completed-after 2026-02-10T00:00:00Z
-
-# List projects with task counts
-focusrelay list-projects --status active --include-task-counts
-
-# List completed projects in last 30 days (sorted by completion date)
-focusrelay list-projects --completed-after 2026-01-12T00:00:00Z --fields name,completionDate
-
-# Fetch a single task by ID
-focusrelay get-task <task-id> --fields id,name,note
-
-# Check bridge health
-focusrelay bridge-health-check
-
-# List tasks with total count (shows returnedCount and totalCount)
-focusrelay list-tasks --fields name --limit 10 --include-total-count
-
-# Preview a task field patch before writing
-focusrelay update-tasks <task-id> --flagged true --preview-only --return-fields id,name,flagged
-
-# Complete tasks with post-write verification
-focusrelay set-tasks-completion <task-id> --state completed --verify --return-fields id,name,completed,completionDate
-
-# Move tasks to a project
-focusrelay move-tasks <task-id> --destination-kind project --destination-id <project-id> --verify --return-fields id,name,projectID,projectName
-
-# Put a project on hold
-focusrelay set-projects-status <project-id> --status on_hold --verify --return-fields id,name,status
+git clone https://github.com/deverman/FocusRelayMCP.git
+cd FocusRelayMCP
+swift build -c release
+./scripts/install-plugin.sh
 ```
 
-Dates should be ISO8601 (e.g. `2026-02-04T12:00:00Z`).
+After installing the plugin, restart OmniFocus completely.
 
-For write workflows, tool routing, and low-token MCP examples, see [`docs/mutation-workflows.md`](docs/mutation-workflows.md).
+</details>
 
-## Usage Examples
+## MCP when you want conversation. CLI when you want precision.
 
-### Daily Planning
-- "What should I be doing today?"
-- "What about this morning?" (6am-12pm)
-- "What can I do this afternoon?" (12pm-6pm)
-- "What should I work on this evening?" (6pm-10pm)
+MCP lets compatible assistants discover FocusRelay and choose the right action.
+The CLI is useful for scripts, debugging, and agents that already have shell
+access.
 
-### Project Management
-- "What projects have no next actions?"
-- "Show me my stalled projects"
-- "What tasks do I have in my Leave DFS project?"
+```bash
+# Count without returning every matching task
+focusrelay task-counts --flagged true
 
-### Context Switching
-- "What contexts do I have available?"
-- "Show me tasks I can do on my Mac"
-- "What calls do I need to make?"
+# Return only three task names
+focusrelay list-tasks \
+  --inbox-only true \
+  --available-only true \
+  --limit 3 \
+  --fields name
 
-### Task Discovery
-- "What have I been avoiding?" (tasks deferred >365 days)
-- "What am I procrastinating on?" (tasks deferred recently)
-- "Find my flagged items"
-
-### Status Queries
-- "What did I accomplish this week?" (tasks completed in last 7 days)
-- "What tasks did I complete today?"
-- "What projects did I complete in the last 30 days?"
-- "How many projects did I complete this month?" (count without listing)
-- "How many tasks are in my inbox?"
-- "Show me completed tasks"
-
-### Completed Perspective Parity
-All completion queries match the OmniFocus Completed perspective:
-- **Includes**: Completed actions, action groups, and projects
-- **Excludes**: Dropped items (only status=done)
-- **Sorting**: Results sorted by completionDate descending (most recent first)
-- **Time windows**: Use completedAfter/completedBefore for precise date filtering
-
-## Available Tools
-
-The MCP catalog exposes 14 product tools. Bridge health and inbox diagnostic
-commands remain available through the CLI for setup, support, and benchmark
-readiness, but are intentionally not advertised to models during normal use.
-
-### list_tasks
-Query tasks with various filters:
-- `dueBefore`, `dueAfter`: Filter by due dates
-- `plannedBefore`, `plannedAfter`: Filter by planned dates
-- `deferBefore`, `deferAfter`: Filter by defer dates
-- `completedBefore`, `completedAfter`: Filter by completion dates (implies `completed: true`)
-- `tags`: Filter by specific tags. Tagged project headers can be included intentionally when they match; ordinary action queries exclude invisible project root tasks. Set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
-- `project`: Filter by project
-- `flagged`: Match OmniFocus's visible flag state, including flags inherited from a parent task or project
-- `completed`: Show completed or remaining tasks
-- `inboxView`: View mode (`available`/`remaining`/`everything`). Use with `inboxOnly: true` for inbox-scoped queries.
-- `inboxOnly`: Scope query to inbox tasks only
-- `includeTotalCount`: Set to `true` to include total count of all matching tasks (see Response Counts below)
-- **Sorting**: When filtering by completion, results are automatically sorted by `completionDate` descending (most recent first) to match OmniFocus Completed perspective
-
-Useful task date fields you can request:
-- `dueDate`
-- `plannedDate`
-- `deferDate`
-- `completionDate`
-
-Flag fields have distinct purposes:
-- `flagged`: The task's own writable flag
-- `effectiveFlagged`: The flag state visible in OmniFocus, including inherited flags
-
-**Response Counts:**
-All list operations now include automatic counting to prevent errors:
-- `returnedCount`: Always included - shows actual items in this response
-- `totalCount`: Only included when `includeTotalCount: true` - shows total matching items
-
-Example response:
-```json
-{
-  "items": [...],
-  "returnedCount": 10,
-  "totalCount": 1784,
-  "nextCursor": "10"
-}
+# Preview a change without touching OmniFocus
+focusrelay update-tasks <task-id> \
+  --flagged true \
+  --preview-only \
+  --return-fields id,name,flagged
 ```
 
-### list_projects
-Query projects with status and task counts:
-- `statusFilter`: active, onHold, dropped, done, all
-- `completed`: Filter by completion status (true/false)
-- `completedBefore`, `completedAfter`: Filter by completion date windows (implies completed projects, excludes dropped)
-- `includeTaskCounts`: Get available/remaining/completed task counts
-- `completionDate`: Field available when requested
-- Returns: hasChildren, isStalled, nextTask for project health
-- **Sorting**: When filtering by completion, results are automatically sorted by `completionDate` descending (most recent first) to match OmniFocus Completed perspective
+Run `focusrelay --help` for the command list. For write examples and safety
+rules, see [Safe Update Workflows for CLI and MCP](docs/mutation-workflows.md).
 
-### list_tags
-Query tags with task counts:
-- `statusFilter`: active, onHold, dropped, all
-- `includeTaskCounts`: Get task counts per tag
+## How FocusRelay is different
 
-### list_folders
-Query folders for project move destinations:
-- Default compact fields: `id`, `name`
-- Optional fields: `parentID`, `parentName`, `projectCount`, `childFolderCount`
-- Use before `move_projects` when the destination folder ID is not already known
+OmniFocus users have several good MCP options. This snapshot is based on each
+project’s public documentation on July 14, 2026.
 
-### get_task_counts
-Get aggregate counts for any filter combination. Supports full task filtering including:
-- All task filters: completed, completedAfter/Before, tags, project, availableOnly, etc.
-- **Time-window counts**: Get counts of completed tasks in specific date ranges (e.g., "completed today", "completed last 30 days")
-- **Sorting**: When filtering by completion, applies same sorting as list_tasks
-- **Performance**: Uses native OmniFocus task collections where possible for faster/reliable counts on larger databases
+| Project | Runtime and install | Model-facing tools | Current emphasis |
+| --- | --- | ---: | --- |
+| **FocusRelay** | Swift · Homebrew | 14 | Focused reads and verified updates through documented OmniFocus APIs, with MCP and CLI in one binary |
+| [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | TypeScript · npx | 12 | Broad creation, editing, deletion, batches, resources, and perspectives |
+| [omnifocus-mcp-enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | TypeScript · npx | 18 | Specialized task views, full CRUD, custom perspectives, batches, and attachments |
+| [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | Rust via Homebrew, plus Python and TypeScript implementations | 45 | Broad task, project, tag, folder, Forecast, and perspective coverage |
+| [OmniFocus Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) | Python · uvx | 11 | Fast SQLite-cached reads, task creation and editing, and guided setup |
 
-Example: Get count of tasks completed today without listing them
+Choose FocusRelay when you want a native Swift CLI and MCP in one package,
+focused model context, documented OmniFocus APIs, and carefully verified
+updates. Other projects may be a better fit today if you need deletion,
+attachments, recurrence, or custom perspectives immediately.
 
-### get_project_counts
-Get counts of projects and actions. Supports completion date filtering:
-- **Completed projects count**: Use `completedAfter`/`completedBefore` to count completed projects in time windows
-- **Returns**: `projects` (count of completed projects), `actions` (count of completed tasks in those projects)
-- **Excludes dropped**: Only counts status=done projects
-- **Use case**: "How many projects did I complete this month?" without listing all items
+## Help shape FocusRelay
 
-Example: Count projects completed in the last 30 days
+The next work is tracked in
+[GitHub Issues](https://github.com/deverman/FocusRelayMCP/issues), including:
 
-### Mutation tools
-FocusRelay v1 write tools are available through both MCP and CLI. They use the same shared request models and validation rules.
+- [a smaller MCP and CLI edit surface](https://github.com/deverman/FocusRelayMCP/issues/91);
+- [guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92);
+- [task and subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82);
+- [project creation and inbox-task conversion](https://github.com/deverman/FocusRelayMCP/issues/83);
+- [smaller project-health queries](https://github.com/deverman/FocusRelayMCP/issues/87);
+- [project folder membership and root filtering](https://github.com/deverman/FocusRelayMCP/issues/88).
 
-Core rules:
-- Mutations target IDs only; use read tools first to resolve names to IDs.
-- Bulk writes are homogeneous; one call applies one shared patch, state, or destination to every ID.
-- Use `previewOnly` before risky or bulk writes.
-- Use `verify` for post-write readback.
-- Use `returnFields` to keep responses compact.
+If FocusRelay earns a place in your workflow,
+[star the repository](https://github.com/deverman/FocusRelayMCP). Stars help
+other OmniFocus users find it.
 
-Task tools:
-- `update_tasks`: Field patches such as name, note, flagged, estimated minutes, due/defer date, and tag add/remove/set/clear.
-- `set_tasks_completion`: Complete or uncomplete tasks with `state: completed` or `state: active`.
-- `move_tasks`: Move tasks to inbox, a project, or a parent task.
-
-Project tools:
-- `update_projects`: Field patches such as name, note, flagged, due/defer date, sequential, and review interval.
-- `set_projects_status`: Set project status to `active`, `on_hold`, or `dropped`.
-- `set_projects_completion`: Complete or uncomplete projects with `state: completed` or `state: active`.
-- `move_projects`: Move projects to a folder ID discovered with `list_folders`, or omit destination ID to move to the root library.
-
-See [`docs/mutation-workflows.md`](docs/mutation-workflows.md) for CLI and MCP examples.
-
-## Timezone Handling
-
-FocusRelayMCP automatically detects your local timezone and uses it for time-based queries. When you ask:
-
-- "What should I do this morning?" → Returns tasks available 6am-12pm **your local time**
-- Tasks due today → Tasks due before end of day **in your timezone**
-
-The timezone is detected from your macOS system settings and passed to OmniFocus for accurate filtering.
-
-## Performance
-
-- **Cached Queries**: Projects and tags are cached for 5 minutes (faster repeat queries)
-- **Single-Pass Filtering**: All filters applied in one iteration (optimized for speed)
-- **Early Exit**: Stops processing once page limit is reached
-- **Typical Response Time**: ~1 second (limited by OmniFocus IPC)
-- **Reduced API Calls**: Use `includeTotalCount: true` to get counts and list in one call instead of two
+Want to improve it? Pick an issue, propose a use case, add a regression test,
+improve the documentation, or open a focused pull request. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup and validation guidance.
 
 ## Troubleshooting
 
-### "Bridge timed out" or "Plugin not responding"
+### The bridge times out
 
-This is the most common issue. Several causes:
+1. Bring OmniFocus to the front and accept the first **Run Script** prompt.
+2. Confirm FocusRelay Bridge is enabled under **Automation → Configure
+   Plug-ins…**.
+3. Recopy the plugin, quit OmniFocus completely, and reopen it.
+4. Run `focusrelay bridge-health-check`.
 
-1. **Security approval missing** (most common)
-   - **Solution**: See Step 5 (First Time Setup) above. You must click "Run Script" in the OmniFocus security dialog.
+### Results look stale after an upgrade
 
-2. **Plugin needs reinstallation**
-   - **Solution**: Run `./scripts/install-plugin.sh` again, then restart OmniFocus completely
+The plugin JavaScript is cached by OmniFocus. Reinstall the plugin and restart
+OmniFocus completely. Project and tag catalogs cache for five minutes; task
+queries are always fresh.
 
-3. **OmniFocus not properly restarted after plugin update**
-   - **Solution**: Force quit OmniFocus and reopen it
+### A time-based result looks wrong after travel
 
-4. **Check plug-in configuration**
-   - In OmniFocus: **Automation → Configure Plug-ins...**
-   - Verify "FocusRelay Bridge" appears in the list and is enabled
-   - If you see errors here, remove the plug-in and reinstall
-
-### "Wrong time period results"
-- **Cause**: Timezone detection may need refresh after travel
-- **Solution**: Restart both OmniFocus and opencode/Claude Desktop
-
-### "Tasks not appearing"
-- Check that tasks have proper defer/due dates set
-- Verify task is not marked as completed or dropped
-- For inbox-specific results, use `inboxOnly: true` (for example: `inboxOnly: true, inboxView: "available"`)
-
-### Cache Issues
-- Projects/Tags cache for 5 minutes
-- Task queries are never cached (always fresh)
-- Restart opencode/Claude to clear any client-side caching
+Restart the MCP client and OmniFocus so FocusRelay picks up the current macOS
+timezone.
 
 ## Development
 
-### Build
 ```bash
 swift build
-```
-
-### Test
-```bash
 swift test
 ```
 
-### Package Plugin
-```bash
-./scripts/package-plugin.sh
-```
-
-## Architecture
-
-- **Swift Layer**: MCP server, request handling, caching
-- **OmniFocus Plugin (JavaScript)**: Executes within OmniFocus, queries database
-- **IPC**: File-based communication between Swift and OmniFocus
-- **Timezone**: Detected in Swift, passed to plugin for local-time calculations
+FocusRelay uses Swift Testing from the Swift toolchain. Production query changes
+must follow the documented
+[Omni Automation contract](docs/omni-automation-contract.md).
 
 ## License
 
-MIT
-
-## Contributing
-
-Issues and PRs welcome! See AGENTS.md for development notes.
+FocusRelay is available under the [MIT License](LICENSE).

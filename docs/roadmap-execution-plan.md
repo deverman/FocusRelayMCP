@@ -163,6 +163,14 @@ User-visible performance already available in the current release candidate shou
 
 Existing feature issues remain:
 
+- [#91](https://github.com/deverman/FocusRelayMCP/issues/91): consolidate the
+  seven task/project write commands into two explicit edit commands without
+  reducing LLM tool-calling correctness.
+- [#92](https://github.com/deverman/FocusRelayMCP/issues/92): add a guided,
+  CLI-only Homebrew setup flow for plugin installation and readiness checks.
+- [#93](https://github.com/deverman/FocusRelayMCP/issues/93): add documented
+  OmniFocus repetition rules to task creation and editing after those
+  interfaces are stable.
 - [#11](https://github.com/deverman/FocusRelayMCP/issues/11): OmniFocus deep links.
 - [#18](https://github.com/deverman/FocusRelayMCP/issues/18): project planned-date reads and filters.
 - [#22](https://github.com/deverman/FocusRelayMCP/issues/22): task added/modified timestamps and filters.
@@ -172,14 +180,32 @@ Existing feature issues remain:
 
 ## Post-Beta Delivery Order
 
-1. Implement task creation in #82, then project creation in #83.
-2. Implement #11, then #22, then #18 as separate branches.
-3. Add native task-status filters and general sorting as separate branches.
-4. Run a documented feasibility phase before implementing #10 custom perspectives.
-5. Re-scope #16 after verifying the current official planned-date setter contract.
+1. Implement the pre-1.0 MCP/CLI edit-surface consolidation in #91. Require
+   Kimi and a comparison model to match or improve the current tool-calling
+   results before accepting the smaller catalog.
+2. Implement task creation in #82, then project creation in #83. The resulting
+   11-tool catalog must remain at least 20% smaller than the current 30,458-byte
+   baseline.
+3. Implement the CLI-only guided setup flow in #92 without changing the MCP
+   catalog.
+4. Implement #88 and #87 as separate server-side context-reduction changes.
+5. Implement #11, then #22, then #18 as separate branches.
+6. Add native task-status filters and general sorting as separate branches.
+7. Implement repetition support in #93 only after #82 and the edit interface are
+   stable.
+8. Run a documented feasibility phase before implementing #10 custom perspectives.
+9. Re-scope #16 after verifying the current official planned-date setter contract.
 
 ## Validation Record
 
+- 2026-07-14: README prompt UAT used the Homebrew-installed `0.10.0-beta`
+  server through OpenCode. Kimi K2.7 Code selected `get_task_counts` for a
+  flagged count, selected a compact inbox `list_tasks` request, and completed
+  verified flag and local-time due-date updates on a uniquely named task; both
+  changes were restored and verified. GPT-5.4 independently selected the same
+  compact inbox query. A completed-this-week prompt was excluded from the
+  README after Kimi used imprecise UTC boundaries and treated a five-item page
+  as the total.
 - 2026-07-14: PR #84 merged at `16a202a`; tag `v0.10.0-beta` published a
   prerelease archive and checksum; the authoritative Homebrew tap used SHA256
   `2a124478d9c4cce6ea85b4eec2c98a63e4af2a78846cca808970d521f3ef0b06`;

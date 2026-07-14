@@ -1,0 +1,572 @@
+Can you review all the projects and suggest what ones should have been completed already?
++ Thought: 3.1s
+focusrelay_list_projects [includeTaskCounts=true, statusFilter=all]
++ Thought: 591ms
+Explore Task — Analyze projects for completion
+↳ 7 toolcalls · 3m 57s
+ctrl+x down view subagents
++ Thought: 3.6s
+I reviewed all 379 projects. Here are the candidates for completion/dropping:
+Strongest candidates: all recorded work done (30 projects)
+These have zero remaining tasks and all recorded tasks are already completed or dropped:
+find career coach (in Singapore)
+Cam "Dashboard" proposal
+Review David Gilbert
+remember to schedule one linked in post a week
+Daily Routine
+open HSBC account in Indonesia
+Allocate my Cash to investments
+Signup for Singapore Bank Account
+make sure to get chase fee paid
+Help Colin get into Antler
+Edit and publish multi cam Mario Kart
+Plan for when I am back in Singapore to fix iPad
+Build Swift training with Circle?
+Personal — Introducing DuckDB for Swift
+Write post about Sky
+Accelerating Asia
+Personal — Toucan
+Finish Dymistifying swift UI WWDC21
+Build Swift version of NanoClaw
+agents-course (Hugging Face Agents Course)
+28th feb CXA submission
+Try to get internship with Acme app
+Study Swift libraries
+remove old files on icloud
+get synology working
+Apply for Mastermind Rush
+AR costume iOS App
+book mandalorian
+Apply for Apple Engineering Product Manager Job
+fly back to singapore
+Empty projects (152 projects with remainingTasks == 0, including the 30 above)
+Many are empty placeholders with no tasks at all — likely abandoned ideas, bookmarks, or reference links. Good candidates for dropping.
+Stalled projects (43 projects)
+These still have remaining tasks, but none are currently available (blocked/deferred). Examples:
+Get programming mentor practice programming (26 remaining)
+Create json resume (14 remaining)
+DC calls follow-up (10 remaining)
+Visit Japan/Tokyo (16 remaining)
+Learn SWIFT (22 remaining)
+Small stale one-offs (87 projects)
+1–2 remaining tasks, low total. These often look like quick actions that never got done. Examples:
+Leave DFS
+Put profile on the DC jobs
+Setup BrainTrust Profile
+Get Colonoscopy
+Fix coughing
+close chase sapphire credit card
+Which category should I act on? I can mark the 30 strongest as completed, drop the empty placeholders, or mark the stalled / small stale ones as dropped if you no longer want them.
+
+Read the file at /Users/deverman/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ. It contains a list of OmniFocus projects with task counts (availableTasks, remainingTasks, completedTasks, droppedTasks, totalTasks). 
+
+Identify projects that are likely already complete or should be completed/dropped. Specifically look for:
+1. Projects with remainingTasks == 0 (all tasks completed or dropped, or empty)
+2. Projects with availableTasks == 0 but remainingTasks > 0 (all remaining tasks blocked or dropped)
+3. Projects where completedTasks + droppedTasks == totalTasks (all work done)
+4. Projects with very few remaining tasks that look like stale one-off things
+
+Return a structured list of candidate projects with their name, ID, and the counts (available/remaining/completed/dropped/total), and a brief reason why each might be complete. Be thorough but concise. Do not modify any data.
++ Thought: 390ms
+→Read ~/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ 
++ Thought: 3.5s
+$ python3 -m json.tool /Users/deverman/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ > /tmp/omnifocus_pretty.json && wc -l /tmp/omnifocus_pretty.json
+3417 /tmp/omnifocus_pretty.json
++ Thought: 535ms
+→Read /tmp/omnifocus_pretty.json [limit=3417, offset=1]
++ Thought: 569ms
+→Read /tmp/omnifocus_pretty.json [limit=3417, offset=1697]
++ Thought: 410ms
+→Read /tmp/omnifocus_pretty.json [limit=3417, offset=3356]
++ Thought: 2.3s
+$ python3 << 'PYEOF'
+import json
+
+with open('/Users/deverman/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ', 'r') as f:
+    data = json.load(f)
+
+items = data['items']
+print(f"Total projects: {len(items)}\n")
+
+# Criterion 1: remainingTasks == 0
+cat1 = [p for p in items if p['remainingTasks'] == 0]
+# Criterion 2: availableTasks == 0 but remainingTasks > 0
+cat2 = [p for p in items if p['availableTasks'] == 0 and p['remainingTasks'] > 0]
+# Criterion 3: completedTasks + droppedTasks == totalTasks (all work done)
+cat3 = [p for p in items if p['completedTasks'] + p['droppedTasks'] == p['totalTasks'] and p['totalTasks'] > 0]
+# Criterion 4: very few remaining tasks (<=2) that look like stale one-off things
+# Exclude those already in cat1 or cat2. Also exclude projects with many total tasks? Let's say remaining <=2 and total <=5 and available <=2
+cat4_candidates = [p for p in items if p['remainingTasks'] > 0 and p['remainingTasks'] <= 2 and p['totalTasks'] <= 5 and p['availableTasks'] <= 2]
+# Remove those already in cat1/cat2/cat3 (though cat3 with total>0 and remaining>0 can't happen, but just in case)
+seen_ids = set(id(p) for p in cat1 + cat2 + cat3)
+cat4 = [p for p in cat4_candidates if id(p) not in seen_ids]
+
+def fmt(p):
+    return f"  Name: {p['name']}\n  ID: {p['id']}\n  Counts: available={p['availableTasks']}, remaining={p['remainingTasks']}, completed={p['completedTasks']}, dropped={p['droppedTasks']}, total={p['totalTasks']}"
+
+print(f"=== 1. Projects with remainingTasks == 0 ({len(cat1)}) ===")
+for p in cat1:
+    print(fmt(p))
+    print(f"  Reason: No remaining work (completed={p['completedTasks']}, dropped={p['droppedTasks']}, total={p['totalTasks']}).")
+    print()
+
+print(f"=== 2. Projects with availableTasks == 0 but remainingTasks > 0 ({len(cat2)}) ===")
+for p in cat2:
+    print(fmt(p))
+    print(f"  Reason: {p['remainingTasks']} task(s) remain but none are available (likely blocked/deferred/dropped).")
+    print()
+
+print(f"=== 3. Projects where completed + dropped == total ({len(cat3)}) ===")
+for p in cat3:
+    print(fmt(p))
+    print(f"  Reason: All recorded work is already done or dropped; project may be complete.")
+    print()
+
+print(f"=== 4. Small stale one-off projects (remaining <=2, total <=5, available <=2) ({len(cat4)}) ===")
+for p in cat4:
+    print(fmt(p))
+    print(f"  Reason: Very small project with only {p['remainingTasks']} remaining task(s); may be a stale one-off item.")
+    print()
+
+# Summary stats
+all_candidate_ids = set(id(p) for p in cat1 + cat2 + cat3 + cat4)
+print(f"=== Summary ===")
+print(f"Total candidate projects: {len(all_candidate_ids)} out of {len(items)}")
+PYEOF
+...
+
+aining=2, completed=0, dropped=0, total=2
+  Reason: 2 task(s) remain but none are available (likely blocked/deferred/dropped).
+
+  Name: Plan Hike at Coney Island
+  ID: b23TSUK6ImO
+  Counts: available=0, remaining=1, completed=0, dropped=0, total=1
+  Reason: 1 task(s) remain but none are available (likely blocked/deferred/dropped).
+
+…
+Click to expand
++ Thought: 12.9s
+$ python3 << 'PYEOF'
+import json
+
+with open('/Users/deverman/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ', 'r') as f:
+    data = json.load(f)
+
+items = data['items']
+
+# Categories
+cat1 = [p for p in items if p['remainingTasks'] == 0]  # remaining == 0
+cat2 = [p for p in items if p['availableTasks'] == 0 and p['remainingTasks'] > 0]  # available=0, remaining>0
+cat3 = [p for p in items if p['completedTasks'] + p['droppedTasks'] == p['totalTasks'] and p['totalTasks'] > 0]  # done
+cat4 = [p for p in items if p['remainingTasks'] > 0 and p['remainingTasks'] <= 2 and p['totalTasks'] <= 5 and p['availableTasks'] <= 2 and id(p) not in set(id(x) for x in cat1+cat2+cat3)]
+
+print(f"# OmniFocus Project Completion Candidates")
+print(f"\nTotal projects analyzed: {len(items)}")
+print(f"Candidate projects: {len(set(id(x) for x in cat1+cat2+cat3+cat4))}")
+print(f"\n## Summary by Category")
+print(f"- Category 1 (remainingTasks == 0): {len(cat1)}")
+print(f"- Category 2 (availableTasks == 0, remainingTasks > 0): {len(cat2)}")
+print(f"- Category 3 (completed + dropped == total): {len(cat3)} [subset of Category 1]")
+print(f"- Category 4 (small stale one-off projects): {len(cat4)}")
+
+def table(rows):
+    if not rows:
+        print("\n_None found._")
+        return
+    print(f"\n| Name | ID | A | R | C | D | T | Reason |")
+    print(f"|------|----|---|---|---|---|---|--------|")
+    for p in rows:
+        name = p['name'].replace('|', '\\|').strip()
+        if not name:
+            name = '_(unnamed)_'
+        print(f"| {name} | {p['id']} | {p['availableTasks']} | {p['remainingTasks']} | {p['completedTasks']} | {p['droppedTasks']} | {p['totalTasks']} | {p.get('reason','')} |")
+
+# Add reasons
+for p in cat1:
+    if p['totalTasks'] == 0:
+        p['reason'] = 'Empty project (no tasks)'
+    elif p['completedTasks'] > 0 and p['droppedTasks'] == 0:
+        p['reason'] = 'All tasks completed'
+    elif p['completedTasks'] == 0 and p['droppedTasks'] > 0:
+        p['reason'] = 'All tasks dropped'
+    else:
+        p['reason'] = 'All work completed or dropped'
+
+for p in cat2:
+    p['reason'] = f'{p["remainingTasks"]} remaining but none available (blocked/deferred)'
+
+for p in cat3:
+    p['reason'] = 'All recorded work done or dropped'
+
+for p in cat4:
+    p['reason'] = f'Small stale project ({p["remainingTasks"]} remaining)'
+
+print(f"\n## Category 1: Projects with remainingTasks == 0 ({len(cat1)})")
+print(f"*Projects with no remaining work (empty, completed, or all dropped).")
+table(cat1)
+
+print(f"\n## Category 2: Projects with availableTasks == 0 but remainingTasks > 0 ({len(cat2)})")
+print(f"*Projects with remaining tasks but nothing currently available (likely blocked/deferred).")
+table(cat2)
+
+print(f"\n## Category 3: Projects where completedTasks + droppedTasks == totalTasks ({len(cat3)})")
+print(f"*All recorded work is done or dropped (subset of Category 1).")
+table(cat3)
+
+print(f"\n## Category 4: Small stale one-off projects ({len(cat4)})")
+print(f"*Projects with ≤2 remaining tasks and total ≤5; may be stale quick actions.")
+table(cat4)
+PYEOF
+...
+
+| jbanwHsdkEW | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| kylehowells/swift-justhtml: Swift-JustHTML a Swift port of EmilStenstrom/justhtml by implementing 100% html5 spec compliant parsing of html documents in pure Swift | pSmJHoCH7MR | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| Check out Code-along: Start building with Swift and SwiftUI from #meet-with-apple | l9LJtNctN6T | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| Vibe coding | lwknlZTQeYZ | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| create streamdeck plugins for the new apple creative studio | j2hQIr4o9lA | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| can I create a vision OS app for speed reading | enngmIklpgl | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| Figure out how to make a SaaS with ElementaryUI | p9emnhP6P6- | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+| Is there a video editor made just for realestate agents that can also do spatial photography? | n4gtetr5ZlB | 0 | 0 | 0 | 0 | 0 | Empty project (no tasks) |
+…
+Click to expand
++ Thought: 1.9s
+Here is the structured analysis of the OmniFocus projects from /Users/deverman/.local/share/opencode/tool-output/tool_f5c1c01c60015w3UhgXaOeCtbZ.
+Summary
+- Total projects analyzed: 379
+- Candidate projects matching at least one criterion: 282
+- Breakdown:
+- Category 1 (remainingTasks == 0): 152
+- Category 2 (availableTasks == 0, remainingTasks > 0): 43
+- Category 3 (completedTasks + droppedTasks == totalTasks): 30 (subset of Category 1)
+- Category 4 (small stale one-off projects, ≤2 remaining, total ≤5): 87
+Columns: A = availableTasks, R = remainingTasks, C = completedTasks, D = droppedTasks, T = totalTasks.
+Category 1: Projects with remainingTasks == 0 (152)
+Projects with no remaining work. They are either empty, fully completed, or fully dropped.
+Name
+find career coach (in Singapore)
+Cam "Dashboard" proposal
+Review David Gilbert
+War Stories of Doing a business in Shenzhen (figuring shit out)
+plan update of Mai resume
+remember to schedule one linked in post a week
+Find "latent demand" ask about this when I create projects
+Personal — Gurvan Robineau | LinkedIn
+Figure out how to get to the CEO of Box about dev rel roles in Asia
+Use agents to build multiple companies that sell in multiple ways similar products
+santifer/career-ops: AI-powered job search system built on Claude Code. 14 skill modes, Go dashboard, PDF generation, batch processing.
+Daily Routine
+open HSBC account in Indonesia
+Travel Hacking MCP Server
+Prenup
+Allocate my Cash to investments
+Open HSA Account
+Signup for Singapore Bank Account
+Stacks sBTC
+make sure to get chase fee paid
+Investigate living in Andora
+ski trip in Japan
+Plan Sedona trip
+Help Colin get into Antler
+Get a list of recent linked in connections and come up with something to message them with
+Critical Thinking and AI Event
+Edit and publish multi cam Mario Kart
+buy more bitcoin
+How to Clean Your Backpack by Hand | Minaal
+use ai to summarize people from discord
+setup AIBTC for BTC
+Plan for when I am back in Singapore to fix iPad.
+Build Swift training with Circle?
+Personal — DandyLyons/swift-json-resume: A Swifty interface to use jsonresume
+iOS Course Resources | The App Brewery
+what app can I implement to monitize visual search (swift)
+App called "Next Action" that takes screen shots and other input to figure out next actions
+Personal — Introducing DuckDB for Swift – DuckDB
+Write post about Sky
+Can I backup Arq to my synology remotely?
+Try expo iOS dev
+Senior Product Engineer, Agents @ RevenueCat
+finish vapor routes Vapor: Basics → Routing
+finish password
+Accelerating Asia
+Create a script to update and optimize Github repositories
+Personal — Toucan - The markdown-based static site generator written in Swift
+noaha apple care one rollout
+Software to comment on parts of videos to give feedback on contents of video
+I wonder if I could make a Mac app with foundation models that scans bank pdfs for suspicious transactions.
+Should I take my learning’s presentation for the database migration and read it out on YouTube like the Apple presentation?
+Create watch on this domain Nisus Software - Word Processing for macOS
+Finish Dymistifying swift UI WWDC21: Demystify SwiftUI | Apple - YouTube
+Organize Bali swift conference
+kylehowells/swift-justhtml: Swift-JustHTML a Swift port of EmilStenstrom/justhtml by implementing 100% html5 spec compliant parsing of html documents in pure Swift
+Check out Code-along: Start building with Swift and SwiftUI from #meet-with-apple
+Vibe coding
+create streamdeck plugins for the new apple creative studio
+can I create a vision OS app for speed reading
+Figure out how to make a SaaS with ElementaryUI
+Is there a video editor made just for realestate agents that can also do spatial photography?
+How to Control Stream Deck with AI | Elgato
+Maybe an iOS app that lets you chat with your shortcuts to help you build them ? lol
+swift markdown parser formatter
+Create a. Tier list app in Swift for ADA
+Build Swift version of NanoClaw
+Is there a software to monitor forks and try to incorporate changes that are not PRs?
+Swift Full-Duplex Speech-to-Speech in Native Swift with MLX
+Create an app that lets you browse the Chinese web in English
+Reduce the used space on my drive
+Desmonds app FloBro
+fix nametag nickname
+Think of apps that help with Preventative maintenance
+TIL To Day I learned App
+transfer money to bank account
+Swiftful Thinking | Learn Swift Online
+Connect with Apple People from apple notes on linkedIN
+Summarize video on observable
+vision pro demo for Zarina
+submit the form for residence at Bali vila
+Do lead prospecting for companies hiring iOS engineers
+Building a Full-Stack Swift App - From Navigation to Deployment | Kyle Browning
+Tattoo maintenance App
+SwiftBook.dev — The Interactive Swift Book
+SpeechAnalyzer | Apple Developer Documentation
+Create a Swift Apple Game using Ceet’s Chicano’s IP
+desmond vibe codeing
+Bali recycling app
+Hair cut visuals app
+AI spontaneous presentation practice app
+Swift Quiz
+Reread the war of art
+Read the innovators dilemma
+Million Dollar Consulting - Alan Weiss, PhD
+Discrete Mathematics
+agents-course (Hugging Face Agents Course)
+Amazon.com: You Can Just Do Things: The Power of Permissionless Action: 9798992459203: Yang, Jay: Books
+Read Time management for mere mortals book
+swiftbrew create a swift version of zerobrew
+Voice cloning
+28th feb CXA submission
+swiftwasm/JavaScriptKit: Swift framework to interact with JavaScript through WebAssembly.
+What additional context or tools are needed to complete the tasks?
+Try to get internship with Acme app for iOS developement
+install rust openclaw clone on mac mini
+Plan dinner for April 1st
+monitor your mood on your telegram channel
+Study Swift libraries
+Framed – Hacking with Swift+
+hans interview reccomendaitons blog post
+Taipei trash cans japan app
+personality test based on scanning your bedroom
+App to notify you of bali sunset and tell you nearest beach
+Create BBEdit Key Bindings for Zed
+AWS AI & ML Scholars
+Rewrite this in Swift: GitHub - objective-see/AuRevoir: View and remove notification messages from Apple's "Notification Database"· GitHub
+Weekly design activities live activities live activities
+Help mai with powerpoint deck
+remove old files on icloud
+get synology working
+ComposeGTM — AI-Powered Go-to-Market Strategy Efren?
+Cbl SaaS Challenge Based Learning
+Fwd: [synology] Storage Pool 1 on synology has degraded (1/2)
+Apply for Mastermind Rush
+swift in production podcast
+AR costume iOS App
+DC Member API — Developer Documentation
+book mandalorian
+try personal voice on iOS
+dynamitecircle/dc: The official Python client for the Dynamite Circle Member API — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and the weekly locator digest.
+Apply for Apple Engineering Product Manager Job
+L'Oréal SAPMENA Big Bang Beauty Tech Innovation Program - L'Oréal Big Bang Beauty Tech Innovation Program
+Mac app ram usage leaderboard
+Apple Design Awards - 2026 finalists - Apple Developer
+Telemetry deck mobile app
+Watch DC Mexico Videos
+What about a streamdeck plugin for macbook neo
+App name “Wherever You Get Your Podcasts “
+App copywriting skill
+(unnamed)
+Language learning through obsidian
+upgrade iPad to 27
+Code base explorer AVP
+ask ceet for 3D assets
+fly back to singapore
+Create a AI skill to measure and get to be a T-shaped world class developer
+creat a 3D preview viewon on vision os using USDKIt
+Shipaton 2026
+Clipping companies
+You need a webring!
+Fintech engineering handbook
+Create apple useful awards opposite of the Apple Design Awards
+Category 2: Projects with availableTasks == 0 but remainingTasks > 0 (43)
+These projects still have remaining tasks, but nothing is currently available (likely blocked, deferred, or all remaining tasks are themselves dropped).
+Name
+Get programming mentor practice programming
+Memorize Muda
+Read product interview management book
+Upwork
+Create json resume
+ask AI how do I update my tripadvisor booking widget for 2025
+DC calls follow-up
+fire base to supabase migrator
+Planet scale Postgres migration consultant
+yc combinator founder
+Get featured on podcasts Talks: Find Podcast Guests & Get Booked on Podcasts Looking For Guests
+Font Research
+Research becoming a personal fitness trainer in Singapore in Bali
+Get Certified as Fitness Instructor
+Dependent visa mother
+Open Vangaurd account
+Open Roth IRA
+Real estate multi family
+Apply for Taiwan Gold card
+Visit Japan/Tokyo
+Travel to shanghai
+Travel to Bangkok
+Create Singapore App Store Account
+pg sql
+network school form
+Plan Hike at Coney Island
+Reduce Singapore Electricty Bill
+Apply for HSBC Elite Credit Card
+Script to get filenames of Favorite photos from Photos.app
+Create Swift Library for Raft Consensus algorithm
+Map matcher to sync between Google and Apple Maps
+Can I use foundation models to scale out a multilingual website for free?
+Check out grammerly Marketplace and coda marketplace
+story time
+I want a newsletter platform that starts with a base newsletter and customizes it to each subscriber with AI
+Sign up for Affiliate Programs
+Organize a Shortcuts event in Bali
+Get Newton ROM running on Mac machine
+Create an AI generated signature customized for who is receipient to get them to click
+Study Chinese (Pass HSK)
+Learn SWIFT
+Find Japanese dictionary
+Stacks Developer Degree
+Category 3: Projects where completedTasks + droppedTasks == totalTasks (30)
+These are projects where every recorded task is already completed or dropped (a subset of Category 1).
+Name
+find career coach (in Singapore)
+Cam "Dashboard" proposal
+Review David Gilbert
+remember to schedule one linked in post a week
+Daily Routine
+open HSBC account in Indonesia
+Allocate my Cash to investments
+Signup for Singapore Bank Account
+make sure to get chase fee paid
+Help Colin get into Antler
+Edit and publish multi cam Mario Kart
+Plan for when I am back in Singapore to fix iPad.
+Build Swift training with Circle?
+Personal — Introducing DuckDB for Swift – DuckDB
+Write post about Sky
+Accelerating Asia
+Personal — Toucan - The markdown-based static site generator written in Swift
+Finish Dymistifying swift UI WWDC21: Demystify SwiftUI | Apple - YouTube
+Build Swift version of NanoClaw
+agents-course (Hugging Face Agents Course)
+28th feb CXA submission
+Try to get internship with Acme app for iOS developement
+Study Swift libraries
+remove old files on icloud
+get synology working
+Apply for Mastermind Rush
+AR costume iOS App
+book mandalorian
+Apply for Apple Engineering Product Manager Job
+fly back to singapore
+Category 4: Small stale one-off projects (87)
+Projects with 1–2 remaining tasks and a total of no more than 5 tasks. These often look like stale quick actions or abandoned one-offs.
+Name
+Leave DFS
+Put profile on the DC jobs
+Setup BrainTrust Profile
+Explore freelance opportunities
+Make a list of friends to follow youtube videos
+Improve GitHub Presences
+sign up for Torq
+Find and Hire Vetted Tech Talent in 24 Hours second talent
+https://www.linkedin.com/in/albert-phelps-189ba2201?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app (https://www.linkedin.com/in/albert-phelps-189ba2201?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app)
+Follow up with Richard at Stagwell
+try exponent practice regularly
+Dynamite circle followup
+remember to brainstorm with Kat
+Personal — Homéric DE SARTHE 🟠 欧阳烨 | LinkedIn
+Help busineses Get in front of agents
+License edit history of editors from news media (revision)
+Practice Alexander technique
+Contribute to Hacker News
+Write Article Revisiting the Definition of MVP in the age of AI
+Get Colonoscopy
+Fix coughing
+Setup payments of social security
+Create a budget
+Life Cost reduction
+Compound interest lesson with Mai
+Finish changing Gemini account country of residence
+Followup with Jonathan
+Health Checkup
+close chase sapphire credit card
+Practice Mock interviews
+Buy mom cycling jersey
+Identify Workout App for gym
+Setup super apps and cashless payment qr codes
+Search for meal plan in Bali
+fix the problem with Arq backup
+Create an Apple TV Dashboard
+Realtime voice that could help me study swift and what about then streaming to talk to the voice
+Mirmir update
+pay attention to apple developer center sg events
+Did macintouch respond?
+Copy mac aps that I'm going to use myself Notchie - Invisible Mac Teleprompter for Screen Sharing
+Swift PoC to personalize content on each page view using AI
+shortform video biz docs, presentations, excel generated by AI
+Finish Foundation Code Along
+create sonic logo for youtube videos with AI
+Can I use eleven labs to make YouTube or twitch streaming more interesting with a voice to interact with? Like a twitch copilot
+Give Feedback on Japanese Langauge Learning App Fwd: From Brent
+Organize monthly swift meetups in Bali
+Migrate content out of Ulysses Install Ulyssees MCP
+should create a better pomodoro timer for streamdeck in swift with better sound
+create streamdeck plugin with Apple Weather API
+Create an OpenCode Stream Deck Plugin
+Create a caffine button streamdeck
+Create Stream Deck Plugin to monitor Audio Levels
+Create Indonesia App Store Account
+Create shopping inflation app
+make weekly one on one with Richard
+Create an opensource swift datastore for markdown files
+Intentional Listening Podcast Player
+Get Apple Developer Account
+Study Data Structure and Algorithms 30 minutes a day
+Logging business based on Foundation Models
+iOS App Concept: Friend Travel Notifier
+organize birthday party for ish & Brent Hui birthday near
+followup with oliver
+Check how much I have in treasuries
+Challenge 1
+Vision OS Pomador timer
+davedelong/export-ulysses: Exports your Ulysses library as markdown files.
+Create Chrome plugin with Richardson
+Stream from Ticktok studio
+Post about curosr
+christopherkarani/SwiftAgents: Langchain but for swift 🐦‍🔥
+Deploy to Swift Cloud
+look at justin's app
+Challenge 2
+Plan Swift State Seminar
+Oura Sleep tracking streamdeck plugin
+Merge with Mastermind Group
+Plan for Jeff and Clinton in Bali
+Setup Mai Macbook
+Try Swift Evals
+apps to review
+Create resend.com swift API
+Attend Swift Conference in Jakarta
+Create code Visualizer in Apple Vision Pro
+Create Loops.so SDK
+Notes
+- Category 1 contains a large number of empty projects (totalTasks == 0). These are often bookmark-style ideas, reference links, or placeholder projects. They are good candidates for deletion/dropping.
+- Category 3 is a strict subset of Category 1 and highlights the strongest "actually complete" candidates.
+- Category 2 projects are stalled: tasks exist but are not available. Review whether they should be unblocked, dropped, or converted to a single action.
+- Category 4 projects are small, often single-action items that may have been sitting idle. They are worth reviewing for quick completion or dropping.
+No data was modified.
