@@ -1,11 +1,11 @@
-# FocusRelay - MCP (Model Context Protocal) Server and CLI for OmniFocus Mac
+# FocusRelay — Fast Swift OmniFocus MCP Server and CLI for macOS
 
 ## Plan your day and keep OmniFocus up to date with AI
 
 FocusRelay is a fast, native Swift MCP server and CLI that helps AI assistants
 read and safely update OmniFocus using documented OmniFocus APIs.
 
-[Install with Homebrew](#install-with-homebrew) ·
+[Install with Homebrew](#install-the-omnifocus-mcp-server-with-homebrew) ·
 [See what it can do](#ask-review-update) ·
 [Star FocusRelay](https://github.com/deverman/FocusRelayMCP) ·
 [Contribute](#help-shape-focusrelay)
@@ -82,7 +82,18 @@ errors or timeouts in the final benchmark runs. See the
 [0.10.0-beta release notes](docs/release-notes-v0.10.0-beta.md) for evidence and
 limits.
 
-## Install with Homebrew
+## Privacy and security
+
+FocusRelay runs locally on your Mac. Its Swift server communicates on-device
+with a bridge plug-in that accesses OmniFocus through documented APIs.
+FocusRelay has no hosted cloud service and does not send your OmniFocus data to
+a FocusRelay-operated service.
+
+Your MCP client and chosen AI model may transmit tool inputs and results under
+their own privacy terms. Review those settings before using FocusRelay with
+sensitive data.
+
+## Install the OmniFocus MCP server with Homebrew
 
 Requirements:
 
@@ -184,7 +195,7 @@ After installing the plugin, restart OmniFocus completely.
 
 </details>
 
-## MCP when you want conversation. CLI when you want precision.
+## Use FocusRelay as an OmniFocus MCP server or CLI
 
 MCP lets compatible assistants discover FocusRelay and choose the right action.
 The CLI is useful for scripts, debugging, and agents that already have shell
@@ -211,7 +222,7 @@ focusrelay update-tasks <task-id> \
 Run `focusrelay --help` for the command list. For write examples and safety
 rules, see [Safe Update Workflows for CLI and MCP](docs/mutation-workflows.md).
 
-## How FocusRelay is different
+## Compare FocusRelay with other OmniFocus MCP servers
 
 FocusRelay combines a native Swift server with a bridge plug-in that executes
 inside OmniFocus. Swift keeps MCP fast and compact; the bridge gets fresh data
