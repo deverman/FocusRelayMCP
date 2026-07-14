@@ -6,12 +6,12 @@ The detailed release sequence and validation record live in
 [`docs/roadmap-execution-plan.md`](docs/roadmap-execution-plan.md). GitHub issues
 are the source of truth for individual deliverables.
 
-## Before `v0.10.0-beta`
+## `v0.10.0-beta` Released
 
 - [x] Integrate the Swift 6.3.3 toolchain, truthful mutation persistence,
   project-count parity, unified version reporting, release packaging, and
   Homebrew ownership changes into local branch `integration/v0.10.0-beta-rc`.
-- [x] Pass the combined 126-test Swift Testing suite with Swiftly-managed Swift
+- [x] Pass the combined 133-test Swift Testing suite with Swiftly-managed Swift
   6.3.3.
 - [x] Build and validate a versioned `0.10.0-beta` archive and checksum locally.
 - [x] Install the combined plugin, fully restart OmniFocus, and repeat the live
@@ -42,11 +42,15 @@ are the source of truth for individual deliverables.
   [#89](https://github.com/deverman/FocusRelayMCP/issues/89), cover the real MCP
   argument boundary, and verify sparse flag and due-date writes through the
   rebuilt server.
-- [ ] Tag and publish only after approval and green release validation.
-- [ ] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
+- [x] Tag and publish
+  [`v0.10.0-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.10.0-beta)
+  after approval and green release validation.
+- [x] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
   actual release asset URL/version/SHA256, then verify a clean reinstall.
 
-## Release Blockers and Trackers
+## Completed Release Trackers
+
+All of these issues are closed with their release acceptance evidence:
 
 - [#71](https://github.com/deverman/FocusRelayMCP/issues/71) — P1 mutation
   save/per-target truthfulness.
