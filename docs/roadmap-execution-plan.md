@@ -63,16 +63,17 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
 
 ### Confirmed release blockers
 
-- [ ] **P1** [#71](https://github.com/deverman/FocusRelayMCP/issues/71): make mutation save and per-target failures impossible to report as success. The scoped fix is integrated locally and has unit, JavaScriptCore, and live write/restore evidence; it still needs publication, CI, and combined-candidate release validation before closure.
-- [ ] **P2** [#61](https://github.com/deverman/FocusRelayMCP/issues/61): align project available-task counts with shared task availability semantics. The fix is integrated locally with documented bridge/JXA semantics, root-task exclusion, unit/live tests, semantic gates, a clean 10-minute smoke, and a clean 30-minute project-count phase in the realistic suite. Publication and CI remain before closure.
-- [ ] **P2** [#64](https://github.com/deverman/FocusRelayMCP/issues/64): fix CI artifact upload, manual release version selection, and prerelease metadata. The fix is integrated locally and a `0.10.0-beta` archive/checksum was validated end to end; publication and GitHub CI remain.
+- [ ] **P1** [#71](https://github.com/deverman/FocusRelayMCP/issues/71): make mutation save and per-target failures impossible to report as success. The fix has unit, JavaScriptCore, live write/restore, combined-candidate, and green GitHub CI evidence in PR #84; merge it before closure.
+- [ ] **P2** [#61](https://github.com/deverman/FocusRelayMCP/issues/61): align project available-task counts with shared task availability semantics. The fix has documented bridge/JXA semantics, root-task exclusion, unit/live tests, semantic gates, smoke/realistic validation, and green PR #84 CI; merge it before closure.
+- [ ] **P2** [#64](https://github.com/deverman/FocusRelayMCP/issues/64): fix CI artifact upload, manual release version selection, and prerelease metadata. A `0.10.0-beta` archive/checksum was validated end to end and PR #84 uploaded its release binary successfully; merge before final release-workflow validation and closure.
 - [ ] **P2** [#72](https://github.com/deverman/FocusRelayMCP/issues/72): remove the stale checked-in formula and validate the authoritative tap at `/Users/deverman/Documents/code/homebrew-focus-relay`. Ownership changes are integrated locally; the tap's `fix/formula-style` branch corrects formula style, the packaged plugin path, the copy-paste install command, and the read/write description. Both repositories still need publication, followed by validation against the actual release SHA256.
-- [ ] **Release prerequisite** [#58](https://github.com/deverman/FocusRelayMCP/issues/58): unify CLI, MCP, plugin, and release version metadata. The integrated candidate now synchronizes the full SemVer across binary/MCP/plugin health and uses the numeric core required by the OmniFocus manifest. Local release injection and packaging pass; publication and CI remain.
-- [ ] **Release UX** [#76](https://github.com/deverman/FocusRelayMCP/issues/76): keep internal bridge health and inbox probes out of the model-facing tool catalog. The local fix exposes 14 product tools, retains the three CLI diagnostics, passes a direct MCP handshake, and passes the current 120-test suite. Publication and CI remain.
-- [ ] **P2** [#77](https://github.com/deverman/FocusRelayMCP/issues/77): publish one complete shared task-filter schema for `list_tasks` and `get_task_counts`. The local fix covers all 20 `TaskFilter` fields, passes direct `tools/list` inspection and the 120-test suite, and still needs publication and CI.
-- [ ] **P2** [#78](https://github.com/deverman/FocusRelayMCP/issues/78): correct mutation safety annotations and make preview/write defaults explicit. The local fix marks all seven mutation tools destructive and non-idempotent, locks the contract with tests, and still needs publication and CI.
-- [ ] **P2** [#79](https://github.com/deverman/FocusRelayMCP/issues/79): make advertised task search filter names and notes in both list and count paths. The local fix has deterministic plugin/JXA tests, positive live-search evidence, passing task semantic gates, clean corrected list/count smokes, and a clean one-hour realistic validation. Publication and CI remain.
-- [ ] **P2** [#81](https://github.com/deverman/FocusRelayMCP/issues/81): prevent list-task benchmarks from silently skipping half their declared scenarios. The isolated local fix rotates per transport pair, fails incomplete measured coverage, passes deterministic even/odd tests, and produced complete coverage in the corrected 10-minute list smoke.
+- [ ] **Release prerequisite** [#58](https://github.com/deverman/FocusRelayMCP/issues/58): unify CLI, MCP, plugin, and release version metadata. PR #84 synchronizes full SemVer across binary/MCP/plugin health, preserves the numeric OmniFocus manifest core, and passes release injection, packaging, and CI; merge before closure.
+- [ ] **Release UX** [#76](https://github.com/deverman/FocusRelayMCP/issues/76): keep internal bridge health and inbox probes out of the model-facing tool catalog. PR #84 exposes 14 product tools, retains three CLI diagnostics, passes a direct MCP handshake and the 122-test suite, and has green CI; merge before closure.
+- [ ] **P2** [#77](https://github.com/deverman/FocusRelayMCP/issues/77): publish one complete shared task-filter schema for `list_tasks` and `get_task_counts`. PR #84 covers all 20 `TaskFilter` fields and passes direct `tools/list`, the 122-test suite, and CI; merge before closure.
+- [ ] **P2** [#78](https://github.com/deverman/FocusRelayMCP/issues/78): correct mutation safety annotations and make preview/write defaults explicit. PR #84 marks all seven mutation tools destructive and non-idempotent, locks the contract with tests, and has green CI; merge before closure.
+- [ ] **P2** [#79](https://github.com/deverman/FocusRelayMCP/issues/79): make advertised task search filter names and notes in both list and count paths. PR #84 has deterministic plugin/JXA tests, positive live-search evidence, semantic gates, smoke/realistic validation, and green CI; merge before closure.
+- [ ] **P2** [#81](https://github.com/deverman/FocusRelayMCP/issues/81): prevent list-task benchmarks from silently skipping half their declared scenarios. PR #84 rotates per transport pair, fails incomplete measured coverage, passes deterministic tests and corrected smoke coverage, and has green CI; merge before closure.
+- [ ] **P2** [#86](https://github.com/deverman/FocusRelayMCP/issues/86): match OmniFocus's effective flagged-item semantics. UAT proved that the current query checks only local `task.flagged`, omitting flags inherited from a project or parent task; this must use documented `task.effectiveFlagged`, preserve list/count parity, exclude project roots from action counts, and pass the required semantic and realistic validation before release.
 
 ### Swift toolchain alignment
 
@@ -80,13 +81,20 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
 - [x] Confirm Swiftly 1.1.3 has Swift 6.3.3 installed and `swift-latest.xctoolchain` points to it.
 - [x] Implement a checked-in `.swift-version` with `6.3.3` on local branch `chore/swift-6.3.3`.
 - [x] Raise `swift-tools-version` to 6.3 on that branch.
-- [x] Pin both CI and release workflows to Swift 6.3.3 on that branch.
+- [x] Configure both CI and release workflows to install the `.swift-version`
+  toolchain through Swiftly 1.1.3 and verify Swift 6.3.3 before building.
 - [x] Verify the Swiftly shim selects Swift 6.3.3 from the project directory.
 - [x] Verify workflow YAML and run the 98-test suite with the Swiftly shim.
 - [x] Integrate the isolated toolchain branch into the local release candidate.
-- [ ] Publish and merge the toolchain change before final release validation.
+- [x] Publish the toolchain change in draft release candidate
+  [#84](https://github.com/deverman/FocusRelayMCP/pull/84) and pass its clean
+  GitHub CI build, test, release-build, and artifact-upload job.
+- [ ] Merge the release candidate before tagging.
 
-All three live semantic gates passed on 2026-07-13, so the audit found no additional P1/P2 read-parity failure in the current OmniFocus database.
+All three original live semantic gates passed on 2026-07-13. Subsequent UAT of
+the built-in Flagged perspective exposed the additional effective-flag P2 in
+#86, demonstrating that transport parity alone can still agree on the wrong
+product semantics.
 
 ## Phase 3: Create Missing Roadmap Issues
 
@@ -112,6 +120,10 @@ Create focused issues without combining unrelated variables or duplicating exist
 - [x] Complete benchmark scenario rotation: [#81](https://github.com/deverman/FocusRelayMCP/issues/81).
 - [x] Safe task creation: [#82](https://github.com/deverman/FocusRelayMCP/issues/82).
 - [x] Safe project creation: [#83](https://github.com/deverman/FocusRelayMCP/issues/83).
+- [x] Forecast-query contract and limitation handling: [#85](https://github.com/deverman/FocusRelayMCP/issues/85).
+- [x] Effective flagged-item semantics: [#86](https://github.com/deverman/FocusRelayMCP/issues/86).
+- [x] Server-side project-health filters: [#87](https://github.com/deverman/FocusRelayMCP/issues/87).
+- [x] Project folder membership and root filtering: [#88](https://github.com/deverman/FocusRelayMCP/issues/88).
 
 Issues #82 and #83 are post-beta roadmap enhancements and do not block
 `v0.10.0-beta`. Each still requires API, duplicate-safety, test, and benchmark
@@ -178,3 +190,4 @@ Existing feature issues remain:
 - 2026-07-13: The benchmark-rotation regression fix raised the suite to 120 Swift 6.3.3 tests. Its corrected 10-minute list smoke covered all ten declared scenarios with 94 measured calls, zero errors/timeouts, zero parity mismatches, and zero timeout diagnostics.
 - 2026-07-13: The 10-minute task-count search smoke covered all six scenarios with 98 measured calls, zero errors/timeouts, zero parity mismatches, and zero timeout diagnostics. Plugin p95 for the inbox scenario was 1.08 seconds versus 7.11 seconds for JXA.
 - 2026-07-13: The post-search realistic validation ran sequential 30-minute list and count phases. All 544 measured calls succeeded with complete scenario coverage, zero errors/timeouts, zero parity mismatches, and zero timeout diagnostics. Plugin inbox list p50 was 0.99 seconds versus 6.52 seconds for JXA, while inbox-count p95 was 1.34 seconds versus 8.01 seconds. OmniFocus ended the count phase 447 MB below its start.
+- 2026-07-14: Swiftly 1.1.3 installed and selected Swift 6.3.3 on a clean `macos-15` GitHub runner. Draft PR #84 passed build, all tests, release build, and artifact upload in 6m39s. The same candidate passed 122 Swift Testing tests and a production build locally with the Swiftly-managed toolchain.

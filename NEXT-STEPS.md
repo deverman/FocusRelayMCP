@@ -1,6 +1,6 @@
 # FocusRelayMCP Next Steps
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 The detailed release sequence and validation record live in
 [`docs/roadmap-execution-plan.md`](docs/roadmap-execution-plan.md). GitHub issues
@@ -30,7 +30,12 @@ are the source of truth for individual deliverables.
   parity mismatches.
 - [x] Prepare user-facing `v0.10.0-beta` release notes with safety limits,
   upgrade steps, measured performance, and contributor credit.
-- [ ] Publish the isolated branches or release candidate for GitHub CI/review.
+- [x] Publish draft release candidate
+  [#84](https://github.com/deverman/FocusRelayMCP/pull/84) and pass GitHub CI
+  with Swift 6.3.3 installed through Swiftly.
+- [ ] Fix or explicitly waive the effective-flag correctness blocker
+  [#86](https://github.com/deverman/FocusRelayMCP/issues/86), then repeat its
+  required semantic and performance validation.
 - [ ] Tag and publish only after approval and green release validation.
 - [ ] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
   actual release asset URL/version/SHA256, then verify a clean reinstall.
@@ -59,6 +64,8 @@ are the source of truth for individual deliverables.
   filter names and notes as advertised.
 - [#81](https://github.com/deverman/FocusRelayMCP/issues/81) — guarantee measured
   coverage of every list-benchmark scenario.
+- [#86](https://github.com/deverman/FocusRelayMCP/issues/86) — P2 match
+  OmniFocus's effective flagged-item semantics, including inherited flags.
 - [#63](https://github.com/deverman/FocusRelayMCP/issues/63) — release tracker.
 
 ## After Release
@@ -69,19 +76,25 @@ Prioritize user-visible, low-risk improvements as isolated branches:
    tasks in the inbox, a project, or beneath a parent task.
 2. [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — safely create
    projects at the root or in an existing folder.
-3. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
+3. [#88](https://github.com/deverman/FocusRelayMCP/issues/88) — expose project
+   folder membership and filter root projects without loading the full catalog.
+4. [#87](https://github.com/deverman/FocusRelayMCP/issues/87) — add server-side
+   project-health filters for efficient cleanup recommendations.
+5. [#85](https://github.com/deverman/FocusRelayMCP/issues/85) — define a safe
+   Forecast contract that cannot present a due-date approximation as exact.
+6. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
    links in existing query output.
-4. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
+7. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
    modified timestamps and filters.
-5. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
+8. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
    dates and filters.
-6. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
+9. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
    status filters.
-7. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
+10. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
    sorting.
-8. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
+11. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
    text responses off deprecated MCP SDK overloads.
-9. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
+12. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
    dispatch from the supported runtime and retain pure JXA only as an internal
    parity oracle until fixtures replace it.
 
