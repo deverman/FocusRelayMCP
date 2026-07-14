@@ -1,8 +1,8 @@
 # FocusRelay 0.10.0-beta
 
-FocusRelay now brings safe write support to OmniFocus. Any MCP-compatible
-assistant can read and update existing tasks and projects through 14 focused
-tools: seven for reading and seven for making changes.
+FocusRelay now brings its first write tools to OmniFocus. Any MCP-compatible
+assistant can read OmniFocus and use 14 focused tools: seven for reading and
+seven for making supported changes to existing tasks and projects.
 
 ## Highlights
 
@@ -17,6 +17,19 @@ tools: seven for reading and seven for making changes.
   parent task.
 - Keep the assistant focused with a compact catalog that excludes internal
   diagnostics.
+
+## Known Beta Issue
+
+Changing task or project fields through an MCP client can currently fail with
+`The data couldn’t be read because it is missing.` This includes changing a
+task's or project's flag. Reading is unaffected, and the dedicated completion,
+project-status, and move tools use different payloads and are not implicated by
+this issue.
+
+The failure happens before OmniFocus receives the change, so it does not leave a
+partially applied edit. Until the next patch, make field and flag changes
+manually in OmniFocus. The fix is tracked in
+[#89](https://github.com/deverman/FocusRelayMCP/issues/89).
 
 ## Safe And Fast By Design
 

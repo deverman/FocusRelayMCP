@@ -38,6 +38,8 @@ are the source of truth for individual deliverables.
   native OmniFocus gate, and complete its required semantic, smoke, and 1.5-hour
   realistic validation with 864 measured calls and no errors, timeouts, or
   mismatches.
+- [x] Document sparse MCP field-update decoding as an explicitly accepted beta
+  known issue in [#89](https://github.com/deverman/FocusRelayMCP/issues/89).
 - [ ] Tag and publish only after approval and green release validation.
 - [ ] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
   actual release asset URL/version/SHA256, then verify a clean reinstall.
@@ -74,29 +76,31 @@ are the source of truth for individual deliverables.
 
 Prioritize user-visible, low-risk improvements as isolated branches:
 
-1. [#82](https://github.com/deverman/FocusRelayMCP/issues/82) — safely create
+1. [#89](https://github.com/deverman/FocusRelayMCP/issues/89) — make sparse MCP
+   task/project field patches decode correctly, including flag changes.
+2. [#82](https://github.com/deverman/FocusRelayMCP/issues/82) — safely create
    tasks in the inbox, a project, or beneath a parent task.
-2. [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — safely create
+3. [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — safely create
    projects at the root or in an existing folder.
-3. [#88](https://github.com/deverman/FocusRelayMCP/issues/88) — expose project
+4. [#88](https://github.com/deverman/FocusRelayMCP/issues/88) — expose project
    folder membership and filter root projects without loading the full catalog.
-4. [#87](https://github.com/deverman/FocusRelayMCP/issues/87) — add server-side
+5. [#87](https://github.com/deverman/FocusRelayMCP/issues/87) — add server-side
    project-health filters for efficient cleanup recommendations.
-5. [#85](https://github.com/deverman/FocusRelayMCP/issues/85) — define a safe
+6. [#85](https://github.com/deverman/FocusRelayMCP/issues/85) — define a safe
    Forecast contract that cannot present a due-date approximation as exact.
-6. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
+7. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
    links in existing query output.
-7. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
+8. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
    modified timestamps and filters.
-8. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
+9. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
    dates and filters.
-9. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
+10. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
    status filters.
-10. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
+11. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
    sorting.
-11. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
+12. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
    text responses off deprecated MCP SDK overloads.
-12. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
+13. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
    dispatch from the supported runtime and retain pure JXA only as an internal
    parity oracle until fixtures replace it.
 
