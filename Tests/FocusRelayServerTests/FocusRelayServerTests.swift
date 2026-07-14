@@ -2,6 +2,49 @@ import Testing
 @testable import FocusRelayServer
 import FocusRelayVersion
 import MCP
+import OmniFocusCore
+
+@Test
+func mcpArgumentBoundaryDecodesSparseTaskFieldPatches() throws {
+    let flagged = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["flagged": .bool(true)])],
+        key: "taskPatch"
+    )
+    #expect(flagged?.flagged == true)
+    #expect(flagged?.clearDueDate == false)
+    #expect(flagged?.clearDeferDate == false)
+
+    let dueDate = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["dueDate": .string("2026-07-15T09:00:00Z")])],
+        key: "taskPatch"
+    )
+    #expect(dueDate?.dueDate != nil)
+}
+
+@Test
+func mcpArgumentBoundaryDecodesSparseProjectAndTagPatches() throws {
+    let project = try FocusRelayServer.decodeArgument(
+        ProjectPatchMutation.self,
+        from: ["projectPatch": .object(["sequential": .bool(true)])],
+        key: "projectPatch"
+    )
+    #expect(project?.sequential == true)
+    #expect(project?.clearDueDate == false)
+    #expect(project?.clearDeferDate == false)
+
+    let task = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: [
+            "taskPatch": .object([
+                "tags": .object(["add": .array([.string("tag-1")])])
+            ])
+        ],
+        key: "taskPatch"
+    )
+    #expect(task?.tags == TagMutation(add: ["tag-1"]))
+}
 
 @Test
 func mcpServerReportsEmbeddedBuildVersion() {

@@ -59,8 +59,9 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
 - [x] Add a version-reporting issue covering `focusrelay --version`, release injection, and the MCP server's hard-coded `0.1.0` version: [#58](https://github.com/deverman/FocusRelayMCP/issues/58).
 - [x] Create a release tracker for the 22 commits currently ahead of `v0.9.4beta`: [#63](https://github.com/deverman/FocusRelayMCP/issues/63).
 - [x] Run the required semantic gates and realistic single-user validation before tagging.
-- [x] Record sparse MCP field updates, including flag changes, as the explicitly
-  accepted beta known issue [#89](https://github.com/deverman/FocusRelayMCP/issues/89).
+- [x] Fix sparse MCP task, project, and tag field updates in
+  [#89](https://github.com/deverman/FocusRelayMCP/issues/89), add model and MCP
+  boundary regressions, and verify sparse writes through the rebuilt server.
 - [ ] Update the external Homebrew tap with the release asset's actual SHA256 and verify a clean reinstall.
 
 ### Confirmed release blockers
@@ -132,9 +133,11 @@ Issues #82 and #83 are post-beta roadmap enhancements and do not block
 `v0.10.0-beta`. Each still requires API, duplicate-safety, test, and benchmark
 acceptance work before its own release.
 
-Issue #89 is the first post-beta correctness fix. The user explicitly accepted
-it as a documented `v0.10.0-beta` limitation after UAT showed that normal sparse
-MCP field patches fail during Swift decoding before reaching OmniFocus.
+Issue #89 became a P1 beta blocker after UAT proved that the shared decoder
+prevented ordinary task and project field updates. The candidate now defaults
+omitted clear switches to `false`; 131 tests and direct sparse MCP flag and
+due-date writes pass. No performance rerun is required because query, bridge,
+transport, caching, and timeout paths are unchanged.
 
 ## Performance Decision
 

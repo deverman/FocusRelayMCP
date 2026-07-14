@@ -18,19 +18,6 @@ seven for making supported changes to existing tasks and projects.
 - Keep the assistant focused with a compact catalog that excludes internal
   diagnostics.
 
-## Known Beta Issue
-
-Changing task or project fields through an MCP client can currently fail with
-`The data couldn’t be read because it is missing.` This includes changing a
-task's or project's flag. Reading is unaffected, and the dedicated completion,
-project-status, and move tools use different payloads and are not implicated by
-this issue.
-
-The failure happens before OmniFocus receives the change, so it does not leave a
-partially applied edit. Until the next patch, make field and flag changes
-manually in OmniFocus. The fix is tracked in
-[#89](https://github.com/deverman/FocusRelayMCP/issues/89).
-
 ## Safe And Fast By Design
 
 FocusRelay targets stable OmniFocus IDs, identifies write actions so MCP clients
@@ -40,6 +27,8 @@ dropped projects and completed parent tasks.
 
 Use `previewOnly=true` before broad changes and `verify=true` for real writes
 when confirmation matters. Omitting both applies the change immediately.
+MCP clients can send only the fields they intend to change; unrelated values
+are left untouched.
 
 FocusRelay aims to be one of the fastest OmniFocus MCP integrations. Testing
 covered thousands of tasks and more than 2,000 measured calls without an error

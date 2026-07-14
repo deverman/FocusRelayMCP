@@ -945,6 +945,14 @@ public enum FocusRelayServer {
             try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
         }
     }
+
+    static func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
+        guard let value = args?[key] else { return nil }
+        let data = try JSONEncoder().encode(value)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(T.self, from: data)
+    }
 }
 
 private func toolSchema(properties: [String: Value], required: [String] = []) -> Value {
@@ -986,14 +994,6 @@ private func dateFilterSchema(_ description: String, example: Value) -> Value {
         "description": .string(description),
         "examples": .array([example])
     ])
-}
-
-private func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
-    guard let value = args?[key] else { return nil }
-    let data = try JSONEncoder().encode(value)
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    return try decoder.decode(T.self, from: data)
 }
 
 private func decodeStringArray(_ value: Value?) -> [String]? {

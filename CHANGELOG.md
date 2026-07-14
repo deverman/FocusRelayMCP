@@ -60,13 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   information.
 - CI artifact upload and manual/tag release version selection now fail clearly
   instead of silently publishing incomplete assets.
-
-### Known Issues
-
-- Sparse MCP `update_tasks` and `update_projects` field patches can fail to
-  decode when clients omit unrelated default-false properties. This includes
-  flag changes and is tracked for the next patch in #89. Reading and the
-  dedicated completion, project-status, and move payloads are not implicated.
+- Sparse MCP task, project, and tag patches now decode omitted clear switches
+  as `false`, so clients can send only the fields they intend to change (#89).
 
 ## [0.9.4beta] - 2026-03-16
 
