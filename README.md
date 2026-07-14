@@ -28,15 +28,10 @@ Try prompts like:
 - “Set [task name] due tomorrow at 5 PM in my local timezone and verify the
   change.”
 
-These read, flag, and due-date workflows were tested against the released
-Homebrew build with Kimi K2.7 Code; the inbox query was also verified with a
-second MCP-capable model. In the tested update workflows, the assistant resolved
-the item first, changed the stable OmniFocus ID, and read the result back before
-reporting success.
-
-The write prompts were tested with a unique task name. If more than one task
-matches in your library, ask the assistant to show the candidates before
-changing anything.
+These workflows were tested against the released Homebrew build with Kimi K2.7
+Code, and the inbox query with a second MCP-capable model. Updates target stable
+OmniFocus IDs and can verify the saved result. If names are duplicated, ask to
+see the candidates before changing anything.
 
 FocusRelay 0.10.0-beta can:
 
@@ -61,18 +56,20 @@ FocusRelay exposes 14 model-facing tools—seven for reading and seven for makin
 supported changes. Internal diagnostics stay in the CLI, count commands avoid
 returning long item lists, and field selection keeps responses compact.
 
-### Built in Swift for speed
+### Native Swift speed at real-library scale
 
 FocusRelay is compiled as native Swift and installed with Homebrew, with no
-Node.js or Python runtime in the request path. That keeps startup and request
-handling lean. The same fast core also powers a CLI for scripts and precise,
-low-context queries.
+Node.js or Python runtime in the request path. Single-pass filtering and
+early-stop pagination keep focused inbox reads near one second in testing at
+thousands-of-tasks scale. The same core powers a CLI for precise, low-context
+queries.
 
-### Work through documented OmniFocus APIs
+### Run where OmniFocus understands its data
 
-Production queries use documented Omni Automation collections and native task
-and project statuses. This keeps results aligned with OmniFocus’s own view of
-available, completed, dropped, and on-hold work.
+The Swift server dispatches work to a lightweight bridge plug-in that runs
+inside OmniFocus’s Omni Automation context. It uses documented APIs and native
+statuses, keeping results aligned with OmniFocus without reading its private
+database.
 
 ### Make changes you can check
 
@@ -80,14 +77,10 @@ Update tools target stable IDs and support previews, per-item results, compact
 return fields, and optional verification. A failed save, update, or verification
 is reported as a failure—not success.
 
-### Stay fast at real-library scale
-
-FocusRelay uses single-pass filtering, early-stop pagination, and a short-lived
-project and tag cache. Focused inbox reads typically return in about one second.
-Validation covered databases at the scale of thousands of tasks and thousands
-of measured calls without errors or timeouts in the final benchmark runs. See
-the [0.10.0-beta release notes](docs/release-notes-v0.10.0-beta.md) for the
-current evidence and limits.
+Validation covered thousands of tasks and thousands of measured calls without
+errors or timeouts in the final benchmark runs. See the
+[0.10.0-beta release notes](docs/release-notes-v0.10.0-beta.md) for evidence and
+limits.
 
 ## Install with Homebrew
 
@@ -220,73 +213,50 @@ rules, see [Safe Update Workflows for CLI and MCP](docs/mutation-workflows.md).
 
 ## How FocusRelay is different
 
-FocusRelay is built for speed, fresh results, and dependable changes. Its native
-Swift runtime avoids a Node.js or Python startup path, routine task reads query
-OmniFocus instead of an internal database cache, and writes can be previewed
-and read back before the assistant reports success.
+FocusRelay combines a native Swift server with a bridge plug-in that executes
+inside OmniFocus. Swift keeps MCP fast and compact; the bridge gets fresh data
+and applies changes through documented OmniFocus APIs.
 
-That focus comes with a deliberate tradeoff: FocusRelay does not yet have the
-broadest feature list. Creation is next, while recurrence and perspectives are
-still in the backlog.
-
-### Architecture and speed
-
-| Project | Runtime | Read approach | MCP tools | Preview and verify changes |
-| --- | --- | --- | ---: | --- |
-| **FocusRelay** | **Native Swift · Homebrew** | **Fresh reads through documented OmniFocus APIs** | **14; 11 planned** | **Yes: preview, per-item results, and optional read-back verification** |
-| [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | TypeScript · npx | Omni Automation through `osascript` | 12 | Not documented |
-| [omnifocus-mcp-enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | TypeScript · npx | Omni Automation through `osascript` | 18 | Not documented |
-| [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | Native Rust · Homebrew; Python and TypeScript also available | Omni Automation through `osascript` | 45 | Not documented |
-| [OmniFocus Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) | Python · uvx | Fast reads from an internal SQLite cache; OmniJS fallback | 11 | Not documented |
-
-Fewer tools do not automatically make a server faster, but they reduce the
-catalog an AI model must inspect before choosing an action. FocusRelay’s next
-tool consolidation is designed to finish with 11 public tools after task and
-project creation are added—not 11 tools with less capability.
-
-### Features today and next
-
-✅ Available · 🟡 Coming next · 🟠 Backlog · — Not currently documented
+✅ Available · 🟡 Coming next · 🟠 Backlog · ◇ Project roadmap · — Not currently documented
 
 | Capability | **FocusRelay** | [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | [Enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | [Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) |
 | --- | --- | --- | --- | --- | --- |
+| Runtime | **Native Swift · Homebrew** | TypeScript · npx | TypeScript · npx | Native Rust · Homebrew; Python and TypeScript available | Python · uvx |
+| OmniFocus access | **Bridge plug-in inside Omni Automation; documented APIs** | JXA and Omni Automation through `osascript` | Omni Automation through `osascript` | Omni Automation through `osascript` | Internal SQLite read cache; OmniJS fallback |
+| Public MCP tools | **14 → 11 after [#91](https://github.com/deverman/FocusRelayMCP/issues/91), [#82](https://github.com/deverman/FocusRelayMCP/issues/82), and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
 | Find, filter, and count tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Update existing projects | ✅ | ✅ | ✅ | ✅ | — |
-| Preview and verify changes | ✅ | — | — | — | — |
+| Update existing projects | ✅ | ✅ | ✅ | ✅ | ◇ v1.5 roadmap |
+| Preview and post-save verification | ✅ Every write tool; per-target results | — | — | — | — |
+| Drop projects without deleting them | ✅ | ✅ | — | ✅ | — |
 | Create tasks and subtasks | 🟡 [#82](https://github.com/deverman/FocusRelayMCP/issues/82) | ✅ | ✅ | ✅ | ✅ |
-| Create projects | 🟡 [#83, including inbox-task conversion](https://github.com/deverman/FocusRelayMCP/issues/83) | ✅ | ✅ | ✅ | — |
-| Compact 11-tool surface with creation | 🟡 [#91](https://github.com/deverman/FocusRelayMCP/issues/91) | — | — | — | ✅ |
+| Create projects | 🟡 [#83, including inbox-task conversion](https://github.com/deverman/FocusRelayMCP/issues/83) | ✅ | ✅ | ✅ | ◇ v1.5 roadmap |
 | Planned-date updates | 🟠 [#16](https://github.com/deverman/FocusRelayMCP/issues/16) | ✅ | ✅ | ✅ | — |
 | Repeating tasks | 🟠 [#93](https://github.com/deverman/FocusRelayMCP/issues/93) | ✅ | — | ✅ | ✅ |
 | Custom perspective contents | 🟠 [#10](https://github.com/deverman/FocusRelayMCP/issues/10) | ✅ | ✅ | — | — |
-| Delete tasks and projects | — | ✅ | ✅ | ✅ | — |
+| Permanently delete tasks and projects | — | ✅ | ✅ | ✅ | — |
 
-This comparison reflects each project’s public documentation on July 14, 2026;
-“Not documented” is not a claim that a feature is impossible. Choose FocusRelay
-if you value native Swift speed, fresh documented-API reads, compact model
-context, and updates designed to fail visibly. Choose a broader server today if
-creation, deletion, recurrence, or custom perspectives cannot wait.
+This comparison reflects each project’s public documentation on July 15, 2026;
+“Not documented” is not a claim that a feature is impossible. The other public
+READMEs do not describe an equivalent per-target preview and post-save
+verification contract.
+
+Preview resolves IDs and validates the change without saving it. Verification
+runs after OmniFocus saves, reads the affected values back, and reports a
+mismatch as a failure. These are MCP tool arguments, so Codex, Claude Code,
+OpenCode, and other standard stdio MCP clients can use them; whether a model
+chooses them without being asked depends on the model and client. For important
+changes, ask it to “preview first, then apply with verification.”
 
 ## Help shape FocusRelay
 
-The next work is tracked in
-[GitHub Issues](https://github.com/deverman/FocusRelayMCP/issues), including:
+See [GitHub Issues](https://github.com/deverman/FocusRelayMCP/issues) for planned
+work. If FocusRelay earns a place in your workflow,
+[star the repository](https://github.com/deverman/FocusRelayMCP) so more
+OmniFocus users can find it.
 
-- [a smaller MCP and CLI edit surface](https://github.com/deverman/FocusRelayMCP/issues/91);
-- [guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92);
-- [task and subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82);
-- [project creation and inbox-task conversion](https://github.com/deverman/FocusRelayMCP/issues/83);
-- [smaller project-health queries](https://github.com/deverman/FocusRelayMCP/issues/87);
-- [project folder membership and root filtering](https://github.com/deverman/FocusRelayMCP/issues/88).
-
-If FocusRelay earns a place in your workflow,
-[star the repository](https://github.com/deverman/FocusRelayMCP). Stars help
-other OmniFocus users find it.
-
-Want to improve it? Pick an issue, propose a use case, add a regression test,
-improve the documentation, or open a focused pull request. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for setup and validation guidance.
+Want to help? Pick an issue, propose a use case, or open a focused pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
 ## Troubleshooting
 
