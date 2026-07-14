@@ -61,12 +61,12 @@ FocusRelay exposes 14 model-facing tools—seven for reading and seven for makin
 supported changes. Internal diagnostics stay in the CLI, count commands avoid
 returning long item lists, and field selection keeps responses compact.
 
-### Use one native tool two ways
+### Built in Swift for speed
 
-The same Swift executable provides both the MCP server and a full CLI. Use MCP
-from any compatible assistant, or let an agent with shell access call the CLI
-and request only the counts or fields it needs. Both routes share the same
-models, validation, and OmniFocus behavior.
+FocusRelay is compiled as native Swift and installed with Homebrew, with no
+Node.js or Python runtime in the request path. That keeps startup and request
+handling lean. The same fast core also powers a CLI for scripts and precise,
+low-context queries.
 
 ### Work through documented OmniFocus APIs
 
@@ -220,21 +220,53 @@ rules, see [Safe Update Workflows for CLI and MCP](docs/mutation-workflows.md).
 
 ## How FocusRelay is different
 
-OmniFocus users have several good MCP options. This snapshot is based on each
-project’s public documentation on July 14, 2026.
+FocusRelay is built for speed, fresh results, and dependable changes. Its native
+Swift runtime avoids a Node.js or Python startup path, routine task reads query
+OmniFocus instead of an internal database cache, and writes can be previewed
+and read back before the assistant reports success.
 
-| Project | Runtime and install | Model-facing tools | Current emphasis |
-| --- | --- | ---: | --- |
-| **FocusRelay** | Swift · Homebrew | 14 | Focused reads and verified updates through documented OmniFocus APIs, with MCP and CLI in one binary |
-| [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | TypeScript · npx | 12 | Broad creation, editing, deletion, batches, resources, and perspectives |
-| [omnifocus-mcp-enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | TypeScript · npx | 18 | Specialized task views, full CRUD, custom perspectives, batches, and attachments |
-| [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | Rust via Homebrew, plus Python and TypeScript implementations | 45 | Broad task, project, tag, folder, Forecast, and perspective coverage |
-| [OmniFocus Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) | Python · uvx | 11 | Fast SQLite-cached reads, task creation and editing, and guided setup |
+That focus comes with a deliberate tradeoff: FocusRelay does not yet have the
+broadest feature list. Creation is next, while recurrence and perspectives are
+still in the backlog.
 
-Choose FocusRelay when you want a native Swift CLI and MCP in one package,
-focused model context, documented OmniFocus APIs, and carefully verified
-updates. Other projects may be a better fit today if you need deletion,
-attachments, recurrence, or custom perspectives immediately.
+### Architecture and speed
+
+| Project | Runtime | Read approach | MCP tools | Preview and verify changes |
+| --- | --- | --- | ---: | --- |
+| **FocusRelay** | **Native Swift · Homebrew** | **Fresh reads through documented OmniFocus APIs** | **14; 11 planned** | **Yes: preview, per-item results, and optional read-back verification** |
+| [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | TypeScript · npx | Omni Automation through `osascript` | 12 | Not documented |
+| [omnifocus-mcp-enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | TypeScript · npx | Omni Automation through `osascript` | 18 | Not documented |
+| [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | Native Rust · Homebrew; Python and TypeScript also available | Omni Automation through `osascript` | 45 | Not documented |
+| [OmniFocus Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) | Python · uvx | Fast reads from an internal SQLite cache; OmniJS fallback | 11 | Not documented |
+
+Fewer tools do not automatically make a server faster, but they reduce the
+catalog an AI model must inspect before choosing an action. FocusRelay’s next
+tool consolidation is designed to finish with 11 public tools after task and
+project creation are added—not 11 tools with less capability.
+
+### Features today and next
+
+✅ Available · 🟡 Coming next · 🟠 Backlog · — Not currently documented
+
+| Capability | **FocusRelay** | [OmniFocus-MCP](https://github.com/themotionmachine/OmniFocus-MCP) | [Enhanced](https://github.com/jqlts1/omnifocus-mcp-enhanced) | [OmnifocusMCP](https://github.com/vitalyrodnenko/OmnifocusMCP) | [Operator](https://github.com/HelloThisIsFlo/omnifocus-operator) |
+| --- | --- | --- | --- | --- | --- |
+| Find, filter, and count tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Update existing tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Update existing projects | ✅ | ✅ | ✅ | ✅ | — |
+| Preview and verify changes | ✅ | — | — | — | — |
+| Create tasks and subtasks | 🟡 [#82](https://github.com/deverman/FocusRelayMCP/issues/82) | ✅ | ✅ | ✅ | ✅ |
+| Create projects | 🟡 [#83, including inbox-task conversion](https://github.com/deverman/FocusRelayMCP/issues/83) | ✅ | ✅ | ✅ | — |
+| Compact 11-tool surface with creation | 🟡 [#91](https://github.com/deverman/FocusRelayMCP/issues/91) | — | — | — | ✅ |
+| Planned-date updates | 🟠 [#16](https://github.com/deverman/FocusRelayMCP/issues/16) | ✅ | ✅ | ✅ | — |
+| Repeating tasks | 🟠 [#93](https://github.com/deverman/FocusRelayMCP/issues/93) | ✅ | — | ✅ | ✅ |
+| Custom perspective contents | 🟠 [#10](https://github.com/deverman/FocusRelayMCP/issues/10) | ✅ | ✅ | — | — |
+| Delete tasks and projects | — | ✅ | ✅ | ✅ | — |
+
+This comparison reflects each project’s public documentation on July 14, 2026;
+“Not documented” is not a claim that a feature is impossible. Choose FocusRelay
+if you value native Swift speed, fresh documented-API reads, compact model
+context, and updates designed to fail visibly. Choose a broader server today if
+creation, deletion, recurrence, or custom perspectives cannot wait.
 
 ## Help shape FocusRelay
 
