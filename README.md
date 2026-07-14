@@ -1,4 +1,4 @@
-# FocusRelay - MCP (Model Context Protocal) Server and CLI
+# FocusRelay - MCP (Model Context Protocal) Server and CLI for OmniFocus Mac
 
 ## Plan your day and keep OmniFocus up to date with AI
 
