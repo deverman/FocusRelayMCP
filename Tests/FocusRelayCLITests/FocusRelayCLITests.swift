@@ -218,10 +218,26 @@ func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let parityNames = gateTaskCountParityScenarios().map(\.name)
 
     #expect(contractNames.contains("completed_after_anchor"))
+    #expect(contractNames.contains("flagged_only"))
     #expect(parityNames.contains("flagged_only"))
     #expect(parityNames.contains("completed_after_anchor"))
     #expect(parityNames.contains("search_no_match"))
     #expect(gateTaskCountParityScenarios().first { $0.name == "search_no_match" }?.expectedTotal == 0)
+}
+
+@Test
+func benchmarkGateRunsIndependentNativeEffectiveFlagContract() {
+    #expect(gateIncludesNativeEffectiveFlagContract(.all))
+    #expect(gateIncludesNativeEffectiveFlagContract(.taskCounts))
+    #expect(!gateIncludesNativeEffectiveFlagContract(.listTasks))
+    #expect(!gateIncludesNativeEffectiveFlagContract(.projectCounts))
+
+    let source = nativeEffectiveFlagActionCountAutomationSource()
+    #expect(source.contains("flattenedTasks"))
+    #expect(source.contains("task.taskStatus"))
+    #expect(source.contains("task.effectiveFlagged"))
+    #expect(source.contains("task.containingProject"))
+    #expect(!source.contains("task.flagged"))
 }
 
 @Test
