@@ -8,23 +8,36 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-15  # macos-15 has Swift 6.0+, macos-latest (14) only has Swift 5.9
+    runs-on: macos-15
+    env:
+      SWIFTLY_VERSION: "1.1.3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
-      - name: Setup Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.2"
+
+      - name: Install Swift with Swiftly
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            "https://download.swift.org/swiftly/darwin/swiftly-${SWIFTLY_VERSION}.pkg" \
+            --output "$RUNNER_TEMP/swiftly.pkg"
+          installer -pkg "$RUNNER_TEMP/swiftly.pkg" -target CurrentUserHomeDirectory
+          "$HOME/.swiftly/bin/swiftly" init --assume-yes --skip-install --no-modify-profile
+          source "$HOME/.swiftly/env.sh"
+          swiftly install --assume-yes
+          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+          hash -r
+          swift --version
+          swift --version | grep -F "Swift version $(tr -d '[:space:]' < .swift-version)"
         
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swift-${{ hashFiles('.swift-version') }}-spm-${{ hashFiles('Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-swift-${{ hashFiles('.swift-version') }}-spm-
             
       - name: Build
         run: swift build -v
@@ -38,6 +51,7 @@ jobs:
       - name: Upload Release Binary
         uses: actions/upload-artifact@v4
         with:
-          name: focus-relay-mcp-macos
-          path: .build/release/focus-relay-mcp
+          name: focusrelay-macos
+          path: .build/release/focusrelay
+          if-no-files-found: error
           retention-days: 5

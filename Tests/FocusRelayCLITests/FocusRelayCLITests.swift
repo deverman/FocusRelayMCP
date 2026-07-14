@@ -1,7 +1,25 @@
 import Foundation
 import Testing
 @testable import FocusRelayCLI
+import FocusRelayVersion
 import OmniFocusCore
+
+@Test
+func cliVersionFlagReportsEmbeddedBuildVersion() throws {
+    #expect(FocusRelayCLI.configuration.version == FocusRelayBuildVersion.current)
+
+    let coreVersion = FocusRelayBuildVersion.current.split(separator: "-", maxSplits: 1)[0]
+    let numericComponents = coreVersion.split(separator: ".")
+    #expect(numericComponents.count == 3)
+    #expect(numericComponents.allSatisfy { Int($0) != nil })
+
+    do {
+        _ = try FocusRelayCLI.parseAsRoot(["--version"])
+        Issue.record("Expected --version to exit after printing the embedded version")
+    } catch {
+        #expect(FocusRelayCLI.fullMessage(for: error) == FocusRelayBuildVersion.current)
+    }
+}
 
 @Test
 func fieldListParsesCommaSeparatedValues() {
@@ -200,8 +218,26 @@ func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let parityNames = gateTaskCountParityScenarios().map(\.name)
 
     #expect(contractNames.contains("completed_after_anchor"))
+    #expect(contractNames.contains("flagged_only"))
     #expect(parityNames.contains("flagged_only"))
     #expect(parityNames.contains("completed_after_anchor"))
+    #expect(parityNames.contains("search_no_match"))
+    #expect(gateTaskCountParityScenarios().first { $0.name == "search_no_match" }?.expectedTotal == 0)
+}
+
+@Test
+func benchmarkGateRunsIndependentNativeEffectiveFlagContract() {
+    #expect(gateIncludesNativeEffectiveFlagContract(.all))
+    #expect(gateIncludesNativeEffectiveFlagContract(.taskCounts))
+    #expect(!gateIncludesNativeEffectiveFlagContract(.listTasks))
+    #expect(!gateIncludesNativeEffectiveFlagContract(.projectCounts))
+
+    let source = nativeEffectiveFlagActionCountAutomationSource()
+    #expect(source.contains("flattenedTasks"))
+    #expect(source.contains("task.taskStatus"))
+    #expect(source.contains("task.effectiveFlagged"))
+    #expect(source.contains("task.containingProject"))
+    #expect(!source.contains("task.flagged"))
 }
 
 @Test
@@ -212,8 +248,37 @@ func benchmarkGateListTaskScenariosCoverRegressionShapes() {
     #expect(baseNames.contains("flagged_only"))
     #expect(baseNames.contains("flagged_only_no_total"))
     #expect(baseNames.contains("completed_after_anchor"))
+    #expect(baseNames.contains("search_no_match"))
+    #expect(gateListTaskParityScenarios(projectID: nil).first { $0.name == "search_no_match" }?.expectedTotal == 0)
     #expect(!baseNames.contains("project_scoped_simple"))
     #expect(projectNames.contains("project_scoped_simple"))
+}
+
+@Test
+func listTaskBenchmarkRotatesEveryScenarioPerTransportPair() {
+    #expect((0..<8).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 4) } == [0, 1, 2, 3, 0, 1, 2, 3])
+    #expect((0..<7).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 3) } == [0, 1, 2, 0, 1, 2, 0])
+}
+
+@Test
+func listTaskBenchmarkReportsMissingMeasuredCoverage() {
+    var success = ListTaskStats()
+    success.success = 1
+    var failure = ListTaskStats()
+    failure.errors = 1
+    let complete = [
+        "first": ["plugin": success, "jxa": success],
+        "second": ["plugin": failure, "jxa": success]
+    ]
+
+    #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: complete).isEmpty)
+
+    let incomplete = ["first": ["plugin": success]]
+    #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: incomplete) == [
+        "first:jxa",
+        "second:plugin",
+        "second:jxa"
+    ])
 }
 
 @Test

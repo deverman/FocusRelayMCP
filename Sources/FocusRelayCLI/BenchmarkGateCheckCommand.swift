@@ -38,6 +38,10 @@ struct BenchmarkGateCheck: AsyncParsableCommand {
             checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
         }
 
+        if gateIncludesNativeEffectiveFlagContract(tool) {
+            checks.append(await nativeEffectiveFlagContractCheck(using: bridge))
+        }
+
         let report = GateReport(
             ok: checks.allSatisfy(\.ok),
             tool: tool.rawValue,
@@ -65,6 +69,10 @@ enum GateScope: String, ExpressibleByArgument {
     case projectCounts = "project-counts"
 }
 
+func gateIncludesNativeEffectiveFlagContract(_ scope: GateScope) -> Bool {
+    scope == .all || scope == .taskCounts
+}
+
 private struct GateReport: Codable {
     let ok: Bool
     let tool: String
@@ -82,11 +90,25 @@ private struct GateCheck: Codable {
 struct GateTaskCountScenario {
     let name: String
     let filter: TaskFilter
+    let expectedTotal: Int?
+
+    init(name: String, filter: TaskFilter, expectedTotal: Int? = nil) {
+        self.name = name
+        self.filter = filter
+        self.expectedTotal = expectedTotal
+    }
 }
 
 struct GateListTaskScenario {
     let name: String
     let filter: TaskFilter
+    let expectedTotal: Int?
+
+    init(name: String, filter: TaskFilter, expectedTotal: Int? = nil) {
+        self.name = name
+        self.filter = filter
+        self.expectedTotal = expectedTotal
+    }
 }
 
 struct GateProjectCountScenario {
@@ -95,6 +117,7 @@ struct GateProjectCountScenario {
 }
 
 private let gateCompletedAfterAnchor = Date(timeIntervalSince1970: 0)
+private let gateNoMatchSearch = "__focusrelay_semantic_gate_no_match_7f43d9__"
 
 private func checkBridgeHealth(using service: OmniFocusBridgeService) async -> GateCheck {
     do {
@@ -127,11 +150,78 @@ func gateTaskCountContractScenarios() -> [GateTaskCountScenario] {
         GateTaskCountScenario(name: "default", filter: TaskFilter(includeTotalCount: true)),
         GateTaskCountScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true, includeTotalCount: true)),
         GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true)),
+        GateTaskCountScenario(name: "flagged_only", filter: TaskFilter(flagged: true, includeTotalCount: true)),
         GateTaskCountScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        ),
+        GateTaskCountScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch, includeTotalCount: true),
+            expectedTotal: 0
         )
     ]
+}
+
+func nativeEffectiveFlagActionCountAutomationSource() -> String {
+    """
+    JSON.stringify((function() {
+      var available = [Task.Status.Available, Task.Status.Next, Task.Status.DueSoon, Task.Status.Overdue];
+      return flattenedTasks.filter(function(task) {
+        if (available.indexOf(task.taskStatus) === -1 || !Boolean(task.effectiveFlagged)) { return false; }
+        var project = task.containingProject;
+        return !project || String(task.id.primaryKey) !== String(project.id.primaryKey);
+      }).length;
+    })())
+    """
+}
+
+private func nativeEffectiveFlagActionCount(using runner: ScriptRunner = ScriptRunner()) throws -> Int {
+    let source = nativeEffectiveFlagActionCountAutomationSource()
+    let literalData = try JSONEncoder().encode(source)
+    guard let literal = String(data: literalData, encoding: .utf8) else {
+        throw AutomationError.executionFailed("Failed to encode native effective-flag probe")
+    }
+    let outerScript = """
+    (function() {
+      var app = Application('OmniFocus');
+      var result = app.evaluateJavascript(\(literal));
+      if (Array.isArray(result)) {
+        if (result.length === 0 || result[0] === null || typeof result[0] === 'undefined') { return '0'; }
+        return String(result[0]);
+      }
+      return result === null || typeof result === 'undefined' ? '0' : String(result);
+    })();
+    """
+    let output = try runner.runJavaScript(outerScript)
+    guard let count = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+        throw AutomationError.executionFailed("Native effective-flag probe returned an invalid count: \(output)")
+    }
+    return count
+}
+
+private func nativeEffectiveFlagContractCheck(using bridge: OmniFocusBridgeService) async -> GateCheck {
+    do {
+        let nativeCount = try nativeEffectiveFlagActionCount()
+        let bridgeCounts = try await retryAsync(operation: "bridge native effective-flag contract") {
+            try await bridge.getTaskCounts(filter: TaskFilter(flagged: true))
+        }
+        let ok = bridgeCounts.total == nativeCount
+            && bridgeCounts.available == nativeCount
+            && bridgeCounts.flagged == nativeCount
+            && bridgeCounts.completed == 0
+        return GateCheck(
+            name: "task_counts_native_effective_flag_contract",
+            ok: ok,
+            detail: "native.availableEffectiveFlagActions=\(nativeCount) bridge=\(bridgeCounts)"
+        )
+    } catch {
+        return GateCheck(
+            name: "task_counts_native_effective_flag_contract",
+            ok: false,
+            detail: error.localizedDescription
+        )
+    }
 }
 
 func gateTaskCountParityScenarios() -> [GateTaskCountScenario] {
@@ -143,6 +233,11 @@ func gateTaskCountParityScenarios() -> [GateTaskCountScenario] {
         GateTaskCountScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
+        ),
+        GateTaskCountScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch),
+            expectedTotal: 0
         )
     ]
 }
@@ -160,6 +255,11 @@ func gateListTaskParityScenarios(projectID: String?) -> [GateListTaskScenario] {
         GateListTaskScenario(
             name: "completed_after_anchor",
             filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
+        ),
+        GateListTaskScenario(
+            name: "search_no_match",
+            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch, includeTotalCount: true),
+            expectedTotal: 0
         )
     ]
 
@@ -195,10 +295,11 @@ private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async
             guard let total = page.totalCount else {
                 return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: "list_tasks returned nil totalCount")
             }
+            let matchesExpectedTotal = scenario.expectedTotal.map { counts.total == $0 && total == $0 } ?? true
             return GateCheck(
                 name: "task_counts_contract_\(scenario.name)",
-                ok: counts.total == total,
-                detail: "counts.total=\(counts.total) list.totalCount=\(total)"
+                ok: counts.total == total && matchesExpectedTotal,
+                detail: "counts.total=\(counts.total) list.totalCount=\(total) expected=\(scenario.expectedTotal.map(String.init) ?? "any")"
             )
         } catch {
             return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: error.localizedDescription)
@@ -221,6 +322,7 @@ private func taskCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAuto
                 && bridgeCounts.completed == jxaCounts.completed
                 && bridgeCounts.available == jxaCounts.available
                 && bridgeCounts.flagged == jxaCounts.flagged
+                && (scenario.expectedTotal.map { bridgeCounts.total == $0 && jxaCounts.total == $0 } ?? true)
             return GateCheck(
                 name: "task_counts_parity_\(scenario.name)",
                 ok: ok,
@@ -251,6 +353,10 @@ private func listTaskParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutom
                 && bridgePage.returnedCount == jxaPage.returnedCount
                 && bridgePage.nextCursor == jxaPage.nextCursor
                 && bridgeIDs == jxaIDs
+                && (scenario.expectedTotal.map {
+                    bridgePage.totalCount == $0 && jxaPage.totalCount == $0 &&
+                        bridgePage.returnedCount == $0 && jxaPage.returnedCount == $0
+                } ?? true)
             return GateCheck(
                 name: "list_tasks_parity_\(scenario.name)",
                 ok: ok,

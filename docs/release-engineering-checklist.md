@@ -16,6 +16,7 @@ Rule:
 - Ensure you are on the intended release branch
 - Ensure benchmark artifacts are not accidentally staged
 - Confirm plugin changes and binary changes are in sync
+- Confirm `Sources/FocusRelayVersion/FocusRelayBuildVersion.swift` contains the local default `0.0.0-dev`; the release workflow embeds the tag version before compiling
 
 Commands:
 ```bash
@@ -90,6 +91,7 @@ git push origin vX.Y.Z
 
 Notes:
 - For beta releases, use the intended beta tag consistently
+- Use semantic prerelease tags such as `v0.10.0-beta` rather than suffixes without a separator
 - Verify the release workflow starts on GitHub
 
 ## 7. Verify GitHub Release
@@ -100,6 +102,7 @@ Check:
 - `.sha256` asset exists
 - release notes are correct
 - prerelease flag is correct for beta tags
+- downloaded binary reports the tag-derived version with `focusrelay --version`
 
 Commands:
 ```bash
@@ -110,13 +113,20 @@ gh run list --repo deverman/FocusRelayMCP --workflow release.yml --limit 5
 ## 8. Update The Homebrew Tap
 
 Repository:
-- `/Users/deverman/Documents/Code/swift/homebrew-focus-relay`
+- `https://github.com/deverman/homebrew-focus-relay`
+- authoritative formula: `focusrelay.rb`
 
 Steps:
 1. update the formula URL
 2. update the formula SHA256 from the actual release asset
 3. add/update explicit `version` if needed
 4. commit and push the tap
+
+Do not add a second formula to the FocusRelayMCP repository. Validate the published tap with:
+
+```bash
+./scripts/test-homebrew-formula.sh
+```
 
 ## 9. Test Homebrew Installation
 
@@ -126,6 +136,7 @@ brew update
 brew untap deverman/focus-relay || true
 brew tap deverman/focus-relay
 brew reinstall focusrelay
+focusrelay --version
 focusrelay --help
 ```
 
@@ -147,7 +158,7 @@ focusrelay list-tasks --fields id,name --limit 1
 
 ## 10. Post-Release Sanity Check
 
-- confirm the installed formula version matches the release
+- confirm `focusrelay --version`, the installed formula version, and the GitHub release tag match
 - confirm the plugin bundle exists in the Homebrew package share path
 - if plugin JS changed, reinstall the plugin locally and restart OmniFocus before local validation
 - confirm the first-query approval path and README setup steps still match the actual product behavior

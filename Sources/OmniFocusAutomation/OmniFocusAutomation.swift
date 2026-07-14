@@ -82,6 +82,7 @@ public final class OmniAutomationService: OmniFocusService {
                 completionDate: payload.completionDate,
                 completed: payload.completed ?? false,
                 flagged: payload.flagged ?? false,
+                effectiveFlagged: payload.effectiveFlagged,
                 estimatedMinutes: payload.estimatedMinutes,
                 available: payload.available ?? false
             )
@@ -391,7 +392,7 @@ private func listTasksEvaluateScript(requestJSON: String) -> String {
     """
 }
 
-private func listTasksOmniAutomationScript(requestJSON: String) -> String {
+func listTasksOmniAutomationScript(requestJSON: String) -> String {
     return """
     (function() {
       var request = \(requestJSON);
@@ -409,6 +410,20 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
 
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
+      }
+
+      function normalizeTaskSearchQuery(value) {
+        if (typeof value !== "string") { return null; }
+        var normalized = value.trim().toLowerCase();
+        return normalized.length > 0 ? normalized : null;
+      }
+
+      function taskMatchesSearch(task, normalizedQuery) {
+        if (!normalizedQuery) { return true; }
+        var name = String(safe(function() { return task.name; }) || "").toLowerCase();
+        if (name.indexOf(normalizedQuery) !== -1) { return true; }
+        var note = String(safe(function() { return task.note; }) || "").toLowerCase();
+        return note.indexOf(normalizedQuery) !== -1;
       }
 
       function toTaskArray(collection) {
@@ -592,6 +607,18 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -642,13 +669,14 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
           completionDate: hasField("completionDate") && completionDate ? completionDate.toISOString() : null,
           completed: hasField("completed") ? isCompletedStatus(task) : null,
           flagged: hasField("flagged") ? Boolean(safe(function() { return task.flagged; })) : null,
+          effectiveFlagged: hasField("effectiveFlagged") ? isTaskEffectivelyFlagged(task) : null,
           estimatedMinutes: hasField("estimatedMinutes") ? safe(function() { return task.estimatedMinutes; }) : null,
           available: hasField("available") ? isTaskAvailable(task) : null
         };
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
       var isEverything = inboxView === "everything";
       var isRemaining = inboxView === "remaining";
@@ -692,7 +720,8 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         tags: Array.isArray(filter.tags) ? filter.tags : null,
         untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
         maxEstimatedMinutes: filter.maxEstimatedMinutes,
-        minEstimatedMinutes: filter.minEstimatedMinutes
+        minEstimatedMinutes: filter.minEstimatedMinutes,
+        searchQuery: normalizeTaskSearchQuery(filter.search)
       };
 
       function matchesFilters(task) {
@@ -705,8 +734,10 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
+
+        if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
 
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
@@ -800,57 +831,175 @@ private func listTasksOmniAutomationScript(requestJSON: String) -> String {
 }
 
 private func listProjectsScript(requestJSON: String) -> String {
+    let automationScript = listProjectsOmniAutomationScript(requestJSON: requestJSON)
     return """
     (function() {
-      var request = \(requestJSON);
-      var limit = (request.page && request.page.limit) ? request.page.limit : 50;
-      var offset = 0;
-      if (request.page && request.page.cursor) {
-        var parsed = parseInt(request.page.cursor, 10);
-        if (!isNaN(parsed) && parsed >= 0) { offset = parsed; }
-      }
-      var fields = (request.fields && Array.isArray(request.fields)) ? request.fields : [];
-      function hasField(name) {
-        return fields.length === 0 || fields.indexOf(name) !== -1;
-      }
-      function safe(fn) {
-        try { return fn(); } catch (e) { return null; }
-      }
-
       var app = Application('OmniFocus');
-      var doc = app.defaultDocument();
-      var projects = doc.flattenedProjects();
-      var total = projects.length;
-      var slice = projects.slice(offset, offset + limit);
+      var result = app.evaluateJavascript(\(jsStringLiteral(automationScript)));
+      if (Array.isArray(result)) {
+        if (result.length === 0 || result[0] === null || typeof result[0] === "undefined") { return ""; }
+        return String(result[0]);
+      }
+      if (result === null || typeof result === "undefined") { return ""; }
+      return String(result);
+    })();
+    """
+}
 
-      var items = slice.map(function(p) {
-        var lastReviewDate = hasField("lastReviewDate") ? safe(function() { return p.lastReviewDate(); }) : null;
-        var nextReviewDate = hasField("nextReviewDate") ? safe(function() { return p.nextReviewDate(); }) : null;
-        var reviewInterval = hasField("reviewInterval") ? safe(function() { return p.reviewInterval(); }) : null;
-        var reviewIntervalPayload = null;
-        if (reviewInterval) {
-          var steps = safe(function() { return reviewInterval.steps(); });
-          var unit = safe(function() { return reviewInterval.unit(); });
-          reviewIntervalPayload = {
-            steps: (typeof steps === "number" && isFinite(steps)) ? Math.trunc(steps) : null,
-            unit: unit ? String(unit) : null
-          };
+func listProjectsOmniAutomationScript(requestJSON: String) -> String {
+    return """
+    (function() {
+      const request = \(requestJSON);
+      const fields = Array.isArray(request.fields) ? request.fields : [];
+      const hasField = name => fields.length === 0 || fields.indexOf(name) !== -1;
+      const safe = fn => { try { return fn(); } catch (_) { return null; } };
+      const toArray = collection => {
+        if (!collection) return [];
+        if (Array.isArray(collection)) return collection;
+        if (typeof collection.apply === "function") {
+          const items = [];
+          collection.apply(item => items.push(item));
+          return items;
         }
+        try { return Array.from(collection); } catch (_) { return []; }
+      };
+      const parseDate = value => {
+        if (!value || typeof value !== "string") return null;
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? null : date;
+      };
+      const dateTimestamp = (project, getter) => {
+        const value = safe(() => getter(project));
+        if (!value || typeof value.getTime !== "function") return null;
+        const timestamp = value.getTime();
+        return isNaN(timestamp) ? null : timestamp;
+      };
+      const taskStatus = task => safe(() => task.taskStatus);
+      const isCompleted = status => status === Task.Status.Completed || String(status).includes("Completed");
+      const isDropped = status => status === Task.Status.Dropped || String(status).includes("Dropped");
+      const parentChainAllowsRemaining = task => {
+        let parent = safe(() => task.parent);
+        let depth = 0;
+        while (parent && depth < 100) {
+          const status = taskStatus(parent);
+          if (isCompleted(status) || isDropped(status)) return false;
+          parent = safe(() => parent.parent);
+          depth += 1;
+        }
+        return true;
+      };
+      const isAvailableStatus = status => status === Task.Status.Available ||
+        status === Task.Status.Next || status === Task.Status.DueSoon || status === Task.Status.Overdue;
+      const projectIsActive = project => {
+        const status = safe(() => project.status);
+        return status === Project.Status.Active || String(status).includes("Active");
+      };
+      const projectStatusName = project => {
+        const status = safe(() => project.status);
+        if (status === Project.Status.OnHold || String(status).includes("OnHold")) return "onHold";
+        if (status === Project.Status.Dropped || String(status).includes("Dropped")) return "dropped";
+        if (status === Project.Status.Done || String(status).includes("Done")) return "done";
+        return "active";
+      };
+      const summarizeTaskCounts = (project, tasks) => {
+        const counts = { availableTasks: 0, remainingTasks: 0, completedTasks: 0, droppedTasks: 0, totalTasks: tasks.length };
+        tasks.forEach(task => {
+          const status = taskStatus(task);
+          if (isCompleted(status)) counts.completedTasks += 1;
+          else if (isDropped(status)) counts.droppedTasks += 1;
+          else if (parentChainAllowsRemaining(task)) counts.remainingTasks += 1;
+          if (projectIsActive(project) && parentChainAllowsRemaining(task) && isAvailableStatus(status)) {
+            counts.availableTasks += 1;
+          }
+        });
+        return counts;
+      };
 
-        return {
-          id: hasField("id") ? String(safe(function() { return p.id(); }) || "") : null,
-          name: hasField("name") ? String(safe(function() { return p.name(); }) || "") : null,
-          note: hasField("note") ? safe(function() { return p.note(); }) : null,
-          status: hasField("status") ? String(safe(function() { return p.status(); }) || "") : null,
-          flagged: hasField("flagged") ? Boolean(safe(function() { return p.flagged(); })) : null,
-          lastReviewDate: hasField("lastReviewDate") && lastReviewDate ? lastReviewDate.toISOString() : null,
-          nextReviewDate: hasField("nextReviewDate") && nextReviewDate ? nextReviewDate.toISOString() : null,
-          reviewInterval: hasField("reviewInterval") ? reviewIntervalPayload : null
+      const statusFilter = typeof request.statusFilter === "string" ? request.statusFilter.toLowerCase() : "active";
+      const reviewPerspective = request.reviewPerspective === true;
+      const reviewDueBefore = parseDate(request.reviewDueBefore);
+      const reviewDueAfter = parseDate(request.reviewDueAfter);
+      const reviewCutoff = reviewDueBefore || (reviewPerspective ? new Date() : null);
+      const completedAfter = parseDate(request.completedAfter);
+      const completedBefore = parseDate(request.completedBefore);
+      const completedOnly = request.completed === true;
+
+      let projects = toArray(flattenedProjects);
+      if (reviewPerspective) {
+        projects = projects.filter(project => {
+          const status = projectStatusName(project);
+          return status !== "dropped" && status !== "done";
+        });
+      } else if (statusFilter !== "all") {
+        projects = projects.filter(project => {
+          const status = projectStatusName(project).toLowerCase();
+          if (statusFilter === "onhold" || statusFilter === "on_hold") return status === "onhold";
+          if (statusFilter === "completed") return status === "done";
+          return status === statusFilter;
+        });
+      }
+      if (reviewCutoff || reviewDueAfter) {
+        projects = projects.filter(project => {
+          const timestamp = dateTimestamp(project, value => value.nextReviewDate);
+          if (timestamp === null) return false;
+          if (reviewCutoff && timestamp > reviewCutoff.getTime()) return false;
+          if (reviewDueAfter && timestamp < reviewDueAfter.getTime()) return false;
+          return true;
+        });
+      }
+      if (completedOnly || completedAfter || completedBefore) {
+        projects = projects.filter(project => {
+          if (projectStatusName(project) !== "done") return false;
+          const timestamp = dateTimestamp(project, value => value.completionDate);
+          if (timestamp === null) return false;
+          if (completedAfter && timestamp < completedAfter.getTime()) return false;
+          if (completedBefore && timestamp > completedBefore.getTime()) return false;
+          return true;
+        });
+        projects.sort((lhs, rhs) =>
+          (dateTimestamp(rhs, value => value.completionDate) || 0) -
+          (dateTimestamp(lhs, value => value.completionDate) || 0)
+        );
+      }
+
+      const limit = request.page && request.page.limit ? request.page.limit : 50;
+      let offset = 0;
+      if (request.page && request.page.cursor) {
+        const parsed = parseInt(request.page.cursor, 10);
+        if (!isNaN(parsed) && parsed >= 0) offset = parsed;
+      }
+      const slice = projects.slice(offset, offset + limit);
+      const items = slice.map(project => {
+        const lastReviewDate = hasField("lastReviewDate") ? safe(() => project.lastReviewDate) : null;
+        const nextReviewDate = hasField("nextReviewDate") ? safe(() => project.nextReviewDate) : null;
+        const reviewInterval = hasField("reviewInterval") ? safe(() => project.reviewInterval) : null;
+        const completionDate = hasField("completionDate") ? safe(() => project.completionDate) : null;
+        const item = {
+          id: hasField("id") ? String(safe(() => project.id.primaryKey) || "") : null,
+          name: hasField("name") ? String(safe(() => project.name) || "") : null,
+          note: hasField("note") ? safe(() => project.note) : null,
+          status: hasField("status") ? projectStatusName(project) : null,
+          flagged: hasField("flagged") ? Boolean(safe(() => project.flagged)) : null,
+          lastReviewDate: lastReviewDate ? lastReviewDate.toISOString() : null,
+          nextReviewDate: nextReviewDate ? nextReviewDate.toISOString() : null,
+          reviewInterval: reviewInterval ? { steps: reviewInterval.steps, unit: String(reviewInterval.unit) } : null,
+          completionDate: completionDate ? completionDate.toISOString() : null
         };
+        const tasks = toArray(safe(() => project.flattenedTasks));
+        if (request.includeTaskCounts === true) Object.assign(item, summarizeTaskCounts(project, tasks));
+        if (hasField("hasChildren")) item.hasChildren = tasks.length > 0;
+        if (hasField("containsSingletonActions")) item.containsSingletonActions = Boolean(safe(() => project.containsSingletonActions));
+        if (hasField("nextTask")) {
+          const nextTask = safe(() => project.nextTask);
+          item.nextTask = nextTask ? { id: String(nextTask.id.primaryKey), name: String(nextTask.name) } : null;
+        }
+        if (hasField("isStalled")) {
+          item.isStalled = tasks.length > 0 && !safe(() => project.nextTask) && !Boolean(safe(() => project.containsSingletonActions));
+        }
+        return item;
       });
-
-      var nextCursor = (offset + limit < total) ? String(offset + limit) : null;
-      return JSON.stringify({ items: items, nextCursor: nextCursor });
+      const nextCursor = offset + limit < projects.length ? String(offset + limit) : null;
+      return JSON.stringify({ items: items, nextCursor: nextCursor, returnedCount: items.length, totalCount: projects.length });
     })();
     """
 }
@@ -1028,7 +1177,7 @@ private func projectCountsEvaluateScript(requestJSON: String) -> String {
     """
 }
 
-private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
+func taskCountsOmniAutomationScript(requestJSON: String) -> String {
     return """
     (function() {
       var request = \(requestJSON);
@@ -1036,6 +1185,20 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
 
       function safe(fn) {
         try { return fn(); } catch (e) { return null; }
+      }
+
+      function normalizeTaskSearchQuery(value) {
+        if (typeof value !== "string") { return null; }
+        var normalized = value.trim().toLowerCase();
+        return normalized.length > 0 ? normalized : null;
+      }
+
+      function taskMatchesSearch(task, normalizedQuery) {
+        if (!normalizedQuery) { return true; }
+        var name = String(safe(function() { return task.name; }) || "").toLowerCase();
+        if (name.indexOf(normalizedQuery) !== -1) { return true; }
+        var note = String(safe(function() { return task.note; }) || "").toLowerCase();
+        return note.indexOf(normalizedQuery) !== -1;
       }
 
       function toTaskArray(collection) {
@@ -1219,6 +1382,18 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -1248,7 +1423,7 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
       var isEverything = inboxView === "everything";
       var isRemaining = inboxView === "remaining";
@@ -1292,7 +1467,8 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         tags: Array.isArray(filter.tags) ? filter.tags : null,
         untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
         maxEstimatedMinutes: filter.maxEstimatedMinutes,
-        minEstimatedMinutes: filter.minEstimatedMinutes
+        minEstimatedMinutes: filter.minEstimatedMinutes,
+        searchQuery: normalizeTaskSearchQuery(filter.search)
       };
 
       function matchesFilters(task) {
@@ -1305,8 +1481,10 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
+
+        if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
 
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
@@ -1377,7 +1555,7 @@ private func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         counts.total += 1;
         if (isCompletedStatus(task)) { counts.completed += 1; }
         if (isTaskAvailable(task)) { counts.available += 1; }
-        if (Boolean(safe(function() { return task.flagged; }))) { counts.flagged += 1; }
+        if (isTaskEffectivelyFlagged(task)) { counts.flagged += 1; }
       }
 
       return JSON.stringify(counts);
@@ -1579,6 +1757,18 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -1608,7 +1798,7 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var completedAfter = filter.completedAfter ? parseFilterDate(filter.completedAfter) : null;
       var completedBefore = filter.completedBefore ? parseFilterDate(filter.completedBefore) : null;
       var completedOnly = filter.completed === true;
@@ -1719,8 +1909,10 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
+
+
         if (filterState.availableOnly && !isTaskAvailable(task)) { return false; }
 
         if (filterState.projectFilter) {

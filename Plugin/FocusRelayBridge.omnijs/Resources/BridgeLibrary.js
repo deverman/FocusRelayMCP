@@ -40,6 +40,7 @@
    */
   
   const lib = new PlugIn.Library(new Version("1.0"));
+  const FOCUSRELAY_VERSION = "0.0.0-dev";
 
   lib.handleRequest = function(requestId, basePath) {
     const requestPath = basePath + "/requests/" + requestId + ".json";
@@ -121,6 +122,7 @@
         completionDate: hasField("completionDate") ? (safe(() => t.completionDate) ? t.completionDate.toISOString() : null) : null,
         completed: hasField("completed") ? isCompletedStatus(t) : null,
         flagged: hasField("flagged") ? Boolean(t.flagged) : null,
+        effectiveFlagged: hasField("effectiveFlagged") ? isTaskEffectivelyFlagged(t) : null,
         estimatedMinutes: hasField("estimatedMinutes") ? t.estimatedMinutes : null,
         available: hasField("available") ? isTaskAvailable(t) : null
       };
@@ -220,8 +222,66 @@
 
     function executeTargetMutation(ids, targetByID, mutation, options) {
       const results = [];
-      let mutatedAny = false;
+      const batchApplied = [];
       const saveMode = options.saveMode || "perItem";
+
+      function errorDetail(error) {
+        return error && error.message ? String(error.message) : String(error);
+      }
+
+      function stageFailure(id, stage, error) {
+        return {
+          id: id,
+          status: "failed",
+          message: "Mutation " + stage + " failed: " + errorDetail(error) + " Target may require inspection before retrying."
+        };
+      }
+
+      function finalizeSavedMutation(id, target, context) {
+        if (mutation.verify && options.verify) {
+          let verificationError = null;
+          try {
+            verificationError = options.verify(target, context, id);
+          } catch (error) {
+            return {
+              id: id,
+              status: "failed",
+              message: "Mutation saved but verification failed: " + errorDetail(error) + " Inspect the target before retrying."
+            };
+          }
+
+          if (verificationError) {
+            let returnedFields = null;
+            try {
+              returnedFields = options.returnedFields(target, context, id);
+            } catch (error) {}
+            return {
+              id: id,
+              status: "failed",
+              message: "Mutation applied but verification failed: " + verificationError,
+              returnedFields: returnedFields
+            };
+          }
+        }
+
+        let successMessage = "Mutation saved.";
+        try {
+          successMessage = options.mutatedMessage(target, context, id);
+        } catch (error) {
+          successMessage = "Mutation saved, but unable to format success message: " + errorDetail(error);
+        }
+        const result = {
+          id: id,
+          status: "mutated",
+          message: successMessage
+        };
+        try {
+          result.returnedFields = options.returnedFields(target, context, id);
+        } catch (error) {
+          result.message = result.message.replace(/\.$/, "") + ". Saved, but unable to return requested fields: " + errorDetail(error);
+        }
+        return result;
+      }
 
       ids.forEach(id => {
         const target = targetByID[id];
@@ -235,44 +295,62 @@
         }
 
         if (mutation.previewOnly) {
-          results.push({
-            id: id,
-            status: "previewed",
-            message: options.previewMessage(target, id)
-          });
+          try {
+            results.push({
+              id: id,
+              status: "previewed",
+              message: options.previewMessage(target, id)
+            });
+          } catch (error) {
+            results.push(stageFailure(id, "preview validation", error));
+          }
           return;
         }
 
-        const context = options.apply(target, id) || {};
-        if (saveMode === "perItem") {
-          safe(() => save());
-        } else {
-          mutatedAny = true;
+        let context = {};
+        try {
+          context = options.apply(target, id) || {};
+        } catch (error) {
+          results.push(stageFailure(id, "apply", error));
+          return;
         }
 
-        if (mutation.verify && options.verify) {
-          const verificationError = options.verify(target, context, id);
-          if (verificationError) {
-            results.push({
-              id: id,
-              status: "failed",
-              message: "Mutation applied but verification failed: " + verificationError,
-              returnedFields: options.returnedFields(target, context, id)
-            });
+        if (saveMode === "perItem") {
+          try {
+            save();
+          } catch (error) {
+            results.push(stageFailure(id, "save", error));
             return;
           }
+          results.push(finalizeSavedMutation(id, target, context));
+        } else {
+          const resultIndex = results.length;
+          results.push(null);
+          batchApplied.push({ id: id, target: target, context: context, resultIndex: resultIndex });
         }
-
-        results.push({
-          id: id,
-          status: "mutated",
-          message: options.mutatedMessage(target, context, id),
-          returnedFields: options.returnedFields(target, context, id)
-        });
       });
 
-      if (saveMode === "batch" && mutatedAny) {
-        safe(() => save());
+      if (saveMode === "batch" && batchApplied.length > 0) {
+        let saveError = null;
+        try {
+          save();
+        } catch (error) {
+          saveError = error;
+        }
+
+        if (saveError) {
+          batchApplied.forEach(applied => {
+            results[applied.resultIndex] = stageFailure(applied.id, "save", saveError);
+          });
+        } else {
+          batchApplied.forEach(applied => {
+            results[applied.resultIndex] = finalizeSavedMutation(
+              applied.id,
+              applied.target,
+              applied.context
+            );
+          });
+        }
       }
 
       return results;
@@ -1227,8 +1305,67 @@
       return isTaskAvailableWithStatus(task, taskStatus(task), undefined);
     }
 
+    function summarizeProjectTaskCounts(project, tasks) {
+      const counts = {
+        availableTasks: 0,
+        remainingTasks: 0,
+        completedTasks: 0,
+        droppedTasks: 0,
+        totalTasks: tasks.length
+      };
+
+      tasks.forEach(task => {
+        const status = taskStatus(task);
+        if (isCompletedStatusValue(status)) {
+          counts.completedTasks += 1;
+        } else if (isDroppedStatusValue(status)) {
+          counts.droppedTasks += 1;
+        } else if (isRemainingStatusWithStatus(task, status)) {
+          counts.remainingTasks += 1;
+        }
+
+        if (isTaskAvailableWithStatus(task, status, project)) {
+          counts.availableTasks += 1;
+        }
+      });
+
+      return counts;
+    }
+
     // ============================================================
     // END STATUS MODULE
+
+    // EFFECTIVE FLAG MODULE - Native Flagged perspective semantics
+    function isTaskEffectivelyFlagged(task) {
+      return Boolean(safe(() => task.effectiveFlagged));
+    }
+
+    function isProjectRootTask(task) {
+      const project = safe(() => task.containingProject);
+      if (!project) { return false; }
+      const taskID = String(safe(() => task.id.primaryKey) || "");
+      const projectID = String(safe(() => project.id.primaryKey) || "");
+      return taskID.length > 0 && taskID === projectID;
+    }
+    // END EFFECTIVE FLAG MODULE
+
+    // TASK SEARCH MODULE - Shared name/note matching semantics
+    function normalizeTaskSearchQuery(value) {
+      if (typeof value !== "string") { return null; }
+      const normalized = value.trim().toLowerCase();
+      return normalized.length > 0 ? normalized : null;
+    }
+
+    function taskMatchesSearch(task, normalizedQuery) {
+      if (!normalizedQuery) { return true; }
+
+      const name = String(safe(() => task.name) || "").toLowerCase();
+      if (name.indexOf(normalizedQuery) !== -1) { return true; }
+
+      const note = String(safe(() => task.note) || "").toLowerCase();
+      return note.indexOf(normalizedQuery) !== -1;
+    }
+    // END TASK SEARCH MODULE
     // ============================================================
 
     // Date parsing helper - available to all operations
@@ -1345,7 +1482,7 @@
       writeLock(lockPath);
       const request = readJSON(requestPath);
         if (request.op === "ping") {
-          response.data = { ok: true, plugin: "FocusRelay Bridge", version: "0.1.0" };
+          response.data = { ok: true, plugin: "FocusRelay Bridge", version: FOCUSRELAY_VERSION };
         } else if (request.op === "perform_mutation") {
           const mutation = request.mutation || {};
           const targetType = mutation.targetType;
@@ -1576,6 +1713,7 @@
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
           const debugListTasks = filter.search === "__debug_list_tasks__";
+          const searchQuery = debugListTasks ? null : normalizeTaskSearchQuery(filter.search);
           const listTasksDebug = debugListTasks ? {
             requestId: requestId,
             op: request.op,
@@ -1596,7 +1734,7 @@
           if (useInbox) {
             inbox.apply(task => tasks.push(task));
           } else {
-            tasks = flattenedTasks;
+            tasks = toTaskArray(flattenedTasks).filter(task => !isProjectRootTask(task));
             if (hasProjectRootTagFilter) {
               projectRootCandidates = safe(() => flattenedProjects) || [];
             }
@@ -1615,6 +1753,7 @@
               if (!project) { return false; }
               const pid = String(safe(() => project.id.primaryKey) || "");
               const pname = String(safe(() => project.name) || "");
+              if (taskIdentifier(t) === pid) { return false; }
               return pid === projectFilter || pname === projectFilter;
             });
           }
@@ -1691,6 +1830,9 @@
             // Duration filters
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
             minEstimatedMinutes: filter.minEstimatedMinutes,
+
+            // Content filter (normalized once per request)
+            searchQuery: searchQuery,
             
             // Tag filters
             tags: Array.isArray(filter.tags) ? filter.tags : null,
@@ -1710,9 +1852,10 @@
               if (!isRemainingStatusWithStatus(t, taskStatusValue)) return false;
             }
             if (filterState.flagged !== undefined) {
-              const taskFlagged = Boolean(t.flagged);
+              const taskFlagged = isTaskEffectivelyFlagged(t);
               if (taskFlagged !== filterState.flagged) return false;
             }
+            if (!taskMatchesSearch(t, filterState.searchQuery)) return false;
             let project = knownProject === undefined ? null : knownProject;
             if (filterState.availableOnly) {
               if (!isTaskAvailableWithStatus(t, taskStatusValue, project === null ? undefined : project)) return false;
@@ -1808,7 +1951,8 @@
             filterState.maxEstimatedMinutes !== undefined ||
             filterState.minEstimatedMinutes !== undefined ||
             Boolean(filterState.tags) ||
-            Boolean(filter.search);
+            Boolean(filterState.searchQuery) ||
+            debugListTasks;
           const useStreamedSimplePath =
             !requiresCompletionSort &&
             filterState.availableOnly &&
@@ -1832,7 +1976,7 @@
               afterStatusGateCount += 1;
 
               if (filterState.flagged !== undefined) {
-                const taskFlagged = Boolean(t.flagged);
+                const taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) {
                   continue;
                 }
@@ -2183,34 +2327,13 @@
             
             // Calculate task counts from flattenedTasks
             if (includeTaskCounts) {
-              const flattenedTasks = safe(() => p.flattenedTasks) || [];
-              
-              // Count tasks by status
-              let available = 0;
-              let remaining = 0;
-              let completed = 0;
-              let dropped = 0;
-              
-              for (const task of flattenedTasks) {
-                const taskStatus = safe(() => task.taskStatus);
-                if (taskStatus === Task.Status.Completed) {
-                  completed++;
-                } else if (taskStatus === Task.Status.Dropped) {
-                  dropped++;
-                } else {
-                  remaining++;
-                  if (taskStatus === Task.Status.Available || taskStatus === Task.Status.Next) {
-                    available++;
-                  }
-                }
-              }
-              
-              item.availableTasks = available;
-              item.remainingTasks = remaining;
-              item.completedTasks = completed;
-              item.droppedTasks = dropped;
-              item.totalTasks = flattenedTasks.length;
-
+              const flattenedTasks = toTaskArray(safe(() => p.flattenedTasks));
+              const counts = summarizeProjectTaskCounts(p, flattenedTasks);
+              item.availableTasks = counts.availableTasks;
+              item.remainingTasks = counts.remainingTasks;
+              item.completedTasks = counts.completedTasks;
+              item.droppedTasks = counts.droppedTasks;
+              item.totalTasks = counts.totalTasks;
             }
             
             // Add hasChildren for stalled project detection
@@ -2352,6 +2475,7 @@
         } else if (request.op === "get_task_counts") {
           const filter = request.filter || {};
           const debugTaskCounts = filter.search === "__debug_task_counts__";
+          const searchQuery = debugTaskCounts ? null : normalizeTaskSearchQuery(filter.search);
           const taskCountsDebug = debugTaskCounts ? {
             requestId: requestId,
             op: request.op,
@@ -2391,10 +2515,10 @@
               return [];
             }
             if (project) {
-              return toTaskArray(safe(() => project.flattenedTasks));
+              return toTaskArray(safe(() => project.flattenedTasks)).filter(task => !isProjectRootTask(task));
             }
 
-            return toTaskArray(safe(() => flattenedTasks));
+            return toTaskArray(safe(() => flattenedTasks)).filter(task => !isProjectRootTask(task));
           }
 
           function selectProjectRootCandidates() {
@@ -2466,7 +2590,8 @@
             tags: Array.isArray(filter.tags) ? filter.tags : null,
             untaggedOnly: Array.isArray(filter.tags) && filter.tags.length === 0,
             maxEstimatedMinutes: filter.maxEstimatedMinutes,
-            minEstimatedMinutes: filter.minEstimatedMinutes
+            minEstimatedMinutes: filter.minEstimatedMinutes,
+            searchQuery: searchQuery
           };
 
           const statusGateSample = [];
@@ -2486,7 +2611,9 @@
           const hasTagOrEstimateFilters =
             Boolean(filterState.tags) ||
             filterState.maxEstimatedMinutes !== undefined ||
-            filterState.minEstimatedMinutes !== undefined;
+            filterState.minEstimatedMinutes !== undefined ||
+            Boolean(filterState.searchQuery) ||
+            debugTaskCounts;
           const useSimpleAvailableFastPath =
             filterState.availableOnly &&
             filterState.completed !== true &&
@@ -2518,7 +2645,7 @@
 
               let taskFlagged = null;
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) { return; }
               }
 
@@ -2531,7 +2658,7 @@
               counts.total += 1;
               counts.available += 1;
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2558,7 +2685,7 @@
 
               let taskFlagged = null;
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) { return; }
               }
 
@@ -2570,7 +2697,7 @@
               counts.total += 1;
               counts.completed += 1;
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2596,9 +2723,10 @@
               }
 
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) return;
               }
+              if (!taskMatchesSearch(t, filterState.searchQuery)) return;
               let project = null;
               if (filterState.projectFilter) {
                 project = safe(() => t.containingProject);
@@ -2676,7 +2804,7 @@
                 counts.available += 1;
               }
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2757,6 +2885,7 @@
             const completedTaskCountStart = Date.now();
             
             flattenedTasks.forEach(t => {
+              if (isProjectRootTask(t)) { return; }
               const project = safe(() => t.containingProject);
               if (!project) { return; }
               const pid = String(safe(() => project.id.primaryKey) || "");
@@ -2813,7 +2942,7 @@
               tasks = [];
             } else if (project) {
               const poolStart = Date.now();
-              tasks = toTaskArray(safe(() => project.flattenedTasks));
+              tasks = toTaskArray(safe(() => project.flattenedTasks)).filter(task => !isProjectRootTask(task));
               projectRootCandidates = [project];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
@@ -2825,7 +2954,7 @@
               });
             } else {
               const poolStart = Date.now();
-              tasks = toTaskArray(safe(() => flattenedTasks));
+              tasks = toTaskArray(safe(() => flattenedTasks)).filter(task => !isProjectRootTask(task));
               projectRootCandidates = safe(() => flattenedProjects) || [];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
@@ -2872,7 +3001,7 @@
               }
 
               if (filterState.flagged !== undefined) {
-                if (Boolean(t.flagged) !== filterState.flagged) return;
+                if (isTaskEffectivelyFlagged(t) !== filterState.flagged) return;
               }
               if (filterState.availableOnly) {
                 if (!isTaskAvailable(t)) return;

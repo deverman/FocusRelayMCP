@@ -14,6 +14,7 @@ struct TaskItemPayload: Codable {
     let completionDate: Date?
     let completed: Bool?
     let flagged: Bool?
+    let effectiveFlagged: Bool?
     let estimatedMinutes: Int?
     let available: Bool?
 }

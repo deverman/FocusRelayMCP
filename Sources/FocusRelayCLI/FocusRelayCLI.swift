@@ -4,12 +4,14 @@ import FocusRelayServer
 import OmniFocusAutomation
 import OmniFocusCore
 import FocusRelayOutput
+import FocusRelayVersion
 
 @main
 struct FocusRelayCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "focusrelay",
         abstract: "Query OmniFocus data from the command line or run the MCP server.",
+        version: FocusRelayBuildVersion.current,
         subcommands: [
             Serve.self,
             ListTasks.self,
@@ -141,7 +143,11 @@ struct ListProjects: AsyncParsableCommand {
         let service = OmniFocusBridgeService()
         let pageRequest = page.makePageRequest(defaultLimit: 150)
         let fieldList = FieldList.parse(fields)
-        let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
+        let selectedFields = FocusRelayServer.resolvedProjectFields(
+            requestedFields: fieldList,
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts
+        )
         let reviewBeforeDate = try ISO8601DateParser.parseOptional(reviewDueBefore, argumentName: "--review-due-before")
         let reviewAfterDate = try ISO8601DateParser.parseOptional(reviewDueAfter, argumentName: "--review-due-after")
         let completedBeforeDate = try ISO8601DateParser.parseOptional(completedBefore, argumentName: "--completed-before")

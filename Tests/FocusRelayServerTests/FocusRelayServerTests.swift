@@ -1,5 +1,55 @@
 import Testing
 @testable import FocusRelayServer
+import FocusRelayVersion
+import MCP
+import OmniFocusCore
+
+@Test
+func mcpArgumentBoundaryDecodesSparseTaskFieldPatches() throws {
+    let flagged = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["flagged": .bool(true)])],
+        key: "taskPatch"
+    )
+    #expect(flagged?.flagged == true)
+    #expect(flagged?.clearDueDate == false)
+    #expect(flagged?.clearDeferDate == false)
+
+    let dueDate = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["dueDate": .string("2026-07-15T09:00:00Z")])],
+        key: "taskPatch"
+    )
+    #expect(dueDate?.dueDate != nil)
+}
+
+@Test
+func mcpArgumentBoundaryDecodesSparseProjectAndTagPatches() throws {
+    let project = try FocusRelayServer.decodeArgument(
+        ProjectPatchMutation.self,
+        from: ["projectPatch": .object(["sequential": .bool(true)])],
+        key: "projectPatch"
+    )
+    #expect(project?.sequential == true)
+    #expect(project?.clearDueDate == false)
+    #expect(project?.clearDeferDate == false)
+
+    let task = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: [
+            "taskPatch": .object([
+                "tags": .object(["add": .array([.string("tag-1")])])
+            ])
+        ],
+        key: "taskPatch"
+    )
+    #expect(task?.tags == TagMutation(add: ["tag-1"]))
+}
+
+@Test
+func mcpServerReportsEmbeddedBuildVersion() {
+    #expect(FocusRelayServer.version == FocusRelayBuildVersion.current)
+}
 
 @Test
 func mcpLogOutputUsesStandardError() {
@@ -9,4 +59,137 @@ func mcpLogOutputUsesStandardError() {
     case .standardOutput:
         #expect(Bool(false))
     }
+}
+
+@Test
+func publicMCPToolSurfaceExcludesInternalDiagnostics() {
+    #expect(FocusRelayServer.publicToolNames == [
+        "list_tasks",
+        "get_task",
+        "list_projects",
+        "list_tags",
+        "list_folders",
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects",
+        "get_task_counts",
+        "get_project_counts"
+    ])
+    #expect(!FocusRelayServer.publicToolNames.contains("debug_inbox_probe"))
+    #expect(!FocusRelayServer.publicToolNames.contains("debug_inbox_probe_alt"))
+    #expect(!FocusRelayServer.publicToolNames.contains("bridge_health_check"))
+}
+
+@Test
+func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
+    #expect(FocusRelayServer.mutationToolNames == [
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects"
+    ])
+    #expect(FocusRelayServer.mutationToolNames.isSubset(of: Set(FocusRelayServer.publicToolNames)))
+    #expect(FocusRelayServer.publicToolNames.count - FocusRelayServer.mutationToolNames.count == 7)
+}
+
+@Test
+func projectDefaultsIncludeStatusWhenCountsOrHistoricalStatusesNeedInterpretation() {
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: false
+    ) == ["id", "name"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "all",
+        includeTaskCounts: false
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: true
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedProjectFields(
+        requestedFields: ["id", "name", "completionDate"],
+        statusFilter: "all",
+        includeTaskCounts: true
+    ) == ["id", "name", "completionDate"])
+}
+
+@Test
+func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
+    let description = FocusRelayServer.listProjectsToolDescription
+    #expect(description.contains("start with statusFilter='active'"))
+    #expect(description.contains("remainingTasks=0 is not automatically a completion candidate"))
+    #expect(description.contains("totalTasks=0 means the project is empty or unplanned"))
+    #expect(description.contains("If all child tasks are dropped, treat it as a drop/review candidate"))
+    #expect(description.contains("availableTasks=0 does not mean a project is stalled"))
+}
+
+@Test
+func sharedTaskFilterSchemaCoversCompleteModelSurface() {
+    let expectedPropertyNames: Set<String> = [
+        "completed",
+        "flagged",
+        "availableOnly",
+        "inboxView",
+        "project",
+        "tags",
+        "dueBefore",
+        "dueAfter",
+        "deferBefore",
+        "deferAfter",
+        "plannedBefore",
+        "plannedAfter",
+        "completedBefore",
+        "completedAfter",
+        "search",
+        "inboxOnly",
+        "projectView",
+        "maxEstimatedMinutes",
+        "minEstimatedMinutes",
+        "includeTotalCount"
+    ]
+
+    #expect(FocusRelayServer.taskFilterPropertyNames == expectedPropertyNames)
+
+    guard case let .object(schema) = FocusRelayServer.makeTaskFilterSchema(),
+          case let .object(properties)? = schema["properties"] else {
+        Issue.record("Expected an object task-filter schema with object properties")
+        return
+    }
+
+    #expect(Set(properties.keys) == expectedPropertyNames)
+
+    guard case let .object(flaggedSchema)? = properties["flagged"],
+          case let .string(flaggedDescription)? = flaggedSchema["description"] else {
+        Issue.record("Expected a flagged filter description")
+        return
+    }
+    #expect(flaggedDescription.contains("effective flagged state"))
+    #expect(flaggedDescription.contains("inherited"))
+
+    guard case let .object(maximumEstimate)? = properties["maxEstimatedMinutes"],
+          case let .object(minimumEstimate)? = properties["minEstimatedMinutes"] else {
+        Issue.record("Expected estimate filter schemas")
+        return
+    }
+    #expect(maximumEstimate["minimum"] == .int(0))
+    #expect(minimumEstimate["minimum"] == .int(0))
+
+    guard case let .object(includeTotalCount)? = properties["includeTotalCount"] else {
+        Issue.record("Expected includeTotalCount filter schema")
+        return
+    }
+    #expect(includeTotalCount["default"] == .bool(false))
 }

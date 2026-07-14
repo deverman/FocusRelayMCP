@@ -49,7 +49,8 @@ Task.Status.Dropped      // Task has been dropped
 |----------|------|-------------|
 | `name` | `string` | Task name |
 | `note` | `string` | Task notes |
-| `flagged` | `boolean` | Whether task is flagged |
+| `flagged` | `boolean` | Whether the task itself is flagged (writable local state) |
+| `effectiveFlagged` | `boolean` | Visible flag state, including flags inherited from a parent task or project |
 | `estimatedMinutes` | `number` | Time estimate in minutes |
 | `blocked` | `boolean` | Whether task is blocked (deprecated: use taskStatus) |
 | `tags` | `Array<Tag>` | Tags assigned to task |

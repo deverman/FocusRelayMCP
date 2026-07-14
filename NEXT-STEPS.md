@@ -1,158 +1,115 @@
 # FocusRelayMCP Next Steps
 
-This file tracks planned work and completion status.
+Last updated: 2026-07-14
 
-## Completed
+The detailed release sequence and validation record live in
+[`docs/roadmap-execution-plan.md`](docs/roadmap-execution-plan.md). GitHub issues
+are the source of truth for individual deliverables.
 
-- [x] Bridge mode working end-to-end (health check, inbox, projects, tags)
-- [x] Inbox filtering aligns with OmniFocus "Available" view (parent dropped/completed excluded)
-- [x] IPC cleanup for stale files + timeout cleanup
+## Before `v0.10.0-beta`
 
-## In Progress
+- [x] Integrate the Swift 6.3.3 toolchain, truthful mutation persistence,
+  project-count parity, unified version reporting, release packaging, and
+  Homebrew ownership changes into local branch `integration/v0.10.0-beta-rc`.
+- [x] Pass the combined 126-test Swift Testing suite with Swiftly-managed Swift
+  6.3.3.
+- [x] Build and validate a versioned `0.10.0-beta` archive and checksum locally.
+- [x] Install the combined plugin, fully restart OmniFocus, and repeat the live
+  health, mutation write/restore, and query-parity checks.
+- [x] Run all three semantic gates on the combined candidate.
+- [x] Run the required 1.5-hour realistic single-user benchmark: 750 measured
+  calls completed with zero errors/timeouts and project-count parity stayed
+  exact. One task-count pair crossed a live inbox update.
+- [x] Correct the public task-filter schema, mutation safety annotations,
+  advertised task search, and list-benchmark scenario rotation on isolated
+  branches, then integrate them into the local candidate.
+- [x] Complete corrected 10-minute list and count smokes with full scenario
+  coverage and no errors, timeouts, or parity mismatches.
+- [x] Complete the required one-hour post-change realistic validation: 544
+  measured calls passed with complete coverage and no errors, timeouts, or
+  parity mismatches.
+- [x] Prepare user-facing `v0.10.0-beta` release notes with safety limits,
+  upgrade steps, measured performance, and contributor credit.
+- [x] Publish draft release candidate
+  [#84](https://github.com/deverman/FocusRelayMCP/pull/84) and pass GitHub CI
+  with Swift 6.3.3 installed through Swiftly.
+- [x] Fix the effective-flag correctness blocker
+  [#86](https://github.com/deverman/FocusRelayMCP/issues/86), add an independent
+  native OmniFocus gate, and complete its required semantic, smoke, and 1.5-hour
+  realistic validation with 864 measured calls and no errors, timeouts, or
+  mismatches.
+- [x] Fix sparse MCP field-update decoding in
+  [#89](https://github.com/deverman/FocusRelayMCP/issues/89), cover the real MCP
+  argument boundary, and verify sparse flag and due-date writes through the
+  rebuilt server.
+- [ ] Tag and publish only after approval and green release validation.
+- [ ] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
+  actual release asset URL/version/SHA256, then verify a clean reinstall.
 
-- [x] Decide final defaults for inboxView and availableOnly behavior
-- [x] Add `get_task` (bridge + MCP)
-- [x] Add `get_task_counts` (bridge + MCP)
+## Release Blockers and Trackers
 
-## Next Up
+- [#71](https://github.com/deverman/FocusRelayMCP/issues/71) — P1 mutation
+  save/per-target truthfulness.
+- [#61](https://github.com/deverman/FocusRelayMCP/issues/61) — P2 project task
+  count parity and realistic validation.
+- [#64](https://github.com/deverman/FocusRelayMCP/issues/64) — P2 release
+  packaging and metadata.
+- [#72](https://github.com/deverman/FocusRelayMCP/issues/72) — P2 authoritative
+  Homebrew formula ownership/correctness.
+- [#58](https://github.com/deverman/FocusRelayMCP/issues/58) — CLI, MCP, plugin,
+  and release version consistency.
+- [#74](https://github.com/deverman/FocusRelayMCP/issues/74) — Swift 6.3.3
+  toolchain alignment.
+- [#76](https://github.com/deverman/FocusRelayMCP/issues/76) — keep internal
+  diagnostics out of the public MCP tool surface.
+- [#77](https://github.com/deverman/FocusRelayMCP/issues/77) — publish the full
+  shared task-filter schema on list and count tools.
+- [#78](https://github.com/deverman/FocusRelayMCP/issues/78) — truthful mutation
+  safety annotations and preview/write defaults.
+- [#79](https://github.com/deverman/FocusRelayMCP/issues/79) — make task search
+  filter names and notes as advertised.
+- [#81](https://github.com/deverman/FocusRelayMCP/issues/81) — guarantee measured
+  coverage of every list-benchmark scenario.
+- [#86](https://github.com/deverman/FocusRelayMCP/issues/86) — P2 match
+  OmniFocus's effective flagged-item semantics, including inherited flags.
+- [#89](https://github.com/deverman/FocusRelayMCP/issues/89) — P1 make ordinary
+  sparse task, project, and tag field patches work through MCP clients.
+- [#63](https://github.com/deverman/FocusRelayMCP/issues/63) — release tracker.
 
-- [x] Add paging tests for projects/tags in bridge mode
-- [x] Add lock file cleanup policy in plug-in (optional)
-- [x] Document bridge install/test flow in README (short checklist)
-- [ ] Add completion date support for tasks (return `completedDate` and allow filtering by completed time)
-- [ ] After next release, update the Homebrew tap to the new tarball/SHA that includes the `focusrelay` binary (`focusrelay serve` for MCP).
+## After Release
 
-## Backlog (Post PR6 Hardening)
+Prioritize user-visible, low-risk improvements as isolated branches:
 
-- [ ] Clarify inbox filter contract (`inboxView` vs `inboxOnly`)
-  - Problem: `inboxView` currently changes only view mode, not scope; inbox scope requires `inboxOnly=true`.
-  - Candidate fix: add explicit `scope`/`taskScope` field, or reject `inboxView` without inbox scope with a clear error.
-  - Acceptance: MCP schema/docs/tests clearly enforce one contract; no ambiguous "inbox" behavior in client prompts.
+1. [#82](https://github.com/deverman/FocusRelayMCP/issues/82) — safely create
+   tasks in the inbox, a project, or beneath a parent task.
+2. [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — safely create
+   projects at the root or in an existing folder.
+3. [#88](https://github.com/deverman/FocusRelayMCP/issues/88) — expose project
+   folder membership and filter root projects without loading the full catalog.
+4. [#87](https://github.com/deverman/FocusRelayMCP/issues/87) — add server-side
+   project-health filters for efficient cleanup recommendations.
+5. [#85](https://github.com/deverman/FocusRelayMCP/issues/85) — define a safe
+   Forecast contract that cannot present a due-date approximation as exact.
+7. [#11](https://github.com/deverman/FocusRelayMCP/issues/11) — OmniFocus deep
+   links in existing query output.
+8. [#22](https://github.com/deverman/FocusRelayMCP/issues/22) — task added and
+   modified timestamps and filters.
+9. [#18](https://github.com/deverman/FocusRelayMCP/issues/18) — project planned
+   dates and filters.
+10. [#59](https://github.com/deverman/FocusRelayMCP/issues/59) — native task
+   status filters.
+11. [#62](https://github.com/deverman/FocusRelayMCP/issues/62) — configurable
+   sorting.
+12. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — migrate server
+   text responses off deprecated MCP SDK overloads.
+13. [#80](https://github.com/deverman/FocusRelayMCP/issues/80) — remove JXA
+   dispatch from the supported runtime and retain pure JXA only as an internal
+   parity oracle until fixtures replace it.
 
-- [ ] Align project "available" counts with OmniFocus availability semantics
-  - Problem: project counts currently treat only `Task.Status.Available`/`Task.Status.Next` as available.
-  - Candidate fix: use shared availability helper semantics (include `DueSoon`/`Overdue` where appropriate) and verify against OmniFocus expectations.
-  - Acceptance: `list_projects(includeTaskCounts=true)` available counts are consistent with task-level availability rules.
+Task and project creation are planned post-beta enhancements and do not block
+`v0.10.0-beta`.
 
-- [ ] Stabilize live bridge transport under repeated calls
-  - Problem: intermittent timeouts and IPC/URL dispatch failures in live test mode.
-  - Details: see `docs/timeout-concurrency-investigation-2026-02-19.md`.
-  - Acceptance: repeatable live bridge test runs with materially reduced timeout and interrupted-system-call failures.
-
-- [ ] Add guidance for OmniFocus count freshness (`cleanUp()` caveat)
-  - Problem: OmniFocus collection counts (especially tag/task aggregate counts) can be stale immediately after edits unless the database is cleaned up.
-  - Candidate fix: document escalation path (detect suspected stale counts -> optionally run `cleanUp()` manually/off critical path -> re-query), and add a debug endpoint/checklist.
-  - Acceptance: stale-count reports have a deterministic runbook; no automatic `cleanUp()` on normal read paths.
-
-- [ ] Add `focusrelay --version` command and versioning workflow
-  - Problem: users cannot quickly verify installed binary version; release version currently comes from Git tags.
-  - Candidate fix: add top-level `--version` output wired to build metadata, and define release-time injection strategy (e.g., compile-time constant from tag or generated source during CI).
-  - Research: review how popular Swift CLI tools handle semantic version reporting with tag-based releases.
-  - Acceptance: `focusrelay --version` returns a predictable value for local builds and release builds, with documented behavior.
-
-- [ ] Execute Query Engine V2 refactor program (breaking cleanup + SOLID alignment)
-  - Plan doc: `docs/refactor-query-engine-v2-plan.md`
-  - Delivery model: incremental PRs on long-term branch (`refactor/query-engine-v2`), no immediate release tag.
-  - Key outcomes: unified list/count query pipeline, explicit scope/view contract, deterministic validation errors, stronger parity tests.
-
-## Backlog (Query Capability Gaps vs OmniFocus-MCP)
-
-### High Usage
-
-- [ ] Add custom perspective support (query saved OmniFocus perspectives directly)
-  - Issue: `#10` https://github.com/deverman/FocusRelayMCP/issues/10
-  - Why this category: custom perspectives are a primary power-user workflow (Today/Next/Errands/Waiting/Someday patterns) and reduce prompt complexity.
-  - Preferred design: minimize new tools by adding one discovery tool (`list_perspectives`) and reusing existing query tools (`list_tasks`, `list_projects`, `get_task_counts`) with an optional `perspective` filter.
-  - Native approach: use OmniAutomation `Perspective.Custom/BuiltIn` APIs for listing/resolution and execute queries in perspective context (no custom rule parser for MVP).
-  - User stories:
-    - As a user, I want to list my saved custom perspectives and query one by name/id.
-    - As a user, I want perspective task counts that match what I see in OmniFocus.
-  - Likely prompts:
-    - "List my custom perspectives."
-    - "Show tasks from my `Today` perspective."
-    - "Get counts for my `Waiting` perspective."
-    - "Show first 20 tasks from `On-The-Go` with dueDate and tagNames."
-
-- [ ] Return OmniFocus deep links (`Copy as Link` style URL) for tasks/projects in query outputs
-  - Issue: `#11` https://github.com/deverman/FocusRelayMCP/issues/11
-  - Why this category: links make AI output actionable by letting users jump directly into OmniFocus items.
-  - Preferred design: no new tools; add optional `url` field support to existing tools (`list_tasks`, `get_task`, `list_projects`).
-  - Native approach: use OmniAutomation `DatabaseObject.url` directly (fallback to `null`, not guessed link templates).
-  - User stories:
-    - As a user, I want task/project query results to include clickable links back to OmniFocus.
-    - As a user, I want summaries to include links so follow-up is one click.
-  - Likely prompts:
-    - "List 10 available tasks with name and url."
-    - "Show active projects with name and url."
-    - "Summarize overdue tasks and include links."
-
-- [ ] Add task status filter support (`Next`, `Blocked`, `DueSoon`, `Overdue`, `Available`, `Completed`, `Dropped`)
-  - Why this category: common daily planning and triage workflows rely on status-specific views.
-  - User stories:
-    - As a user, I want only `Next` actions so I can start work quickly.
-    - As a user, I want only `Blocked` tasks so I can unblock dependencies.
-    - As a user, I want `Overdue` and `DueSoon` tasks for urgency triage.
-  - Likely prompts:
-    - "Show me my next actions."
-    - "What tasks are blocked right now?"
-    - "What is overdue or due soon today?"
-
-- [ ] Add configurable sorting controls for task/project queries (`sortBy`, `sortOrder`)
-  - Why this category: users frequently ask to prioritize by due date, recency, or estimate.
-  - User stories:
-    - As a user, I want tasks sorted by due date ascending to plan execution order.
-    - As a user, I want tasks sorted by last modified date to review stale items.
-  - Likely prompts:
-    - "Show my available tasks sorted by due date."
-    - "List uncompleted tasks sorted by last modified date."
-
-- [ ] Add folder-aware query support (query folders directly and filter tasks/projects by folder)
-  - Why this category: folder context is a common top-level planning dimension in OmniFocus.
-  - User stories:
-    - As a user, I want to list my folder structure to audit organization.
-    - As a user, I want tasks in a specific folder for context-based planning.
-  - Likely prompts:
-    - "Show me all folders in OmniFocus."
-    - "What are my next actions in the Work folder?"
-
-### Medium Usage
-
-- [ ] Add `hasNote` filtering for tasks/projects
-  - Why this category: useful for review and quality checks, but less universal than status/due workflows.
-  - User stories:
-    - As a user, I want tasks without notes so I can fill missing context.
-    - As a user, I want tasks with notes to quickly review detailed items.
-  - Likely prompts:
-    - "Show tasks with no notes."
-    - "Find available tasks that include notes."
-
-- [ ] Add exact-day shorthand filters (`dueOn`, `deferOn`) in addition to timestamp ranges
-  - Why this category: common phrasing from users ("due tomorrow"), easier than constructing ISO timestamps.
-  - User stories:
-    - As a user, I want tasks due tomorrow without manually building date ranges.
-    - As a user, I want tasks deferred until today for morning planning.
-  - Likely prompts:
-    - "What is due tomorrow?"
-    - "Show tasks that become available today."
-
-### Medium-to-Growing Usage
-
-- [ ] Add planned date support (`plannedDate` field + planned filters like `plannedWithin`/`plannedOn`)
-  - Why this category: increasing usage with OmniFocus planned-date workflows, but not universal yet.
-  - User stories:
-    - As a user, I want tasks planned for today to build my daily agenda.
-    - As a user, I want tasks planned this week to do weekly capacity planning.
-  - Likely prompts:
-    - "What tasks are planned for today?"
-    - "Show everything planned in the next 7 days."
-
-### Low-to-Medium Usage
-
-- [ ] Add parent/child graph query fields for advanced task hierarchy analysis (`parentId`, `childIds`, `hasChildren`)
-  - Why this category: high value for power users and automation, lower demand for day-to-day users.
-  - User stories:
-    - As a power user, I want parent/child IDs to detect broken or overly deep task trees.
-    - As an automation user, I want hierarchy metadata for structured exports.
-  - Likely prompts:
-    - "Show tasks with subtasks and include parent/child IDs."
-    - "Find parent tasks that have too many children."
+Treat [#73](https://github.com/deverman/FocusRelayMCP/issues/73), immediate IPC
+cleanup, as an experiment rather than a release blocker. Keep it only if the
+semantic, smoke, and realistic benchmarks show a defensible latency win without
+new timeouts or reliability regressions.

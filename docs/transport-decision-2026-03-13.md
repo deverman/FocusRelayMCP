@@ -144,6 +144,37 @@ Until new evidence disproves this decision:
 - do not compare transports and query changes in the same experiment
 - treat pure JXA as a reference/verification path, not the production architecture
 
+## July 2026 Revalidation
+
+The `v0.10.0-beta` release audit strengthened this decision:
+
+- the combined candidate completed its earlier 1.5-hour realistic suite with
+  750 measured calls and zero errors or timeouts;
+- corrected task-search smokes completed 192 measured list/count calls with no
+  error, timeout, or parity mismatch;
+- the subsequent 30-minute realistic list phase completed 266 measured calls
+  across all ten scenarios with no error, timeout, or mismatch;
+- the paired 30-minute realistic count phase completed 278 measured calls
+  across all six scenarios with no error, timeout, or mismatch, and OmniFocus
+  ended 447 MB below its phase-start RSS;
+- focused inbox list p50 was 0.99 seconds through the plugin versus 6.52 seconds
+  through pure JXA; the corresponding smoke count p95 was 1.08 seconds versus
+  7.11 seconds;
+- pure JXA is not a complete alternative runtime: `getTask` and tag listing are
+  not implemented there, while folder listing and all seven production
+  mutations delegate back to `OmniFocusBridgeService`.
+
+The refined architecture direction is therefore:
+
+1. Keep plugin URL dispatch as the only production architecture.
+2. Do not remove the already-validated fallback immediately before the beta.
+3. After the beta, use [#80](https://github.com/deverman/FocusRelayMCP/issues/80)
+   to remove JXA dispatch as a supported runtime option and move pure JXA toward
+   test/benchmark-only ownership.
+4. Replace live JXA parity coverage with deterministic fixtures where practical,
+   then remove JXA from the shipped binary when it no longer adds unique
+   verification value.
+
 ## Post-Decision Validation (2026-03-14)
 
 Subsequent clean-branch work reinforced the decision to stay on `plugin-url`.

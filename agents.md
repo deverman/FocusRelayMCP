@@ -185,8 +185,8 @@ The MCP server implements an **actor-based caching layer** (`CatalogCache`) for 
 
 ### Cache Invalidation
 - Automatic expiration after TTL
-- No manual invalidation currently implemented
-- Future: Invalidate on write operations when write tools are added
+- Successful non-preview mutations invalidate both project and tag caches
+- Preview-only and fully failed mutations leave the cache unchanged
 
 ### Performance Impact
 - Projects/Tags queries: ~300ms → ~10ms (30x faster on cache hit)

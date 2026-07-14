@@ -98,6 +98,21 @@ public struct TagMutation: Codable, Sendable, Equatable {
         self.clear = clear
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case add
+        case remove
+        case set
+        case clear
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        add = try container.decodeIfPresent([String].self, forKey: .add)
+        remove = try container.decodeIfPresent([String].self, forKey: .remove)
+        set = try container.decodeIfPresent([String].self, forKey: .set)
+        clear = try container.decodeIfPresent(Bool.self, forKey: .clear) ?? false
+    }
+
     public var isEmpty: Bool {
         !clear &&
         (add?.isEmpty ?? true) &&
@@ -172,6 +187,33 @@ public struct TaskPatchMutation: Codable, Sendable, Equatable {
         self.tags = tags
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case note
+        case noteAppend
+        case flagged
+        case estimatedMinutes
+        case dueDate
+        case clearDueDate
+        case deferDate
+        case clearDeferDate
+        case tags
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        noteAppend = try container.decodeIfPresent(String.self, forKey: .noteAppend)
+        flagged = try container.decodeIfPresent(Bool.self, forKey: .flagged)
+        estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
+        clearDueDate = try container.decodeIfPresent(Bool.self, forKey: .clearDueDate) ?? false
+        deferDate = try container.decodeIfPresent(Date.self, forKey: .deferDate)
+        clearDeferDate = try container.decodeIfPresent(Bool.self, forKey: .clearDeferDate) ?? false
+        tags = try container.decodeIfPresent(TagMutation.self, forKey: .tags)
+    }
+
     public var isEmpty: Bool {
         name == nil &&
         note == nil &&
@@ -242,6 +284,39 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         self.completedByChildren = completedByChildren
         self.reviewInterval = reviewInterval
         self.tags = tags
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case note
+        case noteAppend
+        case flagged
+        case dueDate
+        case clearDueDate
+        case deferDate
+        case clearDeferDate
+        case sequential
+        case containsSingletonActions
+        case completedByChildren
+        case reviewInterval
+        case tags
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        noteAppend = try container.decodeIfPresent(String.self, forKey: .noteAppend)
+        flagged = try container.decodeIfPresent(Bool.self, forKey: .flagged)
+        dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
+        clearDueDate = try container.decodeIfPresent(Bool.self, forKey: .clearDueDate) ?? false
+        deferDate = try container.decodeIfPresent(Date.self, forKey: .deferDate)
+        clearDeferDate = try container.decodeIfPresent(Bool.self, forKey: .clearDeferDate) ?? false
+        sequential = try container.decodeIfPresent(Bool.self, forKey: .sequential)
+        containsSingletonActions = try container.decodeIfPresent(Bool.self, forKey: .containsSingletonActions)
+        completedByChildren = try container.decodeIfPresent(Bool.self, forKey: .completedByChildren)
+        reviewInterval = try container.decodeIfPresent(ReviewInterval.self, forKey: .reviewInterval)
+        tags = try container.decodeIfPresent(TagMutation.self, forKey: .tags)
     }
 
     public var isEmpty: Bool {
@@ -465,7 +540,7 @@ public struct MutationRequest: Codable, Sendable, Equatable {
     private static let allowedTaskReturnFields: Set<String> = [
         "id", "name", "note", "projectID", "projectName",
         "tagIDs", "tagNames", "dueDate", "plannedDate", "deferDate",
-        "completionDate", "completed", "flagged", "estimatedMinutes", "available"
+        "completionDate", "completed", "flagged", "effectiveFlagged", "estimatedMinutes", "available"
     ]
 
     private static let allowedProjectReturnFields: Set<String> = [

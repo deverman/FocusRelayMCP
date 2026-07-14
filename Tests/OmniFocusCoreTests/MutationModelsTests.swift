@@ -2,6 +2,91 @@ import Foundation
 import Testing
 @testable import OmniFocusCore
 
+private func decodeMutation<T: Decodable>(_ type: T.Type, from json: String) throws -> T {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(type, from: Data(json.utf8))
+}
+
+@Test
+func everySupportedSparseTaskFieldDecodes() throws {
+    let patches = [
+        #"{"name":"Renamed"}"#,
+        #"{"note":"Replacement"}"#,
+        #"{"noteAppend":"Append"}"#,
+        #"{"flagged":true}"#,
+        #"{"estimatedMinutes":15}"#,
+        #"{"dueDate":"2026-07-15T09:00:00Z"}"#,
+        #"{"clearDueDate":true}"#,
+        #"{"deferDate":"2026-07-15T09:00:00Z"}"#,
+        #"{"clearDeferDate":true}"#,
+        #"{"tags":{"add":["tag-1"]}}"#,
+        #"{"tags":{"remove":["tag-1"]}}"#,
+        #"{"tags":{"set":["tag-1"]}}"#,
+        #"{"tags":{"clear":true}}"#
+    ]
+
+    for patch in patches {
+        let decoded = try decodeMutation(TaskPatchMutation.self, from: patch)
+        #expect(!decoded.isEmpty)
+        try decoded.validate()
+    }
+}
+
+@Test
+func everySupportedSparseProjectFieldDecodes() throws {
+    let patches = [
+        #"{"name":"Renamed"}"#,
+        #"{"note":"Replacement"}"#,
+        #"{"noteAppend":"Append"}"#,
+        #"{"flagged":true}"#,
+        #"{"dueDate":"2026-07-15T09:00:00Z"}"#,
+        #"{"clearDueDate":true}"#,
+        #"{"deferDate":"2026-07-15T09:00:00Z"}"#,
+        #"{"clearDeferDate":true}"#,
+        #"{"sequential":true}"#,
+        #"{"reviewInterval":{"steps":1,"unit":"weeks"}}"#
+    ]
+
+    for patch in patches {
+        let decoded = try decodeMutation(ProjectPatchMutation.self, from: patch)
+        #expect(!decoded.isEmpty)
+        try decoded.validate()
+    }
+}
+
+@Test
+func sparseTaskPatchDecodesOmittedClearFlagsAsFalse() throws {
+    let flagged = try decodeMutation(TaskPatchMutation.self, from: #"{"flagged":true}"#)
+    #expect(flagged.flagged == true)
+    #expect(!flagged.clearDueDate)
+    #expect(!flagged.clearDeferDate)
+
+    let dueDate = try decodeMutation(TaskPatchMutation.self, from: #"{"dueDate":"2026-07-15T09:00:00Z"}"#)
+    #expect(dueDate.dueDate != nil)
+    #expect(!dueDate.clearDueDate)
+    #expect(!dueDate.clearDeferDate)
+}
+
+@Test
+func sparseProjectPatchDecodesOmittedClearFlagsAsFalse() throws {
+    let patch = try decodeMutation(
+        ProjectPatchMutation.self,
+        from: #"{"sequential":true,"reviewInterval":{"steps":1,"unit":"weeks"}}"#
+    )
+    #expect(patch.sequential == true)
+    #expect(patch.reviewInterval == ReviewInterval(steps: 1, unit: "weeks"))
+    #expect(!patch.clearDueDate)
+    #expect(!patch.clearDeferDate)
+}
+
+@Test
+func sparseTagMutationDecodesOmittedClearAsFalse() throws {
+    let patch = try decodeMutation(TaskPatchMutation.self, from: #"{"tags":{"add":["tag-1"]}}"#)
+    #expect(patch.tags == TagMutation(add: ["tag-1"]))
+    #expect(patch.tags?.clear == false)
+}
+
 @Test
 func mutationRequestRoundTripPreservesOperationShape() throws {
     let request = MutationRequest(

@@ -4,8 +4,13 @@ import MCP
 import OmniFocusAutomation
 import OmniFocusCore
 import FocusRelayOutput
+import FocusRelayVersion
 
 public enum FocusRelayServer {
+    public static var version: String {
+        FocusRelayBuildVersion.current
+    }
+
     enum LogOutputTarget {
         case standardOutput
         case standardError
@@ -13,6 +18,171 @@ public enum FocusRelayServer {
 
     static var mcpLogOutputTarget: LogOutputTarget {
         .standardError
+    }
+
+    static let publicToolNames = [
+        "list_tasks",
+        "get_task",
+        "list_projects",
+        "list_tags",
+        "list_folders",
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects",
+        "get_task_counts",
+        "get_project_counts"
+    ]
+
+    static let mutationToolNames: Set<String> = [
+        "update_tasks",
+        "set_tasks_completion",
+        "move_tasks",
+        "update_projects",
+        "set_projects_status",
+        "set_projects_completion",
+        "move_projects"
+    ]
+
+    static let listProjectsToolDescription = """
+    List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include child-task counts.
+
+    PROJECT MAINTENANCE AND HEALTH:
+    - For completion, cleanup, or stalled-project recommendations, start with statusFilter='active'. Use 'all' only when historical done/dropped projects are relevant.
+    - Always inspect project status before interpreting task counts. A project with remainingTasks=0 is not automatically a completion candidate.
+    - totalTasks=0 means the project is empty or unplanned, not completed.
+    - An active project whose child tasks are all completed may be a completion candidate. If all child tasks are dropped, treat it as a drop/review candidate instead.
+    - availableTasks=0 does not mean a project is stalled. Request and use 'isStalled', and do not classify on-hold projects as stalled.
+    - Do not infer that a project is stale from task counts alone.
+    - Default fields are 'id' and 'name'. When statusFilter='all' or includeTaskCounts=true, the defaults also include 'status'.
+
+    COMPLETED PROJECTS (matches OmniFocus Completed perspective):
+    - Use completedAfter/completedBefore with ISO8601 dates to find completed projects in time windows.
+    - Excludes dropped projects (only status=done projects with completion dates).
+    - Results are sorted by completionDate descending (most recent first).
+    - Include 'completionDate' in fields to see when projects were completed.
+
+    REVIEW PERSPECTIVE:
+    - Use reviewPerspective=true to return projects pending review (excludes dropped/done and applies nextReviewDate <= now when reviewDueBefore is omitted).
+    - Optionally set reviewDueBefore/reviewDueAfter (ISO8601 UTC) to bound nextReviewDate.
+    """
+
+    public static func resolvedProjectFields(
+        requestedFields: [String],
+        statusFilter: String,
+        includeTaskCounts: Bool
+    ) -> [String] {
+        guard requestedFields.isEmpty else { return requestedFields }
+        if statusFilter.caseInsensitiveCompare("all") == .orderedSame || includeTaskCounts {
+            return ["id", "name", "status"]
+        }
+        return ["id", "name"]
+    }
+
+    static let taskFilterPropertyNames: Set<String> = [
+        "completed",
+        "flagged",
+        "availableOnly",
+        "inboxView",
+        "project",
+        "tags",
+        "dueBefore",
+        "dueAfter",
+        "deferBefore",
+        "deferAfter",
+        "plannedBefore",
+        "plannedAfter",
+        "completedBefore",
+        "completedAfter",
+        "search",
+        "inboxOnly",
+        "projectView",
+        "maxEstimatedMinutes",
+        "minEstimatedMinutes",
+        "includeTotalCount"
+    ]
+
+    static func makeTaskFilterSchema() -> Value {
+        let dateExample = Value.string("2026-01-30T12:00:00Z")
+        let properties: [String: Value] = [
+            "completed": propertySchema(
+                type: "boolean",
+                description: "Match completed (true) or remaining (false) tasks. Omit to use the selected view's default."
+            ),
+            "flagged": propertySchema(
+                type: "boolean",
+                description: "Match OmniFocus's effective flagged state, including flags inherited from a parent task or project."
+            ),
+            "availableOnly": propertySchema(
+                type: "boolean",
+                description: "When true, require OmniFocus's native available task status, including active project and parent status."
+            ),
+            "inboxView": .object([
+                "type": .string("string"),
+                "description": .string("Task status view. This does not scope results to the inbox; set inboxOnly=true for that."),
+                "enum": .array([.string("available"), .string("remaining"), .string("everything")])
+            ]),
+            "project": propertySchema(
+                type: "string",
+                description: "Match one containing project by exact ID or exact name."
+            ),
+            "tags": .object([
+                "type": .string("array"),
+                "description": .string("Match tag IDs or exact tag names. An empty array selects untagged tasks."),
+                "items": .object(["type": .string("string")]),
+                "examples": .array([.array([.string("work"), .string("urgent")]), .array([.string("personal")])])
+            ]),
+            "dueBefore": dateFilterSchema("Match tasks due on or before this ISO8601 timestamp.", example: dateExample),
+            "dueAfter": dateFilterSchema("Match tasks due on or after this ISO8601 timestamp.", example: dateExample),
+            "deferBefore": dateFilterSchema("Match tasks deferred until on or before this ISO8601 timestamp.", example: dateExample),
+            "deferAfter": dateFilterSchema("Match tasks deferred until on or after this ISO8601 timestamp.", example: dateExample),
+            "plannedBefore": dateFilterSchema("Match tasks planned on or before this ISO8601 timestamp.", example: dateExample),
+            "plannedAfter": dateFilterSchema("Match tasks planned on or after this ISO8601 timestamp.", example: dateExample),
+            "completedBefore": dateFilterSchema("Match tasks completed on or before this ISO8601 timestamp.", example: dateExample),
+            "completedAfter": dateFilterSchema("Match tasks completed on or after this ISO8601 timestamp.", example: dateExample),
+            "search": propertySchema(
+                type: "string",
+                description: "Search task names and notes."
+            ),
+            "inboxOnly": propertySchema(
+                type: "boolean",
+                description: "When true, scope the query to inbox tasks."
+            ),
+            "projectView": .object([
+                "type": .string("string"),
+                "description": .string("Match tasks by containing project status. Use all to include every project status."),
+                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")])
+            ]),
+            "maxEstimatedMinutes": .object([
+                "type": .string("integer"),
+                "minimum": .int(0),
+                "description": .string("Match tasks whose estimate is at most this many minutes.")
+            ]),
+            "minEstimatedMinutes": .object([
+                "type": .string("integer"),
+                "minimum": .int(0),
+                "description": .string("Match tasks whose estimate is at least this many minutes.")
+            ]),
+            "includeTotalCount": propertySchema(
+                type: "boolean",
+                description: "For list_tasks, include the full filtered count before pagination. get_task_counts always returns dedicated counts, so this value is unnecessary there.",
+                defaultValue: .bool(false)
+            )
+        ]
+
+        precondition(
+            Set(properties.keys) == taskFilterPropertyNames,
+            "The shared MCP task filter schema must cover the intentional TaskFilter surface."
+        )
+
+        return .object([
+            "type": .string("object"),
+            "description": .string("Shared task filter accepted by list_tasks and get_task_counts. Date bounds are inclusive ISO8601 timestamps."),
+            "properties": .object(properties)
+        ])
     }
 
     public static func run() async throws {
@@ -31,7 +201,7 @@ public enum FocusRelayServer {
         let logger = Logger(label: "focus.relay.mcp")
         let server = Server(
             name: "FocusRelayMCP",
-            version: "0.1.0",
+            version: version,
             capabilities: .init(tools: .init(listChanged: true))
         )
 
@@ -44,71 +214,7 @@ public enum FocusRelayServer {
                     description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, planned dates, tags, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY TAGS:\n- Tagged project root tasks are included when they match, even if OmniFocus omits them from flattenedTasks because the project has child tasks.\n- If you want tagged project headers that are not currently actionable, set completed=false and availableOnly=false.\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
                     inputSchema: toolSchema(
                         properties: [
-                            "filter": .object([
-                                "type": .string("object"),
-                                "description": .string("Task filters including time periods. For 'morning tasks', use deferAfter=06:00 and deferBefore=12:00 in local timezone converted to UTC."),
-                                "properties": .object([
-                                    "completed": propertySchema(
-                                        type: "boolean",
-                                        description: "Filter by completion status. Use with completedAfter/completedBefore to filter completed tasks by date (e.g., completed=true + completedAfter='2026-02-10T00:00:00Z' = today's completions)"
-                                    ),
-                                    "completedAfter": propertySchema(
-                                        type: "string",
-                                        description: "Filter tasks completed AFTER this date/time (inclusive). Use ISO8601 UTC format. Example: To get today's completions, use today's date at 00:00:00Z. Can be used with or without completed=true.",
-                                        examples: [.string("2026-01-31T00:00:00Z")]
-                                    ),
-                                    "completedBefore": propertySchema(
-                                        type: "string",
-                                        description: "Filter tasks completed BEFORE this date/time (exclusive). Use ISO8601 UTC format. Example: To get today's completions, use tomorrow's date at 00:00:00Z as the upper bound.",
-                                        examples: [.string("2026-02-01T00:00:00Z")]
-                                    ),
-                                    "flagged": propertySchema(type: "boolean", description: "Filter flagged tasks only"),
-                                    "availableOnly": propertySchema(type: "boolean", description: "Only show tasks that are currently available (not blocked by defer dates)"),
-                                    "inboxView": propertySchema(type: "string", description: "View mode: 'available', 'remaining', or 'everything'. NOTE: this controls view mode only; use inboxOnly=true to scope to inbox."),
-                                    "project": propertySchema(type: "string", description: "Filter by project ID or name"),
-                                    "tags": .object([
-                                        "type": .string("array"),
-                                        "description": .string("Filter by tag IDs or names"),
-                                        "items": .object(["type": .string("string")]),
-                                        "examples": .array([.array([.string("work"), .string("urgent")]), .array([.string("personal")])])
-                                    ]),
-                                    "dueBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks due before this time. For morning tasks due today, use today's date at 12:00:00Z",
-                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T23:59:59Z")]
-                                    ),
-                                    "dueAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks due after this time",
-                                        examples: [.string("2026-01-30T00:00:00Z")]
-                                    ),
-                                    "plannedBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks planned before this time.",
-                                        examples: [.string("2026-01-30T23:59:59Z")]
-                                    ),
-                                    "plannedAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks planned after this time.",
-                                        examples: [.string("2026-01-30T00:00:00Z")]
-                                    ),
-                                    "deferBefore": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks deferred until before this time. For morning tasks, use today's date at 12:00:00Z",
-                                        examples: [.string("2026-01-30T12:00:00Z"), .string("2026-01-30T18:00:00Z")]
-                                    ),
-                                    "deferAfter": propertySchema(
-                                        type: "string",
-                                        description: "ISO8601 datetime. Tasks deferred until after this time (become available). For morning tasks starting at 6am, use today's date at 06:00:00Z",
-                                        examples: [.string("2026-01-30T06:00:00Z"), .string("2026-01-30T12:00:00Z")]
-                                    ),
-
-                                    "search": propertySchema(type: "string", description: "Search tasks by name or note content"),
-                                    "inboxOnly": propertySchema(type: "boolean", description: "Only show inbox tasks"),
-                                    "projectView": propertySchema(type: "string", description: "Project view filter: 'active', 'onHold', etc."),
-                                    "includeTotalCount": propertySchema(type: "boolean", description: "Include totalCount for all tasks matching filter (before pagination). Recommended when comparing with get_task_counts.")
-                                ])
-                            ]),
+                            "filter": makeTaskFilterSchema(),
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
@@ -118,7 +224,7 @@ public enum FocusRelayServer {
                             ]),
                             "fields": .object([
                                 "type": .string("array"),
-                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether task is flagged\n\nALWAYS include the fields you need to answer the user's question."),
+                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether this task itself is flagged\n- 'effectiveFlagged' - visible OmniFocus flag state, including flags inherited from a parent task or project\n\nFor Flagged-perspective questions, filter with flagged=true and request 'effectiveFlagged' when returning flag state. ALWAYS include the fields you need to answer the user's question."),
                                 "items": .object(["type": .string("string")]),
                                 "examples": .array([
                                     .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
@@ -147,7 +253,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "list_projects",
-                    description: "List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include task counts. Use statusFilter to show only projects with a specific status, and includeTaskCounts to get the number of tasks associated with each project.\n\nCOMPLETED PROJECTS (matches OmniFocus Completed perspective):\n- Use completedAfter/completedBefore with ISO8601 dates to find completed projects in time windows\n- Excludes dropped projects (only status=done projects with completion dates)\n- Results sorted by completionDate descending (most recent first)\n- IMPORTANT: Include 'completionDate' in fields to see when projects were completed\n\nREVIEW PERSPECTIVE:\n- Use reviewPerspective=true to return projects pending review (excludes dropped/done and applies nextReviewDate <= now when reviewDueBefore is omitted).\n- Optionally set reviewDueBefore/reviewDueAfter (ISO8601 UTC) to bound nextReviewDate.",
+                    description: listProjectsToolDescription,
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -159,7 +265,7 @@ public enum FocusRelayServer {
                             ]),
                             "statusFilter": .object([
                                 "type": .string("string"),
-                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'"),
+                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'. Use 'active' for current-project maintenance. 'all' includes historical done/dropped projects, so inspect each returned status before making recommendations."),
                                 "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
                                 "default": .string("active")
                             ]),
@@ -180,7 +286,7 @@ public enum FocusRelayServer {
                             ]),
                             "includeTaskCounts": .object([
                                 "type": .string("boolean"),
-                                "description": .string("Include task counts for each project (available, remaining, completed, dropped, total)"),
+                                "description": .string("Include child-task counts for each project (available, remaining, completed, dropped, total). Counts do not determine project status: inspect the returned project status, treat empty projects separately, and use isStalled rather than availableTasks=0 for stalled-project analysis."),
                                 "default": .bool(false)
                             ]),
                             "reviewPerspective": .object([
@@ -200,8 +306,13 @@ public enum FocusRelayServer {
                             ),
                             "fields": .object([
                                 "type": .string("array"),
-                                "description": .string("Specify which fields to return. IMPORTANT review fields: 'lastReviewDate', 'nextReviewDate', 'reviewInterval' (object with steps/unit)."),
-                                "items": .object(["type": .string("string")])
+                                "description": .string("Specify which fields to return. Useful fields: 'id', 'name', 'note', 'status', 'flagged', 'completionDate', 'lastReviewDate', 'nextReviewDate', 'reviewInterval', 'hasChildren', 'nextTask', 'containsSingletonActions', and 'isStalled'. Always include 'status' when comparing projects across statuses. Task-count fields are included by includeTaskCounts."),
+                                "items": .object(["type": .string("string")]),
+                                "examples": .array([
+                                    .array([.string("id"), .string("name"), .string("status"), .string("isStalled")]),
+                                    .array([.string("id"), .string("name"), .string("status"), .string("completionDate")]),
+                                    .array([.string("id"), .string("name"), .string("status"), .string("lastReviewDate"), .string("nextReviewDate")])
+                                ])
                             ])
                         ]
                     ),
@@ -257,7 +368,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "update_tasks",
-                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
+                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -290,8 +401,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -300,11 +411,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "taskPatch"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_tasks_completion",
-                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
+                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -323,8 +434,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -333,11 +444,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "completion"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "move_tasks",
-                    description: "Move or reparent multiple task IDs to one shared destination. This tool owns structural task relocation and keeps move semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared destination for all targets\n- supported destination kinds: inbox, project, parent_task\n- supported placement values: beginning, ending\n- no field edits\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    description: "Move or reparent multiple task IDs to one shared destination. This tool owns structural task relocation and keeps move semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared destination for all targets\n- supported destination kinds: inbox, project, parent_task\n- supported placement values: beginning, ending\n- no field edits\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -363,8 +474,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
@@ -373,11 +484,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "move"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "update_projects",
-                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
+                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -408,8 +519,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -418,11 +529,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "projectPatch"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_projects_status",
-                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state.",
+                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -441,8 +552,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -451,11 +562,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "projectStatus"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "set_projects_completion",
-                    description: "Apply one shared lifecycle state to multiple project IDs. This tool owns project complete and uncomplete behavior and keeps lifecycle semantics out of update_projects and set_projects_status.\n\nV1 constraints:\n- project IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no status-only transitions\n- no folder moves\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state. For repeating projects, OmniFocus completes a generated project occurrence and advances the original project, so result messages may describe that special case.",
+                    description: "Apply one shared lifecycle state to multiple project IDs. This tool owns project complete and uncomplete behavior and keeps lifecycle semantics out of update_projects and set_projects_status.\n\nV1 constraints:\n- project IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no status-only transitions\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating projects, OmniFocus completes a generated project occurrence and advances the original project, so result messages may describe that special case.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -474,8 +585,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -484,11 +595,11 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "completion"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "move_projects",
-                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nUse previewOnly=true to validate without mutating. Use verify=true to confirm the final state after the move.",
+                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
                     inputSchema: toolSchema(
                         properties: [
                             "targetIDs": .object([
@@ -514,8 +625,8 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "Validate and resolve targets without mutating."),
-                            "verify": propertySchema(type: "boolean", description: "Verify the final state after mutation."),
+                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
                             "returnFields": .object([
                                 "type": .string("array"),
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
@@ -524,14 +635,14 @@ public enum FocusRelayServer {
                         ],
                         required: ["targetIDs", "move"]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
+                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
                 ),
                 Tool(
                     name: "get_task_counts",
                     description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
                     inputSchema: toolSchema(
                         properties: [
-                            "filter": .object(["type": .string("object")])
+                            "filter": makeTaskFilterSchema()
                         ]
                     ),
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
@@ -566,26 +677,22 @@ public enum FocusRelayServer {
                         ]
                     ),
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "debug_inbox_probe",
-                    description: "Debug inbox query behavior (counts and samples)",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "debug_inbox_probe_alt",
-                    description: "Debug inbox query behavior using alternate queries and timings",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "bridge_health_check",
-                    description: "Check OmniFocus bridge plug-in availability and responsiveness",
-                    inputSchema: toolSchema(properties: [:]),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
                 )
             ]
+
+            precondition(
+                tools.map(\.name) == publicToolNames,
+                "The MCP tool catalog must match the intentional public tool surface."
+            )
+            precondition(
+                tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
+                    $0.annotations.readOnlyHint == false &&
+                        $0.annotations.destructiveHint == true &&
+                        $0.annotations.idempotentHint == false &&
+                        $0.annotations.openWorldHint == false
+                },
+                "Mutation tool annotations must truthfully describe write risk."
+            )
 
             return .init(tools: tools)
         }
@@ -641,7 +748,11 @@ public enum FocusRelayServer {
                     let completedBefore = try decodeArgument(Date.self, from: params.arguments, key: "completedBefore")
                     let completedAfter = try decodeArgument(Date.self, from: params.arguments, key: "completedAfter")
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
-                    let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
+                    let fields = resolvedProjectFields(
+                        requestedFields: requestedFields,
+                        statusFilter: statusFilter,
+                        includeTaskCounts: includeTaskCounts
+                    )
                     let result = try await service.listProjects(
                         page: page,
                         statusFilter: statusFilter,
@@ -819,22 +930,6 @@ public enum FocusRelayServer {
                     let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     let counts = try await service.getProjectCounts(filter: filter)
                     return .init(content: [.text(try encodeJSON(counts))])
-                case "debug_inbox_probe":
-                    if let automation = service as? OmniAutomationService {
-                        let result = try await automation.debugInboxProbe()
-                        return .init(content: [.text(try encodeJSON(result))])
-                    }
-                    return .init(content: [.text("debug_inbox_probe is only available in JXA mode")], isError: true)
-                case "debug_inbox_probe_alt":
-                    if let automation = service as? OmniAutomationService {
-                        let result = try await automation.debugInboxProbeAlt()
-                        return .init(content: [.text(try encodeJSON(result))])
-                    }
-                    return .init(content: [.text("debug_inbox_probe_alt is only available in JXA mode")], isError: true)
-                case "bridge_health_check":
-                    let bridge = OmniFocusBridgeService()
-                    let result = try bridge.healthCheck()
-                    return .init(content: [.text(try encodeJSON(result))])
                 default:
                     return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
                 }
@@ -849,6 +944,14 @@ public enum FocusRelayServer {
         while true {
             try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
         }
+    }
+
+    static func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
+        guard let value = args?[key] else { return nil }
+        let data = try JSONEncoder().encode(value)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(T.self, from: data)
     }
 }
 
@@ -865,7 +968,12 @@ private func toolSchema(properties: [String: Value], required: [String] = []) ->
     return .object(schema)
 }
 
-private func propertySchema(type: String, description: String = "", examples: [Value]? = nil) -> Value {
+private func propertySchema(
+    type: String,
+    description: String = "",
+    examples: [Value]? = nil,
+    defaultValue: Value? = nil
+) -> Value {
     var schema: [String: Value] = ["type": .string(type)]
     if !description.isEmpty {
         schema["description"] = .string(description)
@@ -873,15 +981,19 @@ private func propertySchema(type: String, description: String = "", examples: [V
     if let examples = examples {
         schema["examples"] = .array(examples)
     }
+    if let defaultValue {
+        schema["default"] = defaultValue
+    }
     return .object(schema)
 }
 
-private func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
-    guard let value = args?[key] else { return nil }
-    let data = try JSONEncoder().encode(value)
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    return try decoder.decode(T.self, from: data)
+private func dateFilterSchema(_ description: String, example: Value) -> Value {
+    .object([
+        "type": .string("string"),
+        "format": .string("date-time"),
+        "description": .string(description),
+        "examples": .array([example])
+    ])
 }
 
 private func decodeStringArray(_ value: Value?) -> [String]? {

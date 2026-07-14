@@ -1,6 +1,6 @@
 # FocusRelayMCP
 
-A Model Context Protocol (MCP) server for OmniFocus on macOS. Query tasks, projects, and tags using natural language through AI assistants like Claude.
+A Model Context Protocol (MCP) server for OmniFocus on macOS. Read and safely update tasks and projects using natural language through AI assistants like Claude.
 
 ![Demo: Ask your OmniFocus tasks naturally](imgs/omnifocusaiquery.gif)
 
@@ -66,7 +66,7 @@ If you have [Homebrew](https://brew.sh) installed, this is the easiest method:
 # Add the tap (once)
 brew tap deverman/focus-relay
 
-# Install the MCP server and OmniFocus plugin
+# Install the MCP server and bundled OmniFocus plugin
 brew install focusrelay
 ```
 
@@ -87,7 +87,7 @@ Then continue with **Step 2: Install the OmniFocus Plugin** below.
 #### Prerequisites
 
 - macOS with OmniFocus installed (4.x recommended)
-- Swift 6.2+ toolchain
+- Swift 6.3.3 toolchain. The checked-in `.swift-version` lets [Swiftly](https://github.com/swiftlang/swiftly) select the project toolchain automatically.
 - This has been tested on [opencode](https://opencode.ai) but should work with Claude Desktop or other tools with MCP integration
 
 #### Step 1: Clone and Build
@@ -96,9 +96,11 @@ Then continue with **Step 2: Install the OmniFocus Plugin** below.
 git clone <repository-url>
 cd FocusRelayMCP
 swift build -c release
+.build/release/focusrelay --version
 ```
 
 The binary will be at `.build/release/focusrelay` (CLI + MCP server).
+Ordinary source builds report `0.0.0-dev`. Tagged release builds embed the tag-derived semantic version in the binary and plugin health response. The OmniFocus manifest uses the numeric core because Omni requires a numeric plug-in version.
 
 Then continue with **Step 2: Install the OmniFocus Plugin** below.
 
@@ -150,7 +152,7 @@ Add to your opencode.json or Claude Desktop config:
 }
 ```
 
-Note: `focusrelay` without arguments shows help; use `focusrelay serve` to run the MCP server.
+Note: `focusrelay` without arguments shows help; use `focusrelay --version` to verify an installation and `focusrelay serve` to run the MCP server.
 
 ### Step 4: Restart OmniFocus
 
@@ -277,15 +279,19 @@ All completion queries match the OmniFocus Completed perspective:
 
 ## Available Tools
 
+The MCP catalog exposes 14 product tools. Bridge health and inbox diagnostic
+commands remain available through the CLI for setup, support, and benchmark
+readiness, but are intentionally not advertised to models during normal use.
+
 ### list_tasks
 Query tasks with various filters:
 - `dueBefore`, `dueAfter`: Filter by due dates
 - `plannedBefore`, `plannedAfter`: Filter by planned dates
 - `deferBefore`, `deferAfter`: Filter by defer dates
 - `completedBefore`, `completedAfter`: Filter by completion dates (implies `completed: true`)
-- `tags`: Filter by specific tags. Tagged project root tasks are included when they match, even if OmniFocus omits them from `flattenedTasks`; set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
+- `tags`: Filter by specific tags. Tagged project headers can be included intentionally when they match; ordinary action queries exclude invisible project root tasks. Set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
 - `project`: Filter by project
-- `flagged`: Show only flagged tasks
+- `flagged`: Match OmniFocus's visible flag state, including flags inherited from a parent task or project
 - `completed`: Show completed or remaining tasks
 - `inboxView`: View mode (`available`/`remaining`/`everything`). Use with `inboxOnly: true` for inbox-scoped queries.
 - `inboxOnly`: Scope query to inbox tasks only
@@ -297,6 +303,10 @@ Useful task date fields you can request:
 - `plannedDate`
 - `deferDate`
 - `completionDate`
+
+Flag fields have distinct purposes:
+- `flagged`: The task's own writable flag
+- `effectiveFlagged`: The flag state visible in OmniFocus, including inherited flags
 
 **Response Counts:**
 All list operations now include automatic counting to prevent errors:
