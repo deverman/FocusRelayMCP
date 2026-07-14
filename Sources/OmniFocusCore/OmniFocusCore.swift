@@ -14,6 +14,7 @@ public struct TaskItem: Codable, Sendable {
     public let completionDate: Date?
     public let completed: Bool
     public let flagged: Bool
+    public let effectiveFlagged: Bool
     public let estimatedMinutes: Int?
     public let available: Bool
 
@@ -31,6 +32,7 @@ public struct TaskItem: Codable, Sendable {
         completionDate: Date? = nil,
         completed: Bool,
         flagged: Bool,
+        effectiveFlagged: Bool? = nil,
         estimatedMinutes: Int? = nil,
         available: Bool
     ) {
@@ -47,6 +49,7 @@ public struct TaskItem: Codable, Sendable {
         self.completionDate = completionDate
         self.completed = completed
         self.flagged = flagged
+        self.effectiveFlagged = effectiveFlagged ?? flagged
         self.estimatedMinutes = estimatedMinutes
         self.available = available
     }

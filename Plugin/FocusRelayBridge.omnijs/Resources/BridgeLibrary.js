@@ -122,6 +122,7 @@
         completionDate: hasField("completionDate") ? (safe(() => t.completionDate) ? t.completionDate.toISOString() : null) : null,
         completed: hasField("completed") ? isCompletedStatus(t) : null,
         flagged: hasField("flagged") ? Boolean(t.flagged) : null,
+        effectiveFlagged: hasField("effectiveFlagged") ? isTaskEffectivelyFlagged(t) : null,
         estimatedMinutes: hasField("estimatedMinutes") ? t.estimatedMinutes : null,
         available: hasField("available") ? isTaskAvailable(t) : null
       };
@@ -1334,6 +1335,20 @@
     // ============================================================
     // END STATUS MODULE
 
+    // EFFECTIVE FLAG MODULE - Native Flagged perspective semantics
+    function isTaskEffectivelyFlagged(task) {
+      return Boolean(safe(() => task.effectiveFlagged));
+    }
+
+    function isProjectRootTask(task) {
+      const project = safe(() => task.containingProject);
+      if (!project) { return false; }
+      const taskID = String(safe(() => task.id.primaryKey) || "");
+      const projectID = String(safe(() => project.id.primaryKey) || "");
+      return taskID.length > 0 && taskID === projectID;
+    }
+    // END EFFECTIVE FLAG MODULE
+
     // TASK SEARCH MODULE - Shared name/note matching semantics
     function normalizeTaskSearchQuery(value) {
       if (typeof value !== "string") { return null; }
@@ -1719,7 +1734,7 @@
           if (useInbox) {
             inbox.apply(task => tasks.push(task));
           } else {
-            tasks = flattenedTasks;
+            tasks = toTaskArray(flattenedTasks).filter(task => !isProjectRootTask(task));
             if (hasProjectRootTagFilter) {
               projectRootCandidates = safe(() => flattenedProjects) || [];
             }
@@ -1837,7 +1852,7 @@
               if (!isRemainingStatusWithStatus(t, taskStatusValue)) return false;
             }
             if (filterState.flagged !== undefined) {
-              const taskFlagged = Boolean(t.flagged);
+              const taskFlagged = isTaskEffectivelyFlagged(t);
               if (taskFlagged !== filterState.flagged) return false;
             }
             if (!taskMatchesSearch(t, filterState.searchQuery)) return false;
@@ -1961,7 +1976,7 @@
               afterStatusGateCount += 1;
 
               if (filterState.flagged !== undefined) {
-                const taskFlagged = Boolean(t.flagged);
+                const taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) {
                   continue;
                 }
@@ -2500,10 +2515,10 @@
               return [];
             }
             if (project) {
-              return toTaskArray(safe(() => project.flattenedTasks));
+              return toTaskArray(safe(() => project.flattenedTasks)).filter(task => !isProjectRootTask(task));
             }
 
-            return toTaskArray(safe(() => flattenedTasks));
+            return toTaskArray(safe(() => flattenedTasks)).filter(task => !isProjectRootTask(task));
           }
 
           function selectProjectRootCandidates() {
@@ -2630,7 +2645,7 @@
 
               let taskFlagged = null;
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) { return; }
               }
 
@@ -2643,7 +2658,7 @@
               counts.total += 1;
               counts.available += 1;
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2670,7 +2685,7 @@
 
               let taskFlagged = null;
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) { return; }
               }
 
@@ -2682,7 +2697,7 @@
               counts.total += 1;
               counts.completed += 1;
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2708,7 +2723,7 @@
               }
 
               if (filterState.flagged !== undefined) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
                 if (taskFlagged !== filterState.flagged) return;
               }
               if (!taskMatchesSearch(t, filterState.searchQuery)) return;
@@ -2789,7 +2804,7 @@
                 counts.available += 1;
               }
               if (taskFlagged === null) {
-                taskFlagged = Boolean(t.flagged);
+                taskFlagged = isTaskEffectivelyFlagged(t);
               }
               if (taskFlagged) { counts.flagged += 1; }
               if (debugInfo && finalSample.length < 5) {
@@ -2870,6 +2885,7 @@
             const completedTaskCountStart = Date.now();
             
             flattenedTasks.forEach(t => {
+              if (isProjectRootTask(t)) { return; }
               const project = safe(() => t.containingProject);
               if (!project) { return; }
               const pid = String(safe(() => project.id.primaryKey) || "");
@@ -2926,7 +2942,7 @@
               tasks = [];
             } else if (project) {
               const poolStart = Date.now();
-              tasks = toTaskArray(safe(() => project.flattenedTasks));
+              tasks = toTaskArray(safe(() => project.flattenedTasks)).filter(task => !isProjectRootTask(task));
               projectRootCandidates = [project];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
@@ -2938,7 +2954,7 @@
               });
             } else {
               const poolStart = Date.now();
-              tasks = toTaskArray(safe(() => flattenedTasks));
+              tasks = toTaskArray(safe(() => flattenedTasks)).filter(task => !isProjectRootTask(task));
               projectRootCandidates = safe(() => flattenedProjects) || [];
               markProjectCounts("selected_base_pool", {
                 count: tasks.length,
@@ -2985,7 +3001,7 @@
               }
 
               if (filterState.flagged !== undefined) {
-                if (Boolean(t.flagged) !== filterState.flagged) return;
+                if (isTaskEffectivelyFlagged(t) !== filterState.flagged) return;
               }
               if (filterState.availableOnly) {
                 if (!isTaskAvailable(t)) return;

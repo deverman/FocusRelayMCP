@@ -82,6 +82,7 @@ public final class OmniAutomationService: OmniFocusService {
                 completionDate: payload.completionDate,
                 completed: payload.completed ?? false,
                 flagged: payload.flagged ?? false,
+                effectiveFlagged: payload.effectiveFlagged,
                 estimatedMinutes: payload.estimatedMinutes,
                 available: payload.available ?? false
             )
@@ -606,6 +607,18 @@ func listTasksOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -656,13 +669,14 @@ func listTasksOmniAutomationScript(requestJSON: String) -> String {
           completionDate: hasField("completionDate") && completionDate ? completionDate.toISOString() : null,
           completed: hasField("completed") ? isCompletedStatus(task) : null,
           flagged: hasField("flagged") ? Boolean(safe(function() { return task.flagged; })) : null,
+          effectiveFlagged: hasField("effectiveFlagged") ? isTaskEffectivelyFlagged(task) : null,
           estimatedMinutes: hasField("estimatedMinutes") ? safe(function() { return task.estimatedMinutes; }) : null,
           available: hasField("available") ? isTaskAvailable(task) : null
         };
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
       var isEverything = inboxView === "everything";
       var isRemaining = inboxView === "remaining";
@@ -720,7 +734,7 @@ func listTasksOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
 
         if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
@@ -1368,6 +1382,18 @@ func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -1397,7 +1423,7 @@ func taskCountsOmniAutomationScript(requestJSON: String) -> String {
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
       var isEverything = inboxView === "everything";
       var isRemaining = inboxView === "remaining";
@@ -1455,7 +1481,7 @@ func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
 
         if (!taskMatchesSearch(task, filterState.searchQuery)) { return false; }
@@ -1529,7 +1555,7 @@ func taskCountsOmniAutomationScript(requestJSON: String) -> String {
         counts.total += 1;
         if (isCompletedStatus(task)) { counts.completed += 1; }
         if (isTaskAvailable(task)) { counts.available += 1; }
-        if (Boolean(safe(function() { return task.flagged; }))) { counts.flagged += 1; }
+        if (isTaskEffectivelyFlagged(task)) { counts.flagged += 1; }
       }
 
       return JSON.stringify(counts);
@@ -1731,6 +1757,18 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         return String(safe(function() { return task.id.primaryKey; }) || "");
       }
 
+      function isTaskEffectivelyFlagged(task) {
+        return Boolean(safe(function() { return task.effectiveFlagged; }));
+      }
+
+      function isProjectRootTask(task) {
+        var project = safe(function() { return task.containingProject; });
+        if (!project) { return false; }
+        var taskID = taskIdentifier(task);
+        var projectID = String(safe(function() { return project.id.primaryKey; }) || "");
+        return taskID.length > 0 && taskID === projectID;
+      }
+
       function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
         if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -1760,7 +1798,7 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
       }
 
       var allProjects = toTaskArray(safe(function() { return flattenedProjects; }));
-      var allTasks = toTaskArray(safe(function() { return flattenedTasks; }));
+      var allTasks = toTaskArray(safe(function() { return flattenedTasks; })).filter(function(task) { return !isProjectRootTask(task); });
       var completedAfter = filter.completedAfter ? parseFilterDate(filter.completedAfter) : null;
       var completedBefore = filter.completedBefore ? parseFilterDate(filter.completedBefore) : null;
       var completedOnly = filter.completed === true;
@@ -1871,7 +1909,7 @@ private func projectCountsOmniAutomationScript(requestJSON: String) -> String {
         }
 
         if (filterState.flagged !== undefined) {
-          if (Boolean(safe(function() { return task.flagged; })) !== filterState.flagged) { return false; }
+          if (isTaskEffectivelyFlagged(task) !== filterState.flagged) { return false; }
         }
 
 

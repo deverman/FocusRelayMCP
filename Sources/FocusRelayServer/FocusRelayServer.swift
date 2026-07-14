@@ -114,7 +114,7 @@ public enum FocusRelayServer {
             ),
             "flagged": propertySchema(
                 type: "boolean",
-                description: "Match tasks whose flagged state equals this value."
+                description: "Match OmniFocus's effective flagged state, including flags inherited from a parent task or project."
             ),
             "availableOnly": propertySchema(
                 type: "boolean",
@@ -224,7 +224,7 @@ public enum FocusRelayServer {
                             ]),
                             "fields": .object([
                                 "type": .string("array"),
-                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether task is flagged\n\nALWAYS include the fields you need to answer the user's question."),
+                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether this task itself is flagged\n- 'effectiveFlagged' - visible OmniFocus flag state, including flags inherited from a parent task or project\n\nFor Flagged-perspective questions, filter with flagged=true and request 'effectiveFlagged' when returning flag state. ALWAYS include the fields you need to answer the user's question."),
                                 "items": .object(["type": .string("string")]),
                                 "examples": .array([
                                     .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),

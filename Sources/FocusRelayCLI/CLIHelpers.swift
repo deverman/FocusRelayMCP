@@ -58,7 +58,7 @@ struct TaskFilterOptions: ParsableArguments {
     @Option(help: "Filter by completion status (true/false).")
     var completed: Bool? = nil
 
-    @Option(help: "Filter flagged tasks (true/false).")
+    @Option(help: "Filter by effective flagged state, including inherited flags (true/false).")
     var flagged: Bool? = nil
 
     @Option(name: .customLong("available-only"), help: "Only show available tasks (true/false).")

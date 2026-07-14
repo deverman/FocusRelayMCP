@@ -61,6 +61,7 @@ Relevant reference pages:
 - `task.name`
 - `task.note`
 - `task.flagged`
+- `task.effectiveFlagged`
 - `task.completed`
 - `task.completionDate`
 - `task.dueDate`
@@ -86,7 +87,14 @@ When `list_projects(includeTaskCounts=true)` is requested, counts are derived fr
 
 Consequently, children hidden by a completed or dropped parent remain part of `totalTasks` but are not reported as available or remaining. Projects that are on hold, dropped, or done report zero available tasks.
 
-Project-scoped `list_tasks` queries exclude the project's invisible root task so they enumerate the same action set as `project.flattenedTasks`. A tag-filtered query may still return a tagged project root intentionally, as documented by the task-query contract.
+Task action queries exclude invisible project root tasks from `flattenedTasks`.
+A tag-filtered query may still return a tagged project root intentionally, as
+documented by the task-query contract.
+
+The `flagged` filter and aggregate flagged count use documented
+`task.effectiveFlagged`, matching flags inherited from parent tasks and projects.
+The returned `flagged` field remains the task's local writable flag for backward
+compatibility; request `effectiveFlagged` for the visible OmniFocus flag state.
 
 ## Banned undocumented core-query patterns
 Do not use these as the primary production query path unless the official docs explicitly document them in the future.

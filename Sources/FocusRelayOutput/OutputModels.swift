@@ -15,6 +15,7 @@ public struct TaskOutput: Encodable {
     public let completionDate: Date?
     public let completed: Bool?
     public let flagged: Bool?
+    public let effectiveFlagged: Bool?
     public let estimatedMinutes: Int?
     public let available: Bool?
 
@@ -32,6 +33,7 @@ public struct TaskOutput: Encodable {
         completionDate: Date?,
         completed: Bool?,
         flagged: Bool?,
+        effectiveFlagged: Bool?,
         estimatedMinutes: Int?,
         available: Bool?
     ) {
@@ -48,6 +50,7 @@ public struct TaskOutput: Encodable {
         self.completionDate = completionDate
         self.completed = completed
         self.flagged = flagged
+        self.effectiveFlagged = effectiveFlagged
         self.estimatedMinutes = estimatedMinutes
         self.available = available
     }
@@ -193,6 +196,7 @@ public func makeTaskOutput(from task: TaskItem, fields: Set<String>) -> TaskOutp
         completionDate: fields.contains("completionDate") ? task.completionDate : nil,
         completed: fields.contains("completed") ? task.completed : nil,
         flagged: fields.contains("flagged") ? task.flagged : nil,
+        effectiveFlagged: fields.contains("effectiveFlagged") ? task.effectiveFlagged : nil,
         estimatedMinutes: fields.contains("estimatedMinutes") ? task.estimatedMinutes : nil,
         available: fields.contains("available") ? task.available : nil
     )
