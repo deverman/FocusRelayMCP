@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `swift-sdk` 0.12 compatibility.
 - Project task counts now use the same native OmniFocus status semantics as task
   queries, including parent and project status constraints.
+- Successful writes invalidate project and tag caches so subsequent reads show
+  the saved changes immediately.
 - Release packaging now produces and verifies the `focusrelay` binary, plugin,
   archive, checksum, prerelease metadata, and tag-derived version consistently.
 - Homebrew formula ownership now points exclusively to the external
@@ -50,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tagged project roots are retained in task query results.
 - Project-scoped task results and project task counts now agree across bridge and
   documented JXA fallback paths.
+- Flagged task filters and counts now match OmniFocus's visible flag state,
+  including flags inherited from parent tasks or projects, without counting
+  invisible project roots as actions.
 - Catalog cache keys now distinguish filter state.
 - Bridge timeout diagnostics now report pickup state and stranded redispatch
   information.
