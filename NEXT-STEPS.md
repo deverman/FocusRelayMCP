@@ -11,7 +11,7 @@ are the source of truth for individual deliverables.
 - [x] Integrate the Swift 6.3.3 toolchain, truthful mutation persistence,
   project-count parity, unified version reporting, release packaging, and
   Homebrew ownership changes into local branch `integration/v0.10.0-beta-rc`.
-- [x] Pass the combined 120-test Swift Testing suite with Swiftly-managed Swift
+- [x] Pass the combined 126-test Swift Testing suite with Swiftly-managed Swift
   6.3.3.
 - [x] Build and validate a versioned `0.10.0-beta` archive and checksum locally.
 - [x] Install the combined plugin, fully restart OmniFocus, and repeat the live
@@ -33,9 +33,11 @@ are the source of truth for individual deliverables.
 - [x] Publish draft release candidate
   [#84](https://github.com/deverman/FocusRelayMCP/pull/84) and pass GitHub CI
   with Swift 6.3.3 installed through Swiftly.
-- [ ] Fix or explicitly waive the effective-flag correctness blocker
-  [#86](https://github.com/deverman/FocusRelayMCP/issues/86), then repeat its
-  required semantic and performance validation.
+- [x] Fix the effective-flag correctness blocker
+  [#86](https://github.com/deverman/FocusRelayMCP/issues/86), add an independent
+  native OmniFocus gate, and complete its required semantic, smoke, and 1.5-hour
+  realistic validation with 864 measured calls and no errors, timeouts, or
+  mismatches.
 - [ ] Tag and publish only after approval and green release validation.
 - [ ] Update `/Users/deverman/Documents/code/homebrew-focus-relay` with the
   actual release asset URL/version/SHA256, then verify a clean reinstall.

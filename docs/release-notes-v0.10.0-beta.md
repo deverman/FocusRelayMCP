@@ -29,7 +29,7 @@ Use `previewOnly=true` before broad changes and `verify=true` for real writes
 when confirmation matters. Omitting both applies the change immediately.
 
 FocusRelay aims to be one of the fastest OmniFocus MCP integrations. Testing
-covered thousands of tasks and more than 1,400 measured calls without an error
+covered thousands of tasks and more than 2,000 measured calls without an error
 or timeout; focused inbox reads typically returned in about one second.
 Single-pass filtering, early-stop paging, project/tag caching, and bulk updates
 keep common requests efficient while task queries remain current.
@@ -53,7 +53,7 @@ The plugin JavaScript and binary must stay in sync. After upgrading:
 
 ## Validation
 
-- All 120 Swift Testing tests and task-list, task-count, and project-count
+- All 126 Swift Testing tests and task-list, task-count, and project-count
   semantic gates pass with Swift 6.3.3.
 - Smoke and sustained benchmarks completed with full scenario coverage and no
   errors, timeouts, or parity mismatches in the final validation.

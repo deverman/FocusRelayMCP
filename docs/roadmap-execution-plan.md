@@ -1,6 +1,6 @@
 # FocusRelayMCP Roadmap Execution Plan
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This document tracks the repository cleanup, release preparation, and next product work identified by the July 2026 repository and GitHub audit. GitHub issues are the source of truth for individual deliverables; this file records sequencing, dependencies, and audit decisions across those issues.
 
@@ -9,7 +9,7 @@ This document tracks the repository cleanup, release preparation, and next produ
 - `master` is clean and matches `origin/master` at `74190b5`; the combined local
   release candidate is `integration/v0.10.0-beta-rc`.
 - The latest `master` GitHub Actions run passed.
-- The combined candidate passes 120 Swift Testing tests with Swiftly-managed
+- The combined candidate passes 126 Swift Testing tests with Swiftly-managed
   Swift 6.3.3, including the live OmniFocus integration tests enabled in the
   current environment.
 - `master` is 22 commits ahead of the latest release, `v0.9.4beta`.
@@ -73,7 +73,7 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
 - [ ] **P2** [#78](https://github.com/deverman/FocusRelayMCP/issues/78): correct mutation safety annotations and make preview/write defaults explicit. PR #84 marks all seven mutation tools destructive and non-idempotent, locks the contract with tests, and has green CI; merge before closure.
 - [ ] **P2** [#79](https://github.com/deverman/FocusRelayMCP/issues/79): make advertised task search filter names and notes in both list and count paths. PR #84 has deterministic plugin/JXA tests, positive live-search evidence, semantic gates, smoke/realistic validation, and green CI; merge before closure.
 - [ ] **P2** [#81](https://github.com/deverman/FocusRelayMCP/issues/81): prevent list-task benchmarks from silently skipping half their declared scenarios. PR #84 rotates per transport pair, fails incomplete measured coverage, passes deterministic tests and corrected smoke coverage, and has green CI; merge before closure.
-- [ ] **P2** [#86](https://github.com/deverman/FocusRelayMCP/issues/86): match OmniFocus's effective flagged-item semantics. UAT proved that the current query checks only local `task.flagged`, omitting flags inherited from a project or parent task; this must use documented `task.effectiveFlagged`, preserve list/count parity, exclude project roots from action counts, and pass the required semantic and realistic validation before release.
+- [ ] **P2** [#86](https://github.com/deverman/FocusRelayMCP/issues/86): match OmniFocus's effective flagged-item semantics. The release candidate now uses documented `task.effectiveFlagged`, preserves the local writable `flagged` field, excludes invisible project roots from action counts, and adds an independent native OmniFocus gate. Unit/live tests, all semantic gates, two 10-minute smokes, and a 1.5-hour realistic suite pass; merge PR #84 before closure.
 
 ### Swift toolchain alignment
 
@@ -91,10 +91,10 @@ Closeout result: the current plugin was installed to both detected OmniFocus plu
   GitHub CI build, test, release-build, and artifact-upload job.
 - [ ] Merge the release candidate before tagging.
 
-All three original live semantic gates passed on 2026-07-13. Subsequent UAT of
-the built-in Flagged perspective exposed the additional effective-flag P2 in
-#86, demonstrating that transport parity alone can still agree on the wrong
-product semantics.
+All live semantic gates pass, including the native effective-flag contract added
+after UAT exposed #86. The native gate is intentionally independent of the
+plugin and JXA implementations, preventing transport parity from agreeing on
+the same incorrect product semantics.
 
 ## Phase 3: Create Missing Roadmap Issues
 
@@ -191,3 +191,5 @@ Existing feature issues remain:
 - 2026-07-13: The 10-minute task-count search smoke covered all six scenarios with 98 measured calls, zero errors/timeouts, zero parity mismatches, and zero timeout diagnostics. Plugin p95 for the inbox scenario was 1.08 seconds versus 7.11 seconds for JXA.
 - 2026-07-13: The post-search realistic validation ran sequential 30-minute list and count phases. All 544 measured calls succeeded with complete scenario coverage, zero errors/timeouts, zero parity mismatches, and zero timeout diagnostics. Plugin inbox list p50 was 0.99 seconds versus 6.52 seconds for JXA, while inbox-count p95 was 1.34 seconds versus 8.01 seconds. OmniFocus ended the count phase 447 MB below its start.
 - 2026-07-14: Swiftly 1.1.3 installed and selected Swift 6.3.3 on a clean `macos-15` GitHub runner. Draft PR #84 passed build, all tests, release build, and artifact upload in 6m39s. The same candidate passed 122 Swift Testing tests and a production build locally with the Swiftly-managed toolchain.
+- 2026-07-14: Effective-flag semantics passed 126 Swift 6.3.3 tests, deterministic plugin/JXA coverage, a live native ID-set comparison, and all three semantic gates. The new standard task-count gate independently compared documented OmniFocus `task.effectiveFlagged` results with bridge list/count results: all reported 46 available flagged actions and excluded the invisible flagged project root.
+- 2026-07-14: The effective-flag 10-minute task-count and list smokes completed 208 measured calls with complete coverage and zero errors, timeouts, or mismatches. The required 1.5-hour realistic suite completed 864 measured calls across task counts, task lists, and project counts with zero errors, timeouts, or parity mismatches. Production plugin latency improved in every phase versus the prior candidate, although the correctness fix is not claimed as the cause because OmniFocus runtime state was not controlled.
