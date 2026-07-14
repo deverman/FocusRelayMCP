@@ -13,6 +13,8 @@ tools: seven for reading and seven for making changes.
 - Apply the same change to several selected tasks or projects in one request.
 - Search task names and notes, and find folders when moving projects.
 - Get consistent task lists and counts from the same filters.
+- Match OmniFocus's Flagged view, including flags inherited from a project or
+  parent task.
 - Keep the assistant focused with a compact catalog that excludes internal
   diagnostics.
 

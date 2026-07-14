@@ -289,9 +289,9 @@ Query tasks with various filters:
 - `plannedBefore`, `plannedAfter`: Filter by planned dates
 - `deferBefore`, `deferAfter`: Filter by defer dates
 - `completedBefore`, `completedAfter`: Filter by completion dates (implies `completed: true`)
-- `tags`: Filter by specific tags. Tagged project root tasks are included when they match, even if OmniFocus omits them from `flattenedTasks`; set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
+- `tags`: Filter by specific tags. Tagged project headers can be included intentionally when they match; ordinary action queries exclude invisible project root tasks. Set `completed: false` and `availableOnly: false` when you want non-actionable project headers with child tasks.
 - `project`: Filter by project
-- `flagged`: Show only flagged tasks
+- `flagged`: Match OmniFocus's visible flag state, including flags inherited from a parent task or project
 - `completed`: Show completed or remaining tasks
 - `inboxView`: View mode (`available`/`remaining`/`everything`). Use with `inboxOnly: true` for inbox-scoped queries.
 - `inboxOnly`: Scope query to inbox tasks only
@@ -303,6 +303,10 @@ Useful task date fields you can request:
 - `plannedDate`
 - `deferDate`
 - `completionDate`
+
+Flag fields have distinct purposes:
+- `flagged`: The task's own writable flag
+- `effectiveFlagged`: The flag state visible in OmniFocus, including inherited flags
 
 **Response Counts:**
 All list operations now include automatic counting to prevent errors:

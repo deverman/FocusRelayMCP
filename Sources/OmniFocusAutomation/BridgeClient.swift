@@ -62,6 +62,7 @@ final class BridgeClient: @unchecked Sendable {
                     completionDate: payload.completionDate,
                     completed: payload.completed ?? false,
                     flagged: payload.flagged ?? false,
+                    effectiveFlagged: payload.effectiveFlagged,
                     estimatedMinutes: payload.estimatedMinutes,
                     available: payload.available ?? false
                 )
@@ -270,6 +271,7 @@ final class BridgeClient: @unchecked Sendable {
                 completionDate: payload.completionDate,
                 completed: payload.completed ?? false,
                 flagged: payload.flagged ?? false,
+                effectiveFlagged: payload.effectiveFlagged,
                 estimatedMinutes: payload.estimatedMinutes,
                 available: payload.available ?? false
             )

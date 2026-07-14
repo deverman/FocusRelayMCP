@@ -17,6 +17,7 @@ func taskItemRoundTrip() throws {
         deferDate: nil,
         completed: false,
         flagged: true,
+        effectiveFlagged: true,
         estimatedMinutes: 30,
         available: true
     )
@@ -33,6 +34,7 @@ func taskItemRoundTrip() throws {
     #expect(decoded.name == task.name)
     #expect(decoded.plannedDate == task.plannedDate)
     #expect(decoded.flagged == task.flagged)
+    #expect(decoded.effectiveFlagged == task.effectiveFlagged)
     #expect(decoded.estimatedMinutes == task.estimatedMinutes)
 }
 

@@ -465,7 +465,7 @@ public struct MutationRequest: Codable, Sendable, Equatable {
     private static let allowedTaskReturnFields: Set<String> = [
         "id", "name", "note", "projectID", "projectName",
         "tagIDs", "tagNames", "dueDate", "plannedDate", "deferDate",
-        "completionDate", "completed", "flagged", "estimatedMinutes", "available"
+        "completionDate", "completed", "flagged", "effectiveFlagged", "estimatedMinutes", "available"
     ]
 
     private static let allowedProjectReturnFields: Set<String> = [

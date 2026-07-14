@@ -128,6 +128,14 @@ func sharedTaskFilterSchemaCoversCompleteModelSurface() {
 
     #expect(Set(properties.keys) == expectedPropertyNames)
 
+    guard case let .object(flaggedSchema)? = properties["flagged"],
+          case let .string(flaggedDescription)? = flaggedSchema["description"] else {
+        Issue.record("Expected a flagged filter description")
+        return
+    }
+    #expect(flaggedDescription.contains("effective flagged state"))
+    #expect(flaggedDescription.contains("inherited"))
+
     guard case let .object(maximumEstimate)? = properties["maxEstimatedMinutes"],
           case let .object(minimumEstimate)? = properties["minEstimatedMinutes"] else {
         Issue.record("Expected estimate filter schemas")
