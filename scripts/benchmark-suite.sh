@@ -4,16 +4,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-TOTAL_HOURS="8"
-WARMUP_CALLS="20"
-INTERVAL_MS="1500"
-COOLDOWN_MS="3000"
-MEMORY_INTERVAL_SECONDS="30"
+PROFILE=""
+TOTAL_HOURS=""
+WARMUP_CALLS=""
+INTERVAL_MS=""
+COOLDOWN_MS=""
+MEMORY_INTERVAL_SECONDS=""
 COMPLETED_AFTER="2020-01-01T00:00:00Z"
 SUITE_DIR=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --profile)
+      PROFILE="$2"
+      shift 2
+      ;;
     --total-hours)
       TOTAL_HOURS="$2"
       shift 2
@@ -49,9 +54,42 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$PROFILE" ]]; then
+  echo "--profile is required: smoke, release, or stress" >&2
+  exit 1
+fi
+
+case "$PROFILE" in
+  smoke)
+    : "${TOTAL_HOURS:=0.5}"
+    : "${WARMUP_CALLS:=10}"
+    : "${INTERVAL_MS:=2000}"
+    : "${COOLDOWN_MS:=3000}"
+    : "${MEMORY_INTERVAL_SECONDS:=60}"
+    ;;
+  release)
+    : "${TOTAL_HOURS:=1.5}"
+    : "${WARMUP_CALLS:=10}"
+    : "${INTERVAL_MS:=5000}"
+    : "${COOLDOWN_MS:=5000}"
+    : "${MEMORY_INTERVAL_SECONDS:=60}"
+    ;;
+  stress)
+    : "${TOTAL_HOURS:=3}"
+    : "${WARMUP_CALLS:=20}"
+    : "${INTERVAL_MS:=1500}"
+    : "${COOLDOWN_MS:=3000}"
+    : "${MEMORY_INTERVAL_SECONDS:=30}"
+    ;;
+  *)
+    echo "Unknown profile: $PROFILE (expected smoke, release, or stress)" >&2
+    exit 1
+    ;;
+esac
+
 if [[ -z "$SUITE_DIR" ]]; then
   TS="$(date +%Y%m%d-%H%M%S)"
-  SUITE_DIR="docs/benchmarks/suite-${TS}"
+  SUITE_DIR=".build/benchmarks/${PROFILE}-${TS}"
 fi
 
 mkdir -p "$SUITE_DIR"
@@ -77,6 +115,7 @@ write_metadata() {
 # Benchmark Suite Metadata
 
 - Started: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+- Profile: ${PROFILE}
 - Branch: $(git rev-parse --abbrev-ref HEAD)
 - Commit: $(git rev-parse HEAD)
 - Dispatch transport: ${FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT:-url}

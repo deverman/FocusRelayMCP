@@ -30,7 +30,7 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
     @Option(name: .customLong("completed-after"), help: "Fixed ISO8601 anchor for completed-date scenario.")
     var completedAfter: String = "2020-01-01T00:00:00Z"
 
-    @Option(name: .customLong("output-dir"), help: "Output directory. Defaults to docs/benchmarks/<timestamp>.")
+    @Option(name: .customLong("output-dir"), help: "Output directory. Defaults to .build/benchmarks/<timestamp>.")
     var outputDir: String?
 
     @Flag(name: .customLong("run-preflight"), help: "Run process cleanup and OmniFocus restart before benchmarking.")
@@ -451,7 +451,7 @@ private func benchmarkOutputDirectory(customPath: String?) throws -> URL {
     formatter.dateFormat = "yyyyMMdd-HHmmss"
     let timestamp = formatter.string(from: Date())
     let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        .appendingPathComponent("docs", isDirectory: true)
+        .appendingPathComponent(".build", isDirectory: true)
         .appendingPathComponent("benchmarks", isDirectory: true)
         .appendingPathComponent(timestamp, isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

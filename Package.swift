@@ -9,7 +9,8 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "focusrelay", targets: ["FocusRelayCLI"])
+        .executable(name: "focusrelay", targets: ["FocusRelayCLI"]),
+        .executable(name: "focusrelay-dev", targets: ["FocusRelayDevCLI"])
     ],
     dependencies: [
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.10.0"),
@@ -56,6 +57,16 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
+        .target(
+            name: "FocusRelayDevCore"
+        ),
+        .executableTarget(
+            name: "FocusRelayDevCLI",
+            dependencies: [
+                "FocusRelayDevCore",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
         .testTarget(
             name: "OmniFocusCoreTests",
             dependencies: [
@@ -86,6 +97,10 @@ let package = Package(
                 "FocusRelayServer",
                 "FocusRelayVersion"
             ]
+        ),
+        .testTarget(
+            name: "FocusRelayDevCoreTests",
+            dependencies: ["FocusRelayDevCore"]
         )
     ]
 )
