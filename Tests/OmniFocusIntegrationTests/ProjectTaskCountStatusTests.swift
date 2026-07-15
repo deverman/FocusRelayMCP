@@ -118,7 +118,7 @@ func jxaProjectCountsMatchTheSharedStatusContract() throws {
     #expect(onHold.remainingTasks == 1)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectAvailableCountsMatchProjectScopedTaskQueriesLive() throws {
     guard ProcessInfo.processInfo.environment["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else { return }
 
@@ -146,7 +146,7 @@ func bridgeProjectAvailableCountsMatchProjectScopedTaskQueriesLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeAndJXAProjectTaskCountsMatchLive() async throws {
     guard ProcessInfo.processInfo.environment["FOCUS_RELAY_PARITY_TESTS"] == "1" else { return }
 

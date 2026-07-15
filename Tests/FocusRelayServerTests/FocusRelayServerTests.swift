@@ -24,6 +24,33 @@ func mcpArgumentBoundaryDecodesSparseTaskFieldPatches() throws {
 }
 
 @Test
+func everyPublicSparseTaskPatchSurvivesMCPValueDecoding() throws {
+    let cases: [[String: Value]] = [
+        ["name": .string("Renamed")],
+        ["note": .string("Replacement")],
+        ["noteAppend": .string("Append")],
+        ["flagged": .bool(false)],
+        ["estimatedMinutes": .int(15)],
+        ["dueDate": .string("2026-07-16T09:00:00Z")],
+        ["clearDueDate": .bool(true)],
+        ["deferDate": .string("2026-07-16T08:00:00Z")],
+        ["clearDeferDate": .bool(true)],
+        ["tags": .object(["clear": .bool(true)])]
+    ]
+
+    for value in cases {
+        let decoded = try FocusRelayServer.decodeArgument(
+            TaskPatchMutation.self,
+            from: ["taskPatch": .object(value)],
+            key: "taskPatch"
+        )
+        let patch = try #require(decoded)
+        #expect(!patch.isEmpty)
+        try patch.validate()
+    }
+}
+
+@Test
 func mcpArgumentBoundaryDecodesSparseProjectAndTagPatches() throws {
     let project = try FocusRelayServer.decodeArgument(
         ProjectPatchMutation.self,
@@ -44,6 +71,33 @@ func mcpArgumentBoundaryDecodesSparseProjectAndTagPatches() throws {
         key: "taskPatch"
     )
     #expect(task?.tags == TagMutation(add: ["tag-1"]))
+}
+
+@Test
+func everyPublicSparseProjectPatchSurvivesMCPValueDecoding() throws {
+    let cases: [[String: Value]] = [
+        ["name": .string("Renamed")],
+        ["note": .string("Replacement")],
+        ["noteAppend": .string("Append")],
+        ["flagged": .bool(true)],
+        ["dueDate": .string("2026-07-16T09:00:00Z")],
+        ["clearDueDate": .bool(true)],
+        ["deferDate": .string("2026-07-16T08:00:00Z")],
+        ["clearDeferDate": .bool(true)],
+        ["sequential": .bool(true)],
+        ["reviewInterval": .object(["steps": .int(2), "unit": .string("weeks")])]
+    ]
+
+    for value in cases {
+        let decoded = try FocusRelayServer.decodeArgument(
+            ProjectPatchMutation.self,
+            from: ["projectPatch": .object(value)],
+            key: "projectPatch"
+        )
+        let patch = try #require(decoded)
+        #expect(!patch.isEmpty)
+        try patch.validate()
+    }
 }
 
 @Test

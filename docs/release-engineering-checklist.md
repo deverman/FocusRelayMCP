@@ -1,179 +1,95 @@
 # Release Engineering Checklist
 
-Use this checklist for future FocusRelayMCP beta/stable releases.
+Use this with [`development-workflow.md`](development-workflow.md). The release
+proof applies to one frozen production fingerprint, not to a moving branch.
 
-## 1. Classify The Release
+## 1. Plan And Freeze
 
-- `Docs / packaging only`
-- `Production query / transport / reliability change`
+- Confirm the issue/PR names the validation impact and user acceptance journey.
+- Merge independently validated vertical changes before freezing the candidate.
+- Run release-claim UAT through a real MCP client before the long suite.
+- Keep `Sources/FocusRelayVersion/FocusRelayBuildVersion.swift` at `0.0.0-dev`;
+  the release workflow embeds the tag version.
 
-Rule:
-- If the release changes production query behavior, transport behavior, or timeout/reliability handling, use the **full validation path** below.
-- If the release changes only docs, packaging, or metadata, use the **light validation path**.
-
-## 2. Validate The Working Tree
-
-- Ensure you are on the intended release branch
-- Ensure benchmark artifacts are not accidentally staged
-- Confirm plugin changes and binary changes are in sync
-- Confirm `Sources/FocusRelayVersion/FocusRelayBuildVersion.swift` contains the local default `0.0.0-dev`; the release workflow embeds the tag version before compiling
-
-Commands:
 ```bash
+swift run focusrelay-dev release-plan --version X.Y.Z
 git status --short
-swift test
 ```
 
-## 3. Run Semantic Gates
+Any later production-code or plugin change invalidates the fingerprint. A
+documentation-only correction does not.
 
-Run the gate for each affected tool:
+## 2. Validate Once At The Required Depth
+
+Docs or metadata only:
 
 ```bash
-swift run focusrelay benchmark-gate-check --tool task-counts
-swift run focusrelay benchmark-gate-check --tool list-tasks
-swift run focusrelay benchmark-gate-check --tool project-counts
+swift run focusrelay-dev validate --impact docs
 ```
 
-Rule:
-- If a gate fails, do not benchmark, tag, or release.
-
-## 4. Benchmark Before Release
-
-### Light Validation Path
-
-Use for docs/packaging-only releases:
+Production query, performance, transport, or reliability changes:
 
 ```bash
-swift test
+swift run focusrelay-dev validate --impact transport-reliability
+swift run focusrelay-dev benchmark --profile release
 ```
 
-If you want a quick runtime check, run a smoke benchmark on the affected tool only.
+The release profile is the realistic 1.5-hour suite. Use `smoke` during targeted
+performance work and `stress` only to answer a named diagnostic question.
 
-### Full Validation Path
+## 3. Tag The Certified Commit
 
-Use for production query/transport/reliability releases:
-
-1. Smoke benchmark on the affected tool(s)
-2. Realistic single-user suite before tagging
-
-Recommended realistic suite:
-```bash
-caffeinate -dimsu ./scripts/benchmark-suite.sh \
-  --total-hours 1.5 \
-  --warmup-calls 10 \
-  --interval-ms 5000 \
-  --cooldown-ms 5000 \
-  --memory-interval-seconds 60 \
-  --suite-dir docs/benchmarks/release-$(date +%Y%m%d-%H%M%S)
-```
-
-Rule:
-- Use the 3-hour stress profile only for diagnostics or when transport/reliability work changed.
-
-## 5. Merge First
-
-- Merge the release PR into `master`
-- Update local `master`
-
-Commands:
 ```bash
 git switch master
 git pull --ff-only origin master
-```
-
-## 6. Create The Tag
-
-Commands:
-```bash
 git tag -a vX.Y.Z -m "Release vX.Y.Z: short description"
 git push origin vX.Y.Z
 ```
 
-Notes:
-- For beta releases, use the intended beta tag consistently
-- Use semantic prerelease tags such as `v0.10.0-beta` rather than suffixes without a separator
-- Verify the release workflow starts on GitHub
+Verify the GitHub release, tarball, `.sha256`, prerelease flag, release notes,
+and embedded version. Credit contributors by GitHub handle.
 
-## 7. Verify GitHub Release
-
-Check:
-- release exists
-- tarball asset exists
-- `.sha256` asset exists
-- release notes are correct
-- prerelease flag is correct for beta tags
-- downloaded binary reports the tag-derived version with `focusrelay --version`
-
-Commands:
 ```bash
 gh release view vX.Y.Z --repo deverman/FocusRelayMCP
 gh run list --repo deverman/FocusRelayMCP --workflow release.yml --limit 5
+swift run focusrelay-dev release-verify --version X.Y.Z
 ```
 
-## 8. Update The Homebrew Tap
+## 4. Update And Verify Homebrew
 
-Repository:
-- `https://github.com/deverman/homebrew-focus-relay`
-- authoritative formula: `focusrelay.rb`
+Update the URL and checksum in the authoritative
+`deverman/homebrew-focus-relay` checkout. A rebuilt asset always needs its new
+checksum, even when reusing a version.
 
-Steps:
-1. update the formula URL
-2. update the formula SHA256 from the actual release asset
-3. add/update explicit `version` if needed
-4. commit and push the tap
-
-Do not add a second formula to the FocusRelayMCP repository. Validate the published tap with:
+Run one explicit update, then suppress hidden repeats:
 
 ```bash
-./scripts/test-homebrew-formula.sh
-```
-
-## 9. Test Homebrew Installation
-
-Recommended validation:
-```bash
-brew update
-brew untap deverman/focus-relay || true
-brew tap deverman/focus-relay
-brew reinstall focusrelay
+./scripts/test-homebrew-formula.sh --update
+HOMEBREW_NO_AUTO_UPDATE=1 brew reinstall focusrelay
 focusrelay --version
 focusrelay --help
 ```
 
-Rule:
-- Do not consider the release done until the Homebrew install path is validated.
+If the tap appears stale, untap and retap it before trusting the result.
 
-Install-flow validation:
-1. Verify the README order still matches the real path: install binary -> install plugin -> configure MCP -> restart OmniFocus -> approve first query.
-2. If the plugin changed, reinstall it before validating.
-3. Trigger a real query after restart so the OmniFocus approval prompt can appear:
+## 5. Verify The Installed Journey
+
+If plugin JavaScript changed:
+
+```bash
+./scripts/install-plugin.sh
+osascript -e 'tell application "OmniFocus" to quit'
+sleep 2
+open -a "OmniFocus"
+```
+
+Then verify the README flow: install binary, install plugin, configure MCP,
+restart OmniFocus, approve the first query, and receive real data.
 
 ```bash
 focusrelay bridge-health-check
 focusrelay list-tasks --fields id,name --limit 1
 ```
 
-4. If the approval prompt does not appear when expected, treat the release as not validated.
-5. After approval, confirm the first query returns real task data rather than a timeout or empty transport failure.
-
-## 10. Post-Release Sanity Check
-
-- confirm `focusrelay --version`, the installed formula version, and the GitHub release tag match
-- confirm the plugin bundle exists in the Homebrew package share path
-- if plugin JS changed, reinstall the plugin locally and restart OmniFocus before local validation
-- confirm the first-query approval path and README setup steps still match the actual product behavior
-
-## 11. Communication Checklist
-
-- GitHub release notes updated from generic workflow text if needed
-- release summary uses plain language, not only benchmark jargon
-- if citing benchmark improvements, state what they mean in user terms:
-  - “slower normal requests got faster”
-  - “timeouts dropped to zero”
-
-## 12. Do Not Repeat These Mistakes
-
-- Do not mix transport experiments and query changes in one release benchmark
-- Do not ship speculative optimizations that regressed the 1-hour validation
-- Do not trust stale local Homebrew tap state; refresh it if results look wrong
-- Do not tag before semantic gates and release validation are complete
+The release is complete only when the GitHub asset, Homebrew formula, installed
+binary version, plugin, and first-query path all agree.

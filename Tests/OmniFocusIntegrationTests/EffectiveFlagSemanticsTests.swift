@@ -98,7 +98,7 @@ func jxaListAndCountUseEffectiveFlagsAndExcludeProjectRoots() throws {
     #expect(counts.flagged == 3)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeFlaggedTasksMatchNativeEffectiveFlagActionsLive() throws {
     guard ProcessInfo.processInfo.environment["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else { return }
 
