@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.deverman/focusrelay",
+  "title": "FocusRelay",
+  "description": "Connect AI tools to OmniFocus on macOS to find, review, and safely update tasks and projects.",
+  "version": "0.10.0-beta",
+  "websiteUrl": "https://github.com/deverman/FocusRelayMCP#install-the-omnifocus-mcp-server-with-homebrew",
+  "repository": {
+    "url": "https://github.com/deverman/FocusRelayMCP",
+    "source": "github"
+  }
+}
