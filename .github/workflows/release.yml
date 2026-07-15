@@ -55,7 +55,7 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
           fi
           ./scripts/set-version.sh "$VERSION"
-          swift build -c release
+          swift build -c release --product focusrelay
         
       - name: Package Release
         id: package

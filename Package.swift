@@ -9,12 +9,14 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "focusrelay", targets: ["FocusRelayCLI"])
+        .executable(name: "focusrelay", targets: ["FocusRelayCLI"]),
+        .executable(name: "focusrelay-dev", targets: ["FocusRelayDevCLI"])
     ],
     dependencies: [
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.10.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0")
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.8.0")
     ],
     targets: [
         .target(
@@ -56,6 +58,19 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
+        .target(
+            name: "FocusRelayDevCore",
+            dependencies: [
+                .product(name: "Markdown", package: "swift-markdown")
+            ]
+        ),
+        .executableTarget(
+            name: "FocusRelayDevCLI",
+            dependencies: [
+                "FocusRelayDevCore",
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ]
+        ),
         .testTarget(
             name: "OmniFocusCoreTests",
             dependencies: [
@@ -86,6 +101,10 @@ let package = Package(
                 "FocusRelayServer",
                 "FocusRelayVersion"
             ]
+        ),
+        .testTarget(
+            name: "FocusRelayDevCoreTests",
+            dependencies: ["FocusRelayDevCore"]
         )
     ]
 )

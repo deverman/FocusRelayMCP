@@ -3,7 +3,7 @@ import Testing
 @testable import OmniFocusAutomation
 @testable import OmniFocusCore
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.omniFocusEnabled, "Set FOCUS_RELAY_LIVE_TESTS=1 to run against OmniFocus."))
 func listInboxTasksLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_LIVE_TESTS"] == "1" else {
@@ -30,7 +30,7 @@ func listInboxTasksLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeHealthCheckLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -42,7 +42,7 @@ func bridgeHealthCheckLive() throws {
     #expect(response.ok)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeListInboxLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -56,7 +56,7 @@ func bridgeListInboxLive() throws {
     #expect(result.items.count <= 5)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeListInboxPagingCursorAdvancesLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -75,7 +75,7 @@ func bridgeListInboxPagingCursorAdvancesLive() throws {
     #expect(!second.items.isEmpty, "Expected non-empty second page when first page is full and returned nextCursor")
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTaggedProjectRootWithChildrenLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -99,7 +99,7 @@ func bridgeTaggedProjectRootWithChildrenLive() throws {
     #expect(counts.total >= result.items.count)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTaskCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -111,7 +111,7 @@ func bridgeTaskCountsLive() throws {
     #expect(counts.total >= 0)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeAndJXATaskCountsParityLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -141,7 +141,7 @@ func bridgeAndJXATaskCountsParityLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeAndJXAListTasksParityLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -194,7 +194,7 @@ func bridgeAndJXAListTasksParityLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeAndJXAProjectCountsParityLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -220,7 +220,7 @@ func bridgeAndJXAProjectCountsParityLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeInboxViewCountsMatchListTasksLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -237,7 +237,7 @@ func bridgeInboxViewCountsMatchListTasksLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTaskCountsRespectsProjectViewLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -256,7 +256,7 @@ func bridgeTaskCountsRespectsProjectViewLive() throws {
     #expect(counts.total >= 0)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeCompletedInboxFilterDoesNotDefaultToAvailableOnlyLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -283,7 +283,7 @@ func bridgeCompletedInboxFilterDoesNotDefaultToAvailableOnlyLive() throws {
     #expect((completedPage.totalCount ?? -1) == everythingCounts.completed)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeCompletedFalseRetainsAvailableDefaultLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -303,7 +303,7 @@ func bridgeCompletedFalseRetainsAvailableDefaultLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeCompletedTasksRespectDateRangeAndSortLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -334,7 +334,7 @@ func bridgeCompletedTasksRespectDateRangeAndSortLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeCompletedInboxTasksRespectDateRangeAndSortLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -366,7 +366,7 @@ func bridgeCompletedInboxTasksRespectDateRangeAndSortLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeInboxViewWithoutInboxOnlyIsNotInboxScopedLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -381,7 +381,7 @@ func bridgeInboxViewWithoutInboxOnlyIsNotInboxScopedLive() throws {
     #expect(globalView.total >= inboxScoped.total)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectCountsLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -394,7 +394,7 @@ func bridgeProjectCountsLive() throws {
     #expect(counts.actions >= 0)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeProjectCountsActiveMatchesListTasksTotalLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -416,7 +416,7 @@ func bridgeProjectCountsActiveMatchesListTasksTotalLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func jxaProjectCountsActiveMatchesListTasksTotalLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -438,7 +438,7 @@ func jxaProjectCountsActiveMatchesListTasksTotalLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeListTasksRespectsProjectViewLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -460,7 +460,7 @@ func bridgeListTasksRespectsProjectViewLive() throws {
     #expect(activeResult.items.isEmpty)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectsPagingLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -499,7 +499,7 @@ func bridgeProjectsPagingLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectTaskCountsIncludedLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -533,7 +533,7 @@ func bridgeProjectTaskCountsIncludedLive() throws {
     #expect(page.items.allSatisfy { !$0.status.isEmpty })
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTagsPagingLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -550,7 +550,7 @@ func bridgeTagsPagingLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeFoldersPagingLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -569,7 +569,7 @@ func bridgeFoldersPagingLive() throws {
 
 // MARK: - Status Edge Case Tests
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTasksInOnHoldProjectNotAvailableLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -595,7 +595,7 @@ func bridgeTasksInOnHoldProjectNotAvailableLive() throws {
     #expect(result.items.isEmpty, "Tasks in on-hold projects should not be available")
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTasksInDroppedProjectNotAvailableLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -621,7 +621,7 @@ func bridgeTasksInDroppedProjectNotAvailableLive() throws {
     #expect(result.items.isEmpty, "Tasks in dropped projects should not be available")
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTasksInDoneProjectNotAvailableLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -647,7 +647,7 @@ func bridgeTasksInDoneProjectNotAvailableLive() throws {
     #expect(result.items.isEmpty, "Tasks in done projects should not be available")
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeChildTasksWithCompletedParentNotAvailableLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -678,7 +678,7 @@ func bridgeChildTasksWithCompletedParentNotAvailableLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeChildTasksWithCompletedParentNotRemainingLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -703,7 +703,7 @@ func bridgeChildTasksWithCompletedParentNotRemainingLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
 func bridgeAndJXAChildTasksWithCompletedParentNotRemainingLive() async throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
@@ -730,7 +730,7 @@ func bridgeAndJXAChildTasksWithCompletedParentNotRemainingLive() async throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeTaskStatusValuesAreValidLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -752,7 +752,7 @@ func bridgeTaskStatusValuesAreValidLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeAvailableTasksCountConsistencyLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -780,7 +780,7 @@ func bridgeAvailableTasksCountConsistencyLive() throws {
     }
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeDefaultTaskCountsMatchDefaultListTasksLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -802,7 +802,7 @@ func bridgeDefaultTaskCountsMatchDefaultListTasksLive() throws {
     #expect(counts.completed == 0)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeCompletedTaskCountsMatchCompletedListTasksLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -823,7 +823,7 @@ func bridgeCompletedTaskCountsMatchCompletedListTasksLive() throws {
     #expect(page.items.allSatisfy { $0.completed == true })
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgePlannedDateFieldCanBeRequestedLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
@@ -842,7 +842,7 @@ func bridgePlannedDateFieldCanBeRequestedLive() throws {
     _ = page.items.map(\.plannedDate)
 }
 
-@Test
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgePlannedDateFiltersReturnOnlyPlannedTasksLive() throws {
     let env = ProcessInfo.processInfo.environment
     guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
