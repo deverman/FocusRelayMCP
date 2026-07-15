@@ -89,7 +89,7 @@ public enum ValidationPlanner {
         if impact == .docs {
             return [
                 ValidationStep("Check whitespace", "git", ["diff", "--check"]),
-                ValidationStep("Check Markdown links", "ruby", ["scripts/check-markdown-links.rb"])
+                ValidationStep("Check Markdown links", "focusrelay-dev", ["check-markdown-links"])
             ]
         }
 

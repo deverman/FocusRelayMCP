@@ -7,7 +7,7 @@ struct FocusRelayDevCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "focusrelay-dev",
         abstract: "Developer-only validation and release orchestration.",
-        subcommands: [Classify.self, Validate.self, Benchmark.self, ReleasePlan.self, ReleaseVerify.self, WorkspaceReport.self]
+        subcommands: [Classify.self, Validate.self, CheckMarkdownLinks.self, Benchmark.self, ReleasePlan.self, ReleaseVerify.self, WorkspaceReport.self]
     )
 }
 
@@ -47,13 +47,30 @@ private struct Validate: ParsableCommand {
             disableNestedSwiftSandbox: ProcessInfo.processInfo.environment["CODEX_SANDBOX"] != nil
         )
         for step in steps {
-            try CommandRunner.run(step.name, step.executable, step.arguments)
+            let executable = step.executable == "focusrelay-dev" ? CommandLine.arguments[0] : step.executable
+            try CommandRunner.run(step.name, executable, step.arguments)
         }
         try writeReport(kind: "validate", values: [
             "impact": impact.rawValue,
             "status": "passed",
             "elapsedSeconds": String(format: "%.2f", Date().timeIntervalSince(started))
         ])
+    }
+}
+
+private struct CheckMarkdownLinks: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "check-markdown-links", abstract: "Validate local Markdown links with swift-markdown.")
+
+    @Option(help: "Repository or documentation root.") var root = "."
+
+    func run() throws {
+        let rootURL = URL(fileURLWithPath: root, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL
+        let broken = try MarkdownLinkValidator.validate(root: rootURL)
+        guard broken.isEmpty else {
+            broken.forEach { print("\($0.source): \($0.destination)") }
+            throw ValidationError("Found \(broken.count) broken local Markdown link(s).")
+        }
+        print("Local Markdown links are valid.")
     }
 }
 
