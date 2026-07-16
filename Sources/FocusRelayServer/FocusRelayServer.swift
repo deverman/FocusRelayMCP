@@ -949,8 +949,8 @@ public enum FocusRelayServer {
     static func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
         guard let value = args?[key] else { return nil }
         let data = try JSONEncoder().encode(value)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        // Match bridge payload decoding: fractional and standard ISO8601.
+        let decoder = BridgeDateDecoding.makeJSONDecoder()
         return try decoder.decode(T.self, from: data)
     }
 }
@@ -1000,7 +1000,5 @@ private func decodeStringArray(_ value: Value?) -> [String]? {
     guard let value else { return nil }
     let data = try? JSONEncoder().encode(value)
     guard let data else { return nil }
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
     return try? JSONDecoder().decode([String].self, from: data)
 }

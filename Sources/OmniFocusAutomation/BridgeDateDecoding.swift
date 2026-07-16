@@ -1,6 +1,6 @@
 import Foundation
 
-enum BridgeDateDecoding {
+public enum BridgeDateDecoding {
     private static let fractionalISO8601Formatter = LockedISO8601Formatter(
         formatOptions: [.withInternetDateTime, .withFractionalSeconds]
     )
@@ -9,13 +9,13 @@ enum BridgeDateDecoding {
         formatOptions: [.withInternetDateTime]
     )
 
-    static func makeJSONDecoder() -> JSONDecoder {
+    public static func makeJSONDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         configure(decoder)
         return decoder
     }
 
-    static func configure(_ decoder: JSONDecoder) {
+    public static func configure(_ decoder: JSONDecoder) {
         decoder.dateDecodingStrategy = .custom { decoder in
             try decodeDate(from: decoder)
         }
