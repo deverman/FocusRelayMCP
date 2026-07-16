@@ -1399,6 +1399,26 @@
       return ts;
     }
 
+    // PROJECT COMPLETION QUERY MODULE - list_projects completion vs statusFilter
+    // When clients request completed projects by window without overriding statusFilter,
+    // the server default statusFilter is "active". Completion queries must not apply that
+    // active filter first, or every Done project is removed before the completion pass.
+    function isProjectCompletionQuery(filter) {
+      if (!filter || typeof filter !== "object") { return false; }
+      if (filter.completed === true) { return true; }
+      if (filter.completedAfter) { return true; }
+      if (filter.completedBefore) { return true; }
+      return false;
+    }
+
+    function shouldApplyListProjectsStatusFilter(statusFilter, reviewPerspective, isCompletionQuery) {
+      if (reviewPerspective) { return false; }
+      if (isCompletionQuery) { return false; }
+      if (!statusFilter || statusFilter === "all") { return false; }
+      return true;
+    }
+    // END PROJECT COMPLETION QUERY MODULE
+
     // Normalize OmniFocus collections to plain arrays.
     function toTaskArray(collection) {
       if (!collection) { return []; }
@@ -2203,17 +2223,25 @@
           const reviewDueBefore = parseFilterDate(filter.reviewDueBefore, response.warnings);
           const reviewDueAfter = parseFilterDate(filter.reviewDueAfter, response.warnings);
           const reviewCutoff = reviewDueBefore || (reviewPerspective ? new Date() : null);
+
+          // Detect completion queries before status filtering. Default statusFilter is
+          // "active"; applying it first would exclude every Done project and make
+          // completion windows always empty.
+          const completedAfter = filter.completedAfter ? parseFilterDate(filter.completedAfter, response.warnings) : null;
+          const completedBefore = filter.completedBefore ? parseFilterDate(filter.completedBefore, response.warnings) : null;
+          const isCompletionQuery = isProjectCompletionQuery(filter);
           
           let projects = flattenedProjects;
           
-          // Filter by status using Project.Status enum
+          // Filter by status using Project.Status enum.
+          // Completion queries target Done projects only (below); skip statusFilter.
           if (reviewPerspective) {
             projects = projects.filter(p => {
               const status = safe(() => p.status);
               if (!status) return false;
               return status !== Project.Status.Dropped && status !== Project.Status.Done;
             });
-          } else if (statusFilter !== "all") {
+          } else if (shouldApplyListProjectsStatusFilter(statusFilter, false, isCompletionQuery)) {
             projects = projects.filter(p => {
               const status = safe(() => p.status);
               if (!status) return false;
@@ -2241,13 +2269,7 @@
             });
           }
 
-          // Completion date filtering for projects
-          const projectFilter = request.projectFilter || {};
-          const completedAfter = projectFilter.completedAfter ? parseFilterDate(projectFilter.completedAfter, response.warnings) : null;
-          const completedBefore = projectFilter.completedBefore ? parseFilterDate(projectFilter.completedBefore, response.warnings) : null;
-          const completedOnly = projectFilter.completed === true;
-
-          if (completedOnly || completedAfter || completedBefore) {
+          if (isCompletionQuery) {
             projects = projects.filter(p => {
               const status = safe(() => p.status);
               // Only include completed projects (status = Done), exclude dropped
@@ -2256,6 +2278,7 @@
               const completionDate = getProjectDateTimestamp(p, project => project.completionDate);
               if (completionDate === null) return false;
 
+              // Inclusive bounds on both ends (matches task date filters).
               if (completedAfter && completionDate < completedAfter.getTime()) return false;
               if (completedBefore && completionDate > completedBefore.getTime()) return false;
 

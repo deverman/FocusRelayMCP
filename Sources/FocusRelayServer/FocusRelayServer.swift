@@ -60,7 +60,8 @@ public enum FocusRelayServer {
     - Default fields are 'id' and 'name'. When statusFilter='all' or includeTaskCounts=true, the defaults also include 'status'.
 
     COMPLETED PROJECTS (matches OmniFocus Completed perspective):
-    - Use completedAfter/completedBefore with ISO8601 dates to find completed projects in time windows.
+    - Use completed=true and/or completedAfter/completedBefore (ISO8601, inclusive) to find completed projects in time windows.
+    - Completion filters imply Done projects: default statusFilter='active' is ignored for these queries so results are not empty.
     - Excludes dropped projects (only status=done projects with completion dates).
     - Results are sorted by completionDate descending (most recent first).
     - Include 'completionDate' in fields to see when projects were completed.
@@ -276,12 +277,12 @@ public enum FocusRelayServer {
                             ]),
                             "completedAfter": .object([
                                 "type": .string("string"),
-                                "description": .string("ISO8601 datetime. Projects completed after this time (inclusive). Use with completed=true to find completed projects in time windows."),
+                                "description": .string("ISO8601 datetime. Projects completed on or after this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
                                 "examples": .array([.string("2026-01-01T00:00:00Z")])
                             ]),
                             "completedBefore": .object([
                                 "type": .string("string"),
-                                "description": .string("ISO8601 datetime. Projects completed before this time (exclusive). Use with completed=true to find completed projects in time windows."),
+                                "description": .string("ISO8601 datetime. Projects completed on or before this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
                                 "examples": .array([.string("2026-02-01T00:00:00Z")])
                             ]),
                             "includeTaskCounts": .object([
