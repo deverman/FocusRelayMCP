@@ -1223,6 +1223,26 @@
     }
 
     /**
+     * Match the shared completed filter against remaining/completed contract.
+     * - completed === true  → only Completed tasks
+     * - completed === false → remaining (not completed/dropped, parent chain allows)
+     * - completed omitted   → remaining unless everythingView is true
+     */
+    function matchesCompletedFilterWithStatus(task, taskStatusValue, completedFilter, everythingView) {
+      if (completedFilter === true) {
+        return isCompletedStatusValue(taskStatusValue);
+      }
+      if (completedFilter === false || !everythingView) {
+        return isRemainingStatusWithStatus(task, taskStatusValue);
+      }
+      return true;
+    }
+
+    function matchesCompletedFilter(task, completedFilter, everythingView) {
+      return matchesCompletedFilterWithStatus(task, taskStatus(task), completedFilter, everythingView);
+    }
+
+    /**
      * Check if task status indicates availability
      * Note: This checks ONLY the task status, not project/parent status
      * @param {Task} task - OmniFocus task object
@@ -1844,12 +1864,9 @@
           // Helper function to check if a task matches all filters
           function taskMatchesFilters(t, knownTaskStatus, knownProject, knownCompletionTs) {
             const taskStatusValue = knownTaskStatus === undefined ? taskStatus(t) : knownTaskStatus;
-            // Status checks
-            if (filterState.completed !== undefined) {
-              const taskCompleted = isCompletedStatusValue(taskStatusValue);
-              if (taskCompleted !== filterState.completed) return false;
-            } else if (!isEverything) {
-              if (!isRemainingStatusWithStatus(t, taskStatusValue)) return false;
+            // Status checks: completed=false uses remaining (parent chain + not dropped)
+            if (!matchesCompletedFilterWithStatus(t, taskStatusValue, filterState.completed, isEverything)) {
+              return false;
             }
             if (filterState.flagged !== undefined) {
               const taskFlagged = isTaskEffectivelyFlagged(t);
@@ -2708,14 +2725,10 @@
             tasks.forEach(t => {
               const taskStatusValue = taskStatus(t);
               const taskCompleted = isCompletedStatusValue(taskStatusValue);
-              const taskDropped = isDroppedStatusValue(taskStatusValue);
-              const taskRemaining = isRemainingStatusWithStatus(t, taskStatusValue);
               let taskFlagged = null;
 
-              if (filterState.completed !== undefined) {
-                if (taskCompleted !== filterState.completed) return;
-              } else if (!isEverything) {
-                if (!taskRemaining) return;
+              if (!matchesCompletedFilterWithStatus(t, taskStatusValue, filterState.completed, isEverything)) {
+                return;
               }
               afterStatusGateCount += 1;
               if (debugInfo && statusGateSample.length < 5) {
@@ -2994,10 +3007,9 @@
               const project = safe(() => t.containingProject);
               if (!project) { return; }
 
-              if (filterState.completed !== undefined) {
-                if (isCompletedStatus(t) !== filterState.completed) return;
-              } else if (rawProjectView !== "everything") {
-                if (!isRemainingStatus(t)) return;
+              const everythingProjectView = rawProjectView === "everything";
+              if (!matchesCompletedFilter(t, filterState.completed, everythingProjectView)) {
+                return;
               }
 
               if (filterState.flagged !== undefined) {
