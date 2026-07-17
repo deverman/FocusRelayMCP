@@ -24,6 +24,36 @@ func mcpArgumentBoundaryDecodesSparseTaskFieldPatches() throws {
 }
 
 @Test
+func mcpArgumentBoundaryDecodesFractionalISO8601Dates() throws {
+    let fractional = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["dueDate": .string("2026-07-15T09:00:00.000Z")])],
+        key: "taskPatch"
+    )
+    let standard = try FocusRelayServer.decodeArgument(
+        TaskPatchMutation.self,
+        from: ["taskPatch": .object(["dueDate": .string("2026-07-15T09:00:00Z")])],
+        key: "taskPatch"
+    )
+    let fractionalDue = try #require(fractional?.dueDate)
+    let standardDue = try #require(standard?.dueDate)
+    #expect(abs(fractionalDue.timeIntervalSince(standardDue)) < 0.001)
+
+    let filter = try FocusRelayServer.decodeArgument(
+        TaskFilter.self,
+        from: [
+            "filter": .object([
+                "completedAfter": .string("2026-01-31T00:00:00.123Z"),
+                "completedBefore": .string("2026-02-01T00:00:00.456Z")
+            ])
+        ],
+        key: "filter"
+    )
+    #expect(filter?.completedAfter != nil)
+    #expect(filter?.completedBefore != nil)
+}
+
+@Test
 func everyPublicSparseTaskPatchSurvivesMCPValueDecoding() throws {
     let cases: [[String: Value]] = [
         ["name": .string("Renamed")],
