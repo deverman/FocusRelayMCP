@@ -956,7 +956,15 @@ public enum FocusRelayServer {
     }
 
     static func decodePageRequest(from args: [String: Value]?, defaultLimit: Int) throws -> PageRequest {
-        let page = try decodeArgument(PageRequest.self, from: args, key: "page") ?? PageRequest(limit: defaultLimit)
+        guard var pageValue = args?["page"] else {
+            return PageRequest(limit: defaultLimit)
+        }
+        if case .object(var pageObject) = pageValue, pageObject["limit"] == nil {
+            pageObject["limit"] = .int(defaultLimit)
+            pageValue = .object(pageObject)
+        }
+        let data = try JSONEncoder().encode(pageValue)
+        let page = try BridgeDateDecoding.makeJSONDecoder().decode(PageRequest.self, from: data)
         guard page.limit >= 1 else {
             throw MutationValidationError("page.limit must be at least 1.")
         }
