@@ -219,7 +219,7 @@ public enum FocusRelayServer {
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
-                                    "limit": .object(["type": .string("integer")]),
+                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
                             ]),
@@ -260,7 +260,7 @@ public enum FocusRelayServer {
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
-                                    "limit": .object(["type": .string("integer")]),
+                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
                             ]),
@@ -327,7 +327,7 @@ public enum FocusRelayServer {
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
-                                    "limit": .object(["type": .string("integer")]),
+                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
                             ]),
@@ -354,7 +354,7 @@ public enum FocusRelayServer {
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
-                                    "limit": .object(["type": .string("integer")]),
+                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
                                     "cursor": .object(["type": .string("string")])
                                 ])
                             ]),
@@ -717,8 +717,7 @@ public enum FocusRelayServer {
                         logger.error("Failed to decode filter: \(String(describing: error))")
                         return .init(content: [.text("Error decoding filter: \(error)")], isError: true)
                     }
-                    let hasPage = params.arguments?["page"] != nil
-                    let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 50)) : PageRequest(limit: 50)
+                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 50)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listTasks(filter: filter, page: page, fields: fields)
@@ -738,8 +737,7 @@ public enum FocusRelayServer {
                     let output = makeTaskOutput(from: result, fields: fieldSet)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_projects":
-                    let hasPage = params.arguments?["page"] != nil
-                    let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
+                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let reviewDueBefore = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueBefore")
@@ -771,8 +769,7 @@ public enum FocusRelayServer {
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_tags":
-                    let hasPage = params.arguments?["page"] != nil
-                    let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
+                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let result = try await service.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
@@ -781,8 +778,7 @@ public enum FocusRelayServer {
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_folders":
-                    let hasPage = params.arguments?["page"] != nil
-                    let page = hasPage ? (try decodeArgument(PageRequest.self, from: params.arguments, key: "page") ?? PageRequest(limit: 150)) : PageRequest(limit: 150)
+                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listFolders(page: page, fields: fields)
@@ -953,6 +949,14 @@ public enum FocusRelayServer {
         // Match bridge payload decoding: fractional and standard ISO8601.
         let decoder = BridgeDateDecoding.makeJSONDecoder()
         return try decoder.decode(T.self, from: data)
+    }
+
+    static func decodePageRequest(from args: [String: Value]?, defaultLimit: Int) throws -> PageRequest {
+        let page = try decodeArgument(PageRequest.self, from: args, key: "page") ?? PageRequest(limit: defaultLimit)
+        guard page.limit >= 1 else {
+            throw MutationValidationError("page.limit must be at least 1.")
+        }
+        return page
     }
 }
 
