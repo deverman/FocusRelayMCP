@@ -1970,7 +1970,7 @@
           }
           
           const includeTotalCount = filter.includeTotalCount === true;
-          const limit = request.page && request.page.limit ? request.page.limit : 50;
+          const limit = request.page && request.page.limit ? Math.max(1, request.page.limit) : 50;
           const offset = request.page && request.page.cursor ? parseInt(request.page.cursor, 10) : 0;
           const safeOffset = Number.isFinite(offset) && offset > 0 ? offset : 0;
           const requiresCompletionSort = filterState.completed === true || filterState.completedAfterTs !== null || filterState.completedBeforeTs !== null;
@@ -2310,7 +2310,7 @@
             });
           }
 
-          const limit = request.page && request.page.limit ? request.page.limit : 150;
+          const limit = request.page && request.page.limit ? Math.max(1, request.page.limit) : 150;
           let offset = 0;
           if (request.page && request.page.cursor) {
             const parsed = parseInt(request.page.cursor, 10);
@@ -2436,7 +2436,7 @@
             });
           }
           
-          const limit = request.page && request.page.limit ? request.page.limit : 150;
+          const limit = request.page && request.page.limit ? Math.max(1, request.page.limit) : 150;
           let offset = 0;
           if (request.page && request.page.cursor) {
             const parsed = parseInt(request.page.cursor, 10);
@@ -2487,7 +2487,7 @@
         } else if (request.op === "list_folders") {
           const fields = request.fields || [];
           const folders = toTaskArray(safe(() => flattenedFolders));
-          const limit = request.page && request.page.limit ? request.page.limit : 150;
+          const limit = request.page && request.page.limit ? Math.max(1, request.page.limit) : 150;
           let offset = 0;
           if (request.page && request.page.cursor) {
             const parsed = parseInt(request.page.cursor, 10);

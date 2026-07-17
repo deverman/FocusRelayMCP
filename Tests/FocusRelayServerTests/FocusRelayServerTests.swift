@@ -279,3 +279,33 @@ func sharedTaskFilterSchemaCoversCompleteModelSurface() {
     }
     #expect(includeTotalCount["default"] == .bool(false))
 }
+
+@Test
+func pageRequestValidationRejectsNonPositiveLimits() throws {
+    #expect(throws: (any Error).self) {
+        try FocusRelayServer.decodePageRequest(
+            from: ["page": .object(["limit": .int(-5)])],
+            defaultLimit: 50
+        )
+    }
+    #expect(throws: (any Error).self) {
+        try FocusRelayServer.decodePageRequest(
+            from: ["page": .object(["limit": .int(0)])],
+            defaultLimit: 50
+        )
+    }
+}
+
+@Test
+func pageRequestValidationAcceptsOmittedAndPositiveLimits() throws {
+    let defaulted = try FocusRelayServer.decodePageRequest(from: [:], defaultLimit: 150)
+    #expect(defaulted.limit == 150)
+    #expect(defaulted.cursor == nil)
+
+    let explicit = try FocusRelayServer.decodePageRequest(
+        from: ["page": .object(["limit": .int(25), "cursor": .string("50")])],
+        defaultLimit: 150
+    )
+    #expect(explicit.limit == 25)
+    #expect(explicit.cursor == "50")
+}
