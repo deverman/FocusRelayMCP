@@ -188,6 +188,8 @@ func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
     #expect(description.contains("totalTasks=0 means the project is empty or unplanned"))
     #expect(description.contains("If all child tasks are dropped, treat it as a drop/review candidate"))
     #expect(description.contains("availableTasks=0 does not mean a project is stalled"))
+    #expect(description.contains("default statusFilter='active' is ignored"))
+    #expect(description.contains("inclusive"))
 }
 
 @Test
