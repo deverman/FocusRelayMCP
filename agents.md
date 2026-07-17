@@ -103,4 +103,6 @@ semantic, and UAT checks against that same ready session.
   tasks are intentionally uncached.
 - Plugin URL dispatch is the only production transport; the JXA dispatch
   option was removed in #80. The pure-JXA query engine remains only as
-  internal parity/benchmark infrastructure, not a production path.
+  internal parity/benchmark infrastructure, not a production path. Production
+  semantic gates use plugin and native contracts; pass `--include-jxa-parity`
+  only for developer diagnostics.

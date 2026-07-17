@@ -309,3 +309,20 @@ func pageRequestValidationAcceptsOmittedAndPositiveLimits() throws {
     #expect(explicit.limit == 25)
     #expect(explicit.cursor == "50")
 }
+
+@Test
+func pageRequestAppliesToolDefaultLimitWhenCursorSentAlone() throws {
+    let taskPage = try FocusRelayServer.decodePageRequest(
+        from: ["page": .object(["cursor": .string("50")])],
+        defaultLimit: 50
+    )
+    #expect(taskPage.limit == 50)
+    #expect(taskPage.cursor == "50")
+
+    let projectPage = try FocusRelayServer.decodePageRequest(
+        from: ["page": .object(["cursor": .string("150")])],
+        defaultLimit: 150
+    )
+    #expect(projectPage.limit == 150)
+    #expect(projectPage.cursor == "150")
+}

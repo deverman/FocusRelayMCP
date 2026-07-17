@@ -33,6 +33,17 @@ func bridgeClientConfigurationIgnoresInvalidEnvironmentOverrides() {
 }
 
 @Test
+func bridgeClientConfigurationIgnoresRemovedJXADispatchEnvironmentVariables() {
+    let defaults = BridgeClientConfiguration.fromEnvironment([:])
+    let configuration = BridgeClientConfiguration.fromEnvironment([
+        "FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT": "jxa",
+        "FOCUS_RELAY_BRIDGE_DISPATCH_TIMEOUT_SECONDS": "1"
+    ])
+
+    #expect(configuration == defaults)
+}
+
+@Test
 func strandedRedispatchDelayIsBounded() {
     #expect(strandedRedispatchDelay(timeout: 45.0) == 2.0)
     #expect(abs(strandedRedispatchDelay(timeout: 12.0) - 1.2) < 0.000_001)
