@@ -2928,9 +2928,10 @@
               if (projectIds.has(pid) && isCompletedStatus(t)) {
                 const taskCompletionDate = getTaskDateTimestamp(t, task => task.completionDate);
                 if (taskCompletionDate === null) { return; }
-                // Only count tasks completed in the same window
+                // Only count tasks completed in the same window (inclusive bounds,
+                // matching the project-level filter and list_tasks date filters).
                 if ((!completedAfter || taskCompletionDate >= completedAfter.getTime()) &&
-                    (!completedBefore || taskCompletionDate < completedBefore.getTime())) {
+                    (!completedBefore || taskCompletionDate <= completedBefore.getTime())) {
                   completedTaskCount++;
                 }
               }
