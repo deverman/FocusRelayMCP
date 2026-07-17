@@ -11,11 +11,11 @@ public final class OmniFocusBridgeService: OmniFocusService {
     }
 
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
-        return try client.listTasks(filter: filter, page: page, fields: fields)
+        return try await Task.detached { try self.client.listTasks(filter: filter, page: page, fields: fields) }.value
     }
 
     public func getTask(id: String, fields: [String]?) async throws -> TaskItem {
-        return try client.getTask(id: id, fields: fields)
+        return try await Task.detached { try self.client.getTask(id: id, fields: fields) }.value
     }
 
     public func listProjects(
@@ -41,7 +41,26 @@ public final class OmniFocusBridgeService: OmniFocusService {
             if let cached = await cache.getProjects(key: key) {
                 return cached
             }
-            let pageResult = try client.listProjects(
+            let pageResult = try await Task.detached {
+                try self.client.listProjects(
+                    page: page,
+                    statusFilter: statusFilter,
+                    includeTaskCounts: includeTaskCounts,
+                    reviewDueBefore: reviewDueBefore,
+                    reviewDueAfter: reviewDueAfter,
+                    reviewPerspective: reviewPerspective,
+                    completed: completed,
+                    completedBefore: completedBefore,
+                    completedAfter: completedAfter,
+                    fields: fields
+                )
+            }.value
+            await cache.setProjects(pageResult, key: key, ttl: cacheTTL)
+            return pageResult
+        }
+
+        return try await Task.detached {
+            try self.client.listProjects(
                 page: page,
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts,
@@ -53,22 +72,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 completedAfter: completedAfter,
                 fields: fields
             )
-            await cache.setProjects(pageResult, key: key, ttl: cacheTTL)
-            return pageResult
-        }
-
-        return try client.listProjects(
-            page: page,
-            statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts,
-            reviewDueBefore: reviewDueBefore,
-            reviewDueAfter: reviewDueAfter,
-            reviewPerspective: reviewPerspective,
-            completed: completed,
-            completedBefore: completedBefore,
-            completedAfter: completedAfter,
-            fields: fields
-        )
+        }.value
     }
 
     public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {
@@ -80,25 +84,25 @@ public final class OmniFocusBridgeService: OmniFocusService {
         if let cached = await cache.getTags(key: key) {
             return cached
         }
-        let pageResult = try client.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
+        let pageResult = try await Task.detached { try self.client.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts) }.value
         await cache.setTags(pageResult, key: key, ttl: cacheTTL)
         return pageResult
     }
 
     public func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {
-        return try client.listFolders(page: page, fields: fields)
+        return try await Task.detached { try self.client.listFolders(page: page, fields: fields) }.value
     }
 
     public func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts {
-        return try client.getTaskCounts(filter: filter)
+        return try await Task.detached { try self.client.getTaskCounts(filter: filter) }.value
     }
 
     public func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts {
-        return try client.getProjectCounts(filter: filter)
+        return try await Task.detached { try self.client.getProjectCounts(filter: filter) }.value
     }
 
     public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
-        let response = try client.performMutation(request)
+        let response = try await Task.detached { try self.client.performMutation(request) }.value
         if !request.previewOnly && response.successCount > 0 {
             await cache.invalidateAll()
         }
