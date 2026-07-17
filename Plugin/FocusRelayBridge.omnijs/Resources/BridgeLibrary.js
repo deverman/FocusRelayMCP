@@ -1263,26 +1263,24 @@
      * Check if a project matches the requested view filter
      * @param {Project} project - OmniFocus project object
      * @param {string} view - View filter: "active", "onHold", "dropped", "done", "everything", "all"
-     * @param {boolean} allowOnHoldInEverything - Whether to include on-hold projects in "everything" view
      * @returns {boolean} True if project matches the view
      */
-    function projectMatchesView(project, view, allowOnHoldInEverything) {
+    function projectMatchesView(project, view) {
       if (!project) { return false; }
       if (!view || view === "all") { return true; }
 
       const normalizedView = view.toLowerCase();
       if (normalizedView === "everything") { return true; }
-      const allowOnHold = allowOnHoldInEverything && normalizedView === "everything";
 
       const status = safe(() => project.status);
       if (status === Project.Status.Active) { return normalizedView === "active"; }
-      if (status === Project.Status.OnHold) { return allowOnHold || normalizedView === "onhold" || normalizedView === "on_hold"; }
+      if (status === Project.Status.OnHold) { return normalizedView === "onhold" || normalizedView === "on_hold"; }
       if (status === Project.Status.Dropped) { return normalizedView === "dropped"; }
       if (status === Project.Status.Done) { return normalizedView === "done" || normalizedView === "completed"; }
 
       // Fallback string matching for safety
       const statusStr = String(status);
-      if (statusStr.includes("OnHold")) { return allowOnHold || normalizedView === "onhold" || normalizedView === "on_hold"; }
+      if (statusStr.includes("OnHold")) { return normalizedView === "onhold" || normalizedView === "on_hold"; }
       if (statusStr.includes("Dropped")) { return normalizedView === "dropped"; }
       if (statusStr.includes("Done")) { return normalizedView === "done" || normalizedView === "completed"; }
 
@@ -1819,33 +1817,6 @@
             availableOnly: availableOnly
           });
 
-          // Timezone-aware date calculations
-          // Get user's timezone from request, fallback to local
-          const userTimeZone = request.userTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-          
-          // Helper to create date in user's timezone and convert to UTC
-          function getLocalDate(hour, minute, timeZone) {
-            const now = new Date();
-            const localDateStr = now.toLocaleString('en-US', {
-              timeZone: timeZone,
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false
-            });
-            // Parse the local date string
-            const [datePart, timePart] = localDateStr.split(', ');
-            const [month, day, year] = datePart.split('/');
-            const [h, m, s] = timePart.split(':');
-            
-            // Create date object and set the desired time
-            const date = new Date(`${year}-${month}-${day}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
-            return date;
-          }
-          
           // Batch all filters into single pass for performance
           // Pre-parse all filter dates once
           const filterState = {
@@ -1912,7 +1883,7 @@
               if (project === null) {
                 project = safe(() => t.containingProject);
               }
-              if (!projectMatchesView(project, projectView, true)) return false;
+              if (!projectMatchesView(project, projectView)) return false;
             }
             
             // Date checks
@@ -2777,7 +2748,7 @@
                 if (project === null) {
                   project = safe(() => t.containingProject);
                 }
-                if (!projectMatchesView(project, projectView, true)) return;
+                if (!projectMatchesView(project, projectView)) return;
               }
               if (filterState.dueBeforeTs !== null) {
                 const due = getTaskDateTimestamp(t, task => task.dueDate);
@@ -3050,7 +3021,7 @@
                 if (pid !== filterState.projectFilter && pname !== filterState.projectFilter) return;
               }
               if (filterState.projectView) {
-                if (!projectMatchesView(project, filterState.projectView, true)) return;
+                if (!projectMatchesView(project, filterState.projectView)) return;
               }
               if (filterState.dueBefore) {
                 const due = getTaskDateTimestamp(t, task => task.dueDate);
