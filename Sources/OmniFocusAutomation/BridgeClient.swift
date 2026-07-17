@@ -9,6 +9,7 @@ final class BridgeClient: @unchecked Sendable {
     private let staleInterval: TimeInterval
     private let dispatchRunner: SerializedJXARunner
     private let configuration: BridgeClientConfiguration
+    var onResponseWarnings: (@Sendable (_ warnings: [String], _ op: String) -> Void)?
 
     init(
         paths: IPCPaths = .default(),
@@ -67,7 +68,7 @@ final class BridgeClient: @unchecked Sendable {
                     available: payload.available ?? false
                 )
             }
-            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount)
+            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
         let message = response.error?.message ?? "Unknown bridge error"
@@ -158,7 +159,7 @@ final class BridgeClient: @unchecked Sendable {
                     completionDate: payload.completionDate
                 )
             }
-            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount)
+            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
         let message = response.error?.message ?? "Unknown bridge error"
@@ -195,7 +196,7 @@ final class BridgeClient: @unchecked Sendable {
                     totalTasks: payload.totalTasks
                 )
             }
-            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount)
+            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
         let message = response.error?.message ?? "Unknown bridge error"
@@ -231,7 +232,7 @@ final class BridgeClient: @unchecked Sendable {
                     childFolderCount: payload.childFolderCount
                 )
             }
-            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount)
+            return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
         let message = response.error?.message ?? "Unknown bridge error"
@@ -453,6 +454,9 @@ final class BridgeClient: @unchecked Sendable {
                 responseType: responseType
             )
             removeIfExists(url: dispatchRequestURL)
+            if let warnings = response.warnings, !warnings.isEmpty {
+                onResponseWarnings?(warnings, request.op)
+            }
             return response
         } catch {
             if !isTimeoutError(error) {

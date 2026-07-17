@@ -215,12 +215,14 @@ public struct Page<T: Codable & Sendable>: Codable, Sendable {
     public let nextCursor: String?
     public let returnedCount: Int
     public let totalCount: Int?
+    public let warnings: [String]?
 
-    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil) {
+    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil, warnings: [String]? = nil) {
         self.items = items
         self.nextCursor = nextCursor
         self.returnedCount = returnedCount
         self.totalCount = totalCount
+        self.warnings = warnings
     }
 }
 

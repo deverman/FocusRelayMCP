@@ -46,6 +46,23 @@ func pageDefaults() {
 }
 
 @Test
+func pageWarningsRoundTripAndAbsenceTolerance() throws {
+    let tagged = Page(
+        items: [TagItem(id: "tag-1", name: "Home", status: "active")],
+        returnedCount: 1,
+        totalCount: 1,
+        warnings: ["Invalid date filter value: not-a-date"]
+    )
+    let data = try JSONEncoder().encode(tagged)
+    let decoded = try JSONDecoder().decode(Page<TagItem>.self, from: data)
+    #expect(decoded.warnings == ["Invalid date filter value: not-a-date"])
+
+    let withoutWarnings = #"{"items":[],"returnedCount":0}"#.data(using: .utf8)!
+    let legacy = try JSONDecoder().decode(Page<TagItem>.self, from: withoutWarnings)
+    #expect(legacy.warnings == nil)
+}
+
+@Test
 func projectItemReviewRoundTrip() throws {
     let interval = ReviewInterval(steps: 2, unit: "weeks")
     let project = ProjectItem(

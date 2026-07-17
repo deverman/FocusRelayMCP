@@ -10,6 +10,10 @@ public final class OmniFocusBridgeService: OmniFocusService {
         self.client = BridgeClient()
     }
 
+    public func setWarningsHandler(_ handler: (@Sendable (_ warnings: [String], _ op: String) -> Void)?) {
+        client.onResponseWarnings = handler
+    }
+
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
         return try client.listTasks(filter: filter, page: page, fields: fields)
     }
