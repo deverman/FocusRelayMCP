@@ -118,7 +118,7 @@ write_metadata() {
 - Profile: ${PROFILE}
 - Branch: $(git rev-parse --abbrev-ref HEAD)
 - Commit: $(git rev-parse HEAD)
-- Dispatch transport: ${FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT:-url}
+- Dispatch transport: url
 - Total configured hours: ${TOTAL_HOURS}
 - Per tool configured hours: ${PER_TOOL_HOURS}
 - Warmup calls: ${WARMUP_CALLS}
@@ -229,7 +229,7 @@ cat > "${SUITE_DIR}/summary.md" <<EOF_SUMMARY
 - Ended: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 - Branch: $(git rev-parse --abbrev-ref HEAD)
 - Commit: $(git rev-parse HEAD)
-- Dispatch transport: ${FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT:-url}
+- Dispatch transport: url
 - Total configured hours: ${TOTAL_HOURS}
 - Per tool configured hours: ${PER_TOOL_HOURS}
 

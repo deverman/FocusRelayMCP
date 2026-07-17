@@ -33,8 +33,9 @@ records only current sequencing and cross-issue dependencies.
 
 ## Standing Decisions
 
-- Plugin URL dispatch is the supported production transport. #80 tracks
-  removing supported JXA dispatch; JXA is not a second production path.
+- Plugin URL dispatch is the only production transport (#80 removed the JXA
+  dispatch option). JXA remains only as a benchmark/parity oracle, not a
+  production path.
 - Query code uses documented Omni Automation APIs and native status semantics.
 - One product branch plus one process/docs branch may be active.
 - Merge small vertical PRs and complete headline UAT before freezing a release

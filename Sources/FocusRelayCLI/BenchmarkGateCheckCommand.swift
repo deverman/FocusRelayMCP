@@ -46,7 +46,7 @@ struct BenchmarkGateCheck: AsyncParsableCommand {
             ok: checks.allSatisfy(\.ok),
             tool: tool.rawValue,
             generatedAt: gateISO8601(Date()),
-            dispatchTransport: ProcessInfo.processInfo.environment["FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT"] ?? "url",
+            dispatchTransport: "url",
             checks: checks
         )
 

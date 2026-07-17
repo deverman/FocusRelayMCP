@@ -101,5 +101,6 @@ semantic, and UAT checks against that same ready session.
   `userTimeZone` in bridge requests.
 - Projects and tags use the actor-based `CatalogCache` with a five-minute TTL;
   tasks are intentionally uncached.
-- Plugin URL dispatch is the supported production transport. JXA is temporary
-  internal parity/benchmark infrastructure tracked for removal in #80.
+- Plugin URL dispatch is the only production transport; the JXA dispatch
+  option was removed in #80. The pure-JXA query engine remains only as
+  internal parity/benchmark infrastructure, not a production path.
