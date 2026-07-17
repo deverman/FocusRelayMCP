@@ -188,6 +188,31 @@ func mutationRequestValidationRejectsConflictingTaskDateModes() {
 }
 
 @Test
+func projectPatchValidationRejectsUnsupportedFields() {
+    let unsupported: [ProjectPatchMutation] = [
+        ProjectPatchMutation(containsSingletonActions: true),
+        ProjectPatchMutation(completedByChildren: true),
+        ProjectPatchMutation(tags: TagMutation(clear: true))
+    ]
+
+    for patch in unsupported {
+        let request = MutationRequest(
+            targetType: .project,
+            targetIDs: ["project-1"],
+            operation: MutationOperation(
+                kind: .updateProjects,
+                projectPatch: patch
+            ),
+            previewOnly: true
+        )
+
+        #expect(throws: MutationValidationError.self) {
+            try request.validate()
+        }
+    }
+}
+
+@Test
 func mutationRequestValidationRejectsConflictingProjectDateModes() {
     let request = MutationRequest(
         targetType: .project,

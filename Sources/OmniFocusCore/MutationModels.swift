@@ -336,6 +336,15 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
     }
 
     public func validate() throws {
+        if containsSingletonActions != nil {
+            throw MutationValidationError("containsSingletonActions updates are not supported yet; see the edit-surface consolidation roadmap item.")
+        }
+        if completedByChildren != nil {
+            throw MutationValidationError("completedByChildren updates are not supported yet; see the edit-surface consolidation roadmap item.")
+        }
+        if tags != nil {
+            throw MutationValidationError("Project tag updates are not supported yet; see the edit-surface consolidation roadmap item.")
+        }
         if dueDate != nil && clearDueDate {
             throw MutationValidationError("Project patches cannot set and clear dueDate in the same request.")
         }
@@ -345,7 +354,6 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         if let reviewInterval, let steps = reviewInterval.steps, steps < 0 {
             throw MutationValidationError("reviewInterval.steps must be zero or greater.")
         }
-        try tags?.validate()
     }
 }
 
