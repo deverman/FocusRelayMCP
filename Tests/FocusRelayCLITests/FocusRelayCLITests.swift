@@ -238,25 +238,88 @@ func benchmarkGateParsesToolScope() throws {
 
 @Test
 func listTaskBenchmarkRotatesEveryScenario() {
-    #expect((0..<8).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 4) } == [0, 1, 2, 3, 0, 1, 2, 3])
-    #expect((0..<7).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 3) } == [0, 1, 2, 0, 1, 2, 0])
+    #expect((0..<8).map { benchmarkScenarioIndex(callIndex: $0, scenarioCount: 4) } == [0, 1, 2, 3, 0, 1, 2, 3])
+    #expect((0..<7).map { benchmarkScenarioIndex(callIndex: $0, scenarioCount: 3) } == [0, 1, 2, 0, 1, 2, 0])
 }
 
 @Test
 func listTaskBenchmarkReportsMissingMeasuredCoverage() {
-    var success = ListTaskStats()
+    var success = BenchmarkStats()
     success.success = 1
-    var failure = ListTaskStats()
+    var failure = BenchmarkStats()
     failure.errors = 1
     let complete = [
-        "first": ["plugin": success],
-        "second": ["plugin": failure]
+        "first": success,
+        "second": failure
     ]
 
     #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: complete).isEmpty)
 
-    let incomplete = ["first": ["plugin": success]]
+    let incomplete = ["first": success]
     #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: incomplete) == [
         "second:plugin"
     ])
+}
+
+@Test
+func benchmarkArgumentsUseOneValidationContract() {
+    #expect(throws: (any Error).self) {
+        try validateBenchmarkArguments(durationHours: 0, warmupCalls: 0, intervalMS: 0, cooldownMS: 0)
+    }
+    #expect(throws: (any Error).self) {
+        try validateBenchmarkArguments(durationHours: 1, warmupCalls: -1, intervalMS: 0, cooldownMS: 0)
+    }
+    #expect(throws: (any Error).self) {
+        try validateBenchmarkArguments(durationHours: 1, warmupCalls: 0, intervalMS: 0, cooldownMS: 0, memoryIntervalSeconds: 0)
+    }
+}
+
+@Test
+func countBenchmarkArtifactKeepsHistoricalKeys() throws {
+    let event = CountBenchmarkEvent(
+        timestamp: "2026-07-18T00:00:00.000Z",
+        phase: "measured",
+        callIndex: 1,
+        transport: benchmarkTransport,
+        scenario: "default",
+        latencyMs: 12.5,
+        ok: true,
+        timeout: false,
+        error: nil,
+        counts: TaskCounts(total: 1, completed: 0, available: 1, flagged: 0)
+    )
+    let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(event)) as? [String: Any])
+
+    #expect(Set(object.keys) == [
+        "timestamp", "phase", "callIndex", "transport", "scenario", "latencyMs",
+        "ok", "timeout", "counts"
+    ])
+    #expect(object["transport"] as? String == "plugin")
+}
+
+@Test
+func listBenchmarkArtifactKeepsHistoricalKeys() throws {
+    let event = ListTaskEvent(
+        timestamp: "2026-07-18T00:00:00.000Z",
+        phase: "measured",
+        callIndex: 1,
+        transport: benchmarkTransport,
+        scenario: "default",
+        latencyMs: 12.5,
+        ok: true,
+        timeout: false,
+        error: nil,
+        returnedCount: 1,
+        totalCount: 1,
+        nextCursor: nil,
+        firstItemID: "first",
+        lastItemID: "first"
+    )
+    let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(event)) as? [String: Any])
+
+    #expect(Set(object.keys) == [
+        "timestamp", "phase", "callIndex", "transport", "scenario", "latencyMs",
+        "ok", "timeout", "returnedCount", "totalCount", "firstItemID", "lastItemID"
+    ])
+    #expect(object["transport"] as? String == "plugin")
 }
