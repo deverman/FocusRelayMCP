@@ -4,7 +4,7 @@ This document defines the Omni Automation APIs that are allowed in FocusRelay qu
 
 Scope:
 - `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- `Sources/OmniFocusAutomation/OmniFocusAutomation.swift`
+- `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
 - Any future query-engine helper that reads OmniFocus data
 
 Workflow companion:

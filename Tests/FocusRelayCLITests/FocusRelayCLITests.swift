@@ -215,29 +215,11 @@ func setProjectsCompletionParsesCompletedState() throws {
 @Test
 func benchmarkGateTaskCountScenariosCoverBoundaryAndFlaggedCases() {
     let contractNames = gateTaskCountContractScenarios().map(\.name)
-    let parityNames = gateTaskCountParityScenarios().map(\.name)
 
     #expect(contractNames.contains("completed_after_anchor"))
     #expect(contractNames.contains("flagged_only"))
-    #expect(parityNames.contains("flagged_only"))
-    #expect(parityNames.contains("completed_after_anchor"))
-    #expect(parityNames.contains("search_no_match"))
-    #expect(gateTaskCountParityScenarios().first { $0.name == "search_no_match" }?.expectedTotal == 0)
-}
-
-@Test
-func benchmarkGateRunsIndependentNativeEffectiveFlagContract() {
-    #expect(gateIncludesNativeEffectiveFlagContract(.all))
-    #expect(gateIncludesNativeEffectiveFlagContract(.taskCounts))
-    #expect(!gateIncludesNativeEffectiveFlagContract(.listTasks))
-    #expect(!gateIncludesNativeEffectiveFlagContract(.projectCounts))
-
-    let source = nativeEffectiveFlagActionCountAutomationSource()
-    #expect(source.contains("flattenedTasks"))
-    #expect(source.contains("task.taskStatus"))
-    #expect(source.contains("task.effectiveFlagged"))
-    #expect(source.contains("task.containingProject"))
-    #expect(!source.contains("task.flagged"))
+    #expect(contractNames.contains("search_no_match"))
+    #expect(gateTaskCountContractScenarios().first { $0.name == "search_no_match" }?.expectedTotal == 0)
 }
 
 @Test
@@ -245,33 +227,17 @@ func benchmarkGateDefaultsToProductionContractsOnly() throws {
     let command = try BenchmarkGateCheck.parse([])
 
     #expect(command.tool == .all)
-    #expect(command.includeJXAParity == false)
 }
 
 @Test
-func benchmarkGateCanEnableDeveloperJXAParityDiagnostics() throws {
-    let command = try BenchmarkGateCheck.parse(["--include-jxa-parity", "--tool", "project-counts"])
+func benchmarkGateParsesToolScope() throws {
+    let command = try BenchmarkGateCheck.parse(["--tool", "project-counts"])
 
     #expect(command.tool == .projectCounts)
-    #expect(command.includeJXAParity)
 }
 
 @Test
-func benchmarkGateListTaskScenariosCoverRegressionShapes() {
-    let baseNames = gateListTaskParityScenarios(projectID: nil).map(\.name)
-    let projectNames = gateListTaskParityScenarios(projectID: "project-123").map(\.name)
-
-    #expect(baseNames.contains("flagged_only"))
-    #expect(baseNames.contains("flagged_only_no_total"))
-    #expect(baseNames.contains("completed_after_anchor"))
-    #expect(baseNames.contains("search_no_match"))
-    #expect(gateListTaskParityScenarios(projectID: nil).first { $0.name == "search_no_match" }?.expectedTotal == 0)
-    #expect(!baseNames.contains("project_scoped_simple"))
-    #expect(projectNames.contains("project_scoped_simple"))
-}
-
-@Test
-func listTaskBenchmarkRotatesEveryScenarioPerTransportPair() {
+func listTaskBenchmarkRotatesEveryScenario() {
     #expect((0..<8).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 4) } == [0, 1, 2, 3, 0, 1, 2, 3])
     #expect((0..<7).map { listTaskScenarioIndex(pairIndex: $0, scenarioCount: 3) } == [0, 1, 2, 0, 1, 2, 0])
 }
@@ -283,25 +249,14 @@ func listTaskBenchmarkReportsMissingMeasuredCoverage() {
     var failure = ListTaskStats()
     failure.errors = 1
     let complete = [
-        "first": ["plugin": success, "jxa": success],
-        "second": ["plugin": failure, "jxa": success]
+        "first": ["plugin": success],
+        "second": ["plugin": failure]
     ]
 
     #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: complete).isEmpty)
 
     let incomplete = ["first": ["plugin": success]]
     #expect(listTaskMissingMeasuredCoverage(scenarios: ["first", "second"], stats: incomplete) == [
-        "first:jxa",
-        "second:plugin",
-        "second:jxa"
+        "second:plugin"
     ])
-}
-
-@Test
-func benchmarkGateProjectCountScenariosCoverCompletedWindowParity() {
-    let names = gateProjectCountParityScenarios().map(\.name)
-
-    #expect(names.contains("project_view_remaining"))
-    #expect(names.contains("project_view_active"))
-    #expect(names.contains("completed_after_anchor"))
 }

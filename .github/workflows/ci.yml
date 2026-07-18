@@ -109,7 +109,7 @@ jobs:
         run: swift build -c release --product focusrelay
 
       - name: Check release surface
-        run: ./scripts/check-release-surface.sh .build/release/focusrelay
+        run: ./scripts/check-bridge-only-architecture.sh .build/debug/focusrelay .build/release/focusrelay
 
   ci:
     if: always()

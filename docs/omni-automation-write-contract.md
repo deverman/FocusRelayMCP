@@ -4,7 +4,7 @@ This document defines the Omni Automation APIs and product rules that are allowe
 
 Scope:
 - Any future task or project mutation helper in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- Any future mutation helper in `Sources/OmniFocusAutomation/OmniFocusAutomation.swift`
+- Mutation helpers in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
 - Any future shared mutation core used by CLI and MCP
 
 Workflow companion:

@@ -4,7 +4,6 @@ Use this before changing any production query path in FocusRelay.
 
 Scope:
 - `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- `Sources/OmniFocusAutomation/OmniFocusAutomation.swift`
 - `Sources/OmniFocusAutomation/BridgeClient.swift`
 - `Sources/FocusRelayCLI/BenchmarkGateCheckCommand.swift`
 
@@ -35,7 +34,8 @@ Preferred categories:
 - count/list parity for the same filter
 - pagination continuity across page 1 -> page 2
 - status edge cases: on-hold, dropped, done, completed parent
-- bridge vs JXA parity for the same scenario
+- deterministic JavaScriptCore fixtures for Bridge query modules
+- live Bridge list/count agreement for the same scenario
 
 Recent regressions to treat as templates:
 - `plannedBefore` exclusivity

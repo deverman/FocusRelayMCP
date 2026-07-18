@@ -4,6 +4,10 @@ Status: Completed on clean branch `exp/master-documented-query-baseline`
 Date: 2026-03-16
 Associated issue: `#19`
 
+Historical note: #80 later removed the pure-JXA reference implementation and
+retired transport comparisons. Current validation uses deterministic Bridge
+fixtures and live list/count contracts.
+
 ## Final Status Update
 
 This plan was executed on the clean branch and is now complete enough to close the optimization phase.
