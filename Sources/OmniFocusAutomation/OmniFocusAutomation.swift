@@ -1,5 +1,7 @@
 import Foundation
+#if DEBUG
 import OSAKit
+#endif
 import OmniFocusCore
 
 public enum AutomationError: Error, LocalizedError {
@@ -19,6 +21,7 @@ public enum AutomationError: Error, LocalizedError {
     }
 }
 
+#if DEBUG
 public final class ScriptRunner: Sendable {
     public init() {}
 
@@ -1998,3 +2001,4 @@ private func jsStringLiteral(_ value: String) -> String {
     let data = try? JSONEncoder().encode(value)
     return data.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
 }
+#endif

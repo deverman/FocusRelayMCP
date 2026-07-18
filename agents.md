@@ -102,7 +102,7 @@ semantic, and UAT checks against that same ready session.
 - Projects and tags use the actor-based `CatalogCache` with a five-minute TTL;
   tasks are intentionally uncached.
 - Plugin URL dispatch is the only production transport; the JXA dispatch
-  option was removed in #80. The pure-JXA query engine remains only as
-  internal parity/benchmark infrastructure, not a production path. Production
-  semantic gates use plugin and native contracts; pass `--include-jxa-parity`
-  only for developer diagnostics.
+  option was removed in #80. The pure-JXA query engine and its benchmark
+  commands compile only in debug builds; release binaries do not link OSAKit.
+  Production semantic gates use plugin and native contracts; pass
+  `--include-jxa-parity` only for developer diagnostics.
