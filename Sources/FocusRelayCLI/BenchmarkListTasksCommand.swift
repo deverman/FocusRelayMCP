@@ -7,14 +7,14 @@ import OmniFocusCore
 struct BenchmarkListTasks: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark-list-tasks",
-        abstract: "Benchmark list_tasks for plugin vs JXA transports.",
+        abstract: "Benchmark list_tasks through the Bridge plugin.",
         aliases: ["benchmark_list_tasks"]
     )
 
     @Option(name: .customLong("duration-hours"), help: "Measured phase duration in hours.")
     var durationHours: Double = 3.0
 
-    @Option(name: .customLong("warmup-calls"), help: "Warmup calls per transport before measured runs.")
+    @Option(name: .customLong("warmup-calls"), help: "Warmup calls before measured runs.")
     var warmupCalls: Int = 20
 
     @Option(name: .customLong("interval-ms"), help: "Minimum start-to-start interval between calls in milliseconds.")
@@ -43,11 +43,9 @@ struct BenchmarkListTasks: AsyncParsableCommand {
         print("Scenarios: \(scenarios.map(\.name).joined(separator: ", "))")
 
         let pluginService = OmniFocusBridgeService()
-        let jxaService = OmniAutomationService()
 
         var callIndex = 0
         var stats: [String: [String: ListTaskStats]] = [:]
-        var mismatches = 0
 
         if warmupCalls > 0 {
             for _ in 0..<warmupCalls {
@@ -57,23 +55,6 @@ struct BenchmarkListTasks: AsyncParsableCommand {
                     scenario: scenario,
                     phase: "warmup",
                     service: pluginService,
-                    timeoutDiagnosticsURL: timeoutDiagnosticsURL,
-                    intervalMS: intervalMS,
-                    cooldownMS: cooldownMS,
-                    callIndex: &callIndex,
-                    rawURL: rawURL
-                )
-                if event.timeout {
-                    await runListTaskTimeoutRecoveryGate()
-                }
-            }
-            for _ in 0..<warmupCalls {
-                let scenario = scenarios[callIndex % scenarios.count]
-                let event = try await listTaskBenchCall(
-                    transport: "jxa",
-                    scenario: scenario,
-                    phase: "warmup",
-                    service: jxaService,
                     timeoutDiagnosticsURL: timeoutDiagnosticsURL,
                     intervalMS: intervalMS,
                     cooldownMS: cooldownMS,
@@ -111,25 +92,6 @@ struct BenchmarkListTasks: AsyncParsableCommand {
                 await runListTaskTimeoutRecoveryGate()
             }
 
-            let jxaEvent = try await listTaskBenchCall(
-                transport: "jxa",
-                scenario: scenario,
-                phase: "measured",
-                service: jxaService,
-                timeoutDiagnosticsURL: timeoutDiagnosticsURL,
-                intervalMS: intervalMS,
-                cooldownMS: cooldownMS,
-                callIndex: &callIndex,
-                rawURL: rawURL
-            )
-            ingestListTaskEvent(jxaEvent, into: &stats)
-            if jxaEvent.timeout {
-                await runListTaskTimeoutRecoveryGate()
-            }
-
-            if pluginEvent.ok && jxaEvent.ok && !listTaskEventsMatch(pluginEvent, jxaEvent) {
-                mismatches += 1
-            }
         }
 
         let summary = renderListTaskSummary(
@@ -137,7 +99,6 @@ struct BenchmarkListTasks: AsyncParsableCommand {
             endedAt: Date(),
             scenarios: scenarios.map(\.name),
             stats: stats,
-            mismatches: mismatches,
             timeoutDiagnosticCount: listTaskCountLines(in: timeoutDiagnosticsURL)
         )
         try summary.write(to: summaryURL, atomically: true, encoding: .utf8)
@@ -357,23 +318,13 @@ private func ingestListTaskEvent(_ event: ListTaskEvent, into stats: inout [Stri
     stats[event.scenario] = perScenario
 }
 
-private func listTaskEventsMatch(_ lhs: ListTaskEvent, _ rhs: ListTaskEvent) -> Bool {
-    lhs.returnedCount == rhs.returnedCount &&
-    lhs.totalCount == rhs.totalCount &&
-    lhs.nextCursor == rhs.nextCursor &&
-    lhs.firstItemID == rhs.firstItemID &&
-    lhs.lastItemID == rhs.lastItemID
-}
-
 func listTaskMissingMeasuredCoverage(
     scenarios: [String],
     stats: [String: [String: ListTaskStats]]
 ) -> [String] {
-    scenarios.flatMap { scenario in
-        ["plugin", "jxa"].compactMap { transport in
-            let scoped = stats[scenario]?[transport] ?? ListTaskStats()
-            return scoped.success + scoped.errors == 0 ? "\(scenario):\(transport)" : nil
-        }
+    scenarios.compactMap { scenario in
+        let scoped = stats[scenario]?["plugin"] ?? ListTaskStats()
+        return scoped.success + scoped.errors == 0 ? "\(scenario):plugin" : nil
     }
 }
 
@@ -382,7 +333,6 @@ private func renderListTaskSummary(
     endedAt: Date,
     scenarios: [String],
     stats: [String: [String: ListTaskStats]],
-    mismatches: Int,
     timeoutDiagnosticCount: Int
 ) -> String {
     func p(_ values: [Double], _ q: Double) -> String {
@@ -409,7 +359,7 @@ private func renderListTaskSummary(
     for scenario in scenarios {
         lines.append("### \(scenario)")
         let scoped = stats[scenario] ?? [:]
-        for transport in ["plugin", "jxa"] {
+        for transport in ["plugin"] {
             let s = scoped[transport] ?? ListTaskStats()
             let total = s.success + s.errors
             let errorRate = total > 0 ? (Double(s.errors) / Double(total)) * 100.0 : .nan
@@ -421,10 +371,6 @@ private func renderListTaskSummary(
         lines.append("")
     }
 
-    lines.append("## Parity")
-    lines.append("")
-    lines.append("- Mismatch count: \(mismatches)")
-    lines.append("")
     lines.append("## Timeout Diagnostics")
     lines.append("")
     lines.append("- Diagnostic entries: \(timeoutDiagnosticCount)")

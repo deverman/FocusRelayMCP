@@ -66,58 +66,6 @@ func completedOrDroppedParentsHideChildrenFromAvailableAndRemaining(parentStatus
     #expect(result.totalTasks == 2)
 }
 
-@Test
-func jxaProjectCountsMatchTheSharedStatusContract() throws {
-    let request = """
-    {"page":{"limit":10},"statusFilter":"all","includeTaskCounts":true,"fields":["id","name"]}
-    """
-    let automationScript = listProjectsOmniAutomationScript(requestJSON: request)
-    let context = JSContext()!
-    var exceptionMessage: String?
-    context.exceptionHandler = { _, exception in
-        exceptionMessage = exception?.toString()
-    }
-    let bootstrap = """
-    const Task = { Status: {
-      Available: "Available", Next: "Next", DueSoon: "DueSoon", Overdue: "Overdue",
-      Blocked: "Blocked", Completed: "Completed", Dropped: "Dropped"
-    }};
-    const Project = { Status: {
-      Active: "Active", OnHold: "OnHold", Dropped: "Dropped", Done: "Done"
-    }};
-    function task(status, parent) {
-      return { taskStatus: status, parent: parent || null };
-    }
-    const completedParent = task(Task.Status.Completed);
-    const flattenedProjects = [
-      {
-        id: { primaryKey: "active" }, name: "Active", status: Project.Status.Active,
-        flattenedTasks: [
-          task(Task.Status.DueSoon), task(Task.Status.Overdue), task(Task.Status.Blocked),
-          completedParent, task(Task.Status.Available, completedParent)
-        ]
-      },
-      {
-        id: { primaryKey: "on-hold" }, name: "On Hold", status: Project.Status.OnHold,
-        flattenedTasks: [task(Task.Status.Available)]
-      }
-    ];
-    """
-    guard let json = context.evaluateScript(bootstrap + automationScript)?.toString(), exceptionMessage == nil else {
-        throw ProjectTaskCountTestError.javaScript(exceptionMessage ?? "No result")
-    }
-    let page = try JSONDecoder().decode(ProjectTaskCountPage.self, from: Data(json.utf8))
-    let active = try #require(page.items.first { $0.id == "active" })
-    let onHold = try #require(page.items.first { $0.id == "on-hold" })
-
-    #expect(active.availableTasks == 2)
-    #expect(active.remainingTasks == 3)
-    #expect(active.completedTasks == 1)
-    #expect(active.totalTasks == 5)
-    #expect(onHold.availableTasks == 0)
-    #expect(onHold.remainingTasks == 1)
-}
-
 @Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectAvailableCountsMatchProjectScopedTaskQueriesLive() throws {
     guard ProcessInfo.processInfo.environment["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else { return }
@@ -144,34 +92,6 @@ func bridgeProjectAvailableCountsMatchProjectScopedTaskQueriesLive() throws {
         )
         #expect(project.availableTasks == tasks.totalCount, "Available count mismatch for project \(project.name)")
     }
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func bridgeAndJXAProjectTaskCountsMatchLive() async throws {
-    guard ProcessInfo.processInfo.environment["FOCUS_RELAY_PARITY_TESTS"] == "1" else { return }
-
-    let bridge = OmniFocusBridgeService()
-    let jxa = OmniAutomationService()
-    let page = PageRequest(limit: 200)
-    let fields = ["id", "name"]
-    let bridgeProjects = try await bridge.listProjects(
-        page: page, statusFilter: "active", includeTaskCounts: true,
-        reviewDueBefore: nil, reviewDueAfter: nil, reviewPerspective: false,
-        completed: nil, completedBefore: nil, completedAfter: nil, fields: fields
-    )
-    let jxaProjects = try await jxa.listProjects(
-        page: page, statusFilter: "active", includeTaskCounts: true,
-        reviewDueBefore: nil, reviewDueAfter: nil, reviewPerspective: false,
-        completed: nil, completedBefore: nil, completedAfter: nil, fields: fields
-    )
-    let bridgeCounts = Dictionary(uniqueKeysWithValues: bridgeProjects.items.map {
-        ($0.id, [$0.availableTasks, $0.remainingTasks, $0.completedTasks, $0.droppedTasks, $0.totalTasks])
-    })
-    let jxaCounts = Dictionary(uniqueKeysWithValues: jxaProjects.items.map {
-        ($0.id, [$0.availableTasks, $0.remainingTasks, $0.completedTasks, $0.droppedTasks, $0.totalTasks])
-    })
-
-    #expect(bridgeCounts == jxaCounts)
 }
 
 private func evaluateProjectTaskCounts(

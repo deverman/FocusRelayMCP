@@ -3,33 +3,6 @@ import Testing
 @testable import OmniFocusAutomation
 @testable import OmniFocusCore
 
-@Test(.enabled(if: LiveTestEnvironment.omniFocusEnabled, "Set FOCUS_RELAY_LIVE_TESTS=1 to run against OmniFocus."))
-func listInboxTasksLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_LIVE_TESTS"] == "1" else {
-        return
-    }
-
-    let service = OmniAutomationService()
-    let filter = TaskFilter(inboxOnly: true)
-    let page = PageRequest(limit: 10)
-    let result = try await service.listTasks(filter: filter, page: page, fields: nil)
-
-    #expect(result.items.count <= 10)
-
-    if env["FOCUS_RELAY_DUMP_INBOX"] == "1" {
-        print("Inbox sample (up to \(result.items.count)):")
-        for item in result.items {
-            print("- [\(item.id)] \(item.name)")
-        }
-    }
-
-    if let expectedName = env["FOCUS_RELAY_EXPECT_INBOX_TASK"], !expectedName.isEmpty {
-        let matches = result.items.contains { $0.name == expectedName }
-        #expect(matches)
-    }
-}
-
 @Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeHealthCheckLive() throws {
     let env = ProcessInfo.processInfo.environment
@@ -109,115 +82,6 @@ func bridgeTaskCountsLive() throws {
     let client = BridgeClient()
     let counts = try client.getTaskCounts(filter: TaskFilter(inboxOnly: true))
     #expect(counts.total >= 0)
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func bridgeAndJXATaskCountsParityLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
-        return
-    }
-
-    let bridge = OmniFocusBridgeService()
-    let automation = OmniAutomationService()
-    let scenarios: [(String, TaskFilter)] = [
-        ("default", TaskFilter()),
-        ("inboxOnly", TaskFilter(inboxOnly: true)),
-        ("availableOnly", TaskFilter(availableOnly: true)),
-        ("completedAfterEpoch", TaskFilter(completed: true, completedAfter: Date(timeIntervalSince1970: 0))),
-        ("flaggedOnly", TaskFilter(flagged: true))
-    ]
-
-    for (name, filter) in scenarios {
-        let bridgeCounts = try await retryTaskCounts(service: bridge, filter: filter)
-        let jxaCounts = try await retryTaskCounts(service: automation, filter: filter)
-        #expect(
-            bridgeCounts.total == jxaCounts.total &&
-                bridgeCounts.completed == jxaCounts.completed &&
-                bridgeCounts.available == jxaCounts.available &&
-                bridgeCounts.flagged == jxaCounts.flagged,
-            "Task counts mismatch for scenario=\(name). bridge=\(bridgeCounts) jxa=\(jxaCounts)"
-        )
-    }
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func bridgeAndJXAListTasksParityLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
-        return
-    }
-
-    let bridge = OmniFocusBridgeService()
-    let automation = OmniAutomationService()
-    let page = PageRequest(limit: 50)
-    let fields = ["id", "name", "completed", "available", "completionDate"]
-
-    var scenarios: [(String, TaskFilter)] = [
-        ("default", TaskFilter(includeTotalCount: true)),
-        ("defaultNoTotal", TaskFilter(includeTotalCount: false)),
-        ("inboxOnly", TaskFilter(inboxOnly: true, includeTotalCount: true)),
-        ("inboxOnlyNoTotal", TaskFilter(inboxOnly: true, includeTotalCount: false)),
-        ("availableOnly", TaskFilter(availableOnly: true, includeTotalCount: true)),
-        ("availableOnlyNoTotal", TaskFilter(availableOnly: true, includeTotalCount: false)),
-        ("flaggedOnlyNoTotal", TaskFilter(flagged: true, includeTotalCount: false)),
-        ("completedAfterEpoch", TaskFilter(completed: true, completedAfter: Date(timeIntervalSince1970: 0), includeTotalCount: true))
-    ]
-
-    let activeProjects = try await bridge.listProjects(
-        page: PageRequest(limit: 10),
-        statusFilter: "active",
-        includeTaskCounts: false,
-        reviewDueBefore: nil,
-        reviewDueAfter: nil,
-        reviewPerspective: false,
-        completed: nil,
-        completedBefore: nil,
-        completedAfter: nil,
-        fields: ["id", "name"]
-    )
-    if let projectID = activeProjects.items.first?.id, !projectID.isEmpty {
-        scenarios.append(("projectScopedSimple", TaskFilter(project: projectID, includeTotalCount: true)))
-    }
-
-    for (name, filter) in scenarios {
-        let bridgePage = try await retryListTasks(service: bridge, filter: filter, page: page, fields: fields)
-        let jxaPage = try await retryListTasks(service: automation, filter: filter, page: page, fields: fields)
-
-        #expect((bridgePage.totalCount ?? -1) == (jxaPage.totalCount ?? -1), "totalCount mismatch on scenario=\(name)")
-        #expect(bridgePage.returnedCount == jxaPage.returnedCount, "returnedCount mismatch on scenario=\(name)")
-        #expect(bridgePage.nextCursor == jxaPage.nextCursor, "nextCursor mismatch on scenario=\(name)")
-
-        let bridgeIDs = bridgePage.items.map(\.id)
-        let jxaIDs = jxaPage.items.map(\.id)
-        #expect(bridgeIDs == jxaIDs, "item ID ordering mismatch on scenario=\(name)")
-    }
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func bridgeAndJXAProjectCountsParityLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
-        return
-    }
-
-    let bridge = OmniFocusBridgeService()
-    let automation = OmniAutomationService()
-    let scenarios: [(String, TaskFilter)] = [
-        ("projectViewRemaining", TaskFilter(projectView: "remaining")),
-        ("projectViewActive", TaskFilter(projectView: "active")),
-        ("completedAfterEpoch", TaskFilter(completed: true, completedAfter: Date(timeIntervalSince1970: 0)))
-    ]
-
-    for (name, filter) in scenarios {
-        let bridgeCounts = try await retryProjectCounts(service: bridge, filter: filter)
-        let jxaCounts = try await retryProjectCounts(service: automation, filter: filter)
-        #expect(
-            bridgeCounts.projects == jxaCounts.projects &&
-                bridgeCounts.actions == jxaCounts.actions,
-            "Project counts mismatch for scenario=\(name). bridge=\(bridgeCounts) jxa=\(jxaCounts)"
-        )
-    }
 }
 
 @Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
@@ -394,36 +258,14 @@ func bridgeProjectCountsLive() throws {
     #expect(counts.actions >= 0)
 }
 
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
+@Test(.enabled(if: LiveTestEnvironment.bridgeEnabled, "Set FOCUS_RELAY_BRIDGE_TESTS=1 to run against the installed bridge."))
 func bridgeProjectCountsActiveMatchesListTasksTotalLive() async throws {
     let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
+    guard env["FOCUS_RELAY_BRIDGE_TESTS"] == "1" else {
         return
     }
 
     let service = OmniFocusBridgeService()
-    let filter = TaskFilter(
-        completed: false,
-        availableOnly: false,
-        projectView: "active",
-        includeTotalCount: true
-    )
-
-    let counts = try await retryProjectCounts(service: service, filter: filter)
-    let page = try await retryListTasks(service: service, filter: filter, page: PageRequest(limit: 50), fields: ["id"])
-    if let total = page.totalCount {
-        #expect(counts.actions == total)
-    }
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func jxaProjectCountsActiveMatchesListTasksTotalLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
-        return
-    }
-
-    let service = OmniAutomationService()
     let filter = TaskFilter(
         completed: false,
         availableOnly: false,
@@ -700,33 +542,6 @@ func bridgeChildTasksWithCompletedParentNotRemainingLive() throws {
     for childId in childTaskIds {
         let found = result.items.contains { $0.id == childId }
         #expect(!found, "Child task \(childId) of completed parent should not be returned in remaining/default results")
-    }
-}
-
-@Test(.enabled(if: LiveTestEnvironment.parityEnabled, "Set FOCUS_RELAY_PARITY_TESTS=1 to run live bridge and JXA parity."))
-func bridgeAndJXAChildTasksWithCompletedParentNotRemainingLive() async throws {
-    let env = ProcessInfo.processInfo.environment
-    guard env["FOCUS_RELAY_PARITY_TESTS"] == "1" else {
-        return
-    }
-
-    let childTaskIds = env["FOCUS_RELAY_CHILD_TASK_IDS"]?.split(separator: ",").map(String.init) ?? []
-    guard !childTaskIds.isEmpty else {
-        return
-    }
-
-    let filter = TaskFilter(completed: false, availableOnly: false, includeTotalCount: true)
-    let page = PageRequest(limit: 200)
-    let fields = ["id", "name", "completed", "available"]
-
-    let bridge = OmniFocusBridgeService()
-    let automation = OmniAutomationService()
-    let bridgeResult = try await retryListTasks(service: bridge, filter: filter, page: page, fields: fields)
-    let jxaResult = try await retryListTasks(service: automation, filter: filter, page: page, fields: fields)
-
-    for childId in childTaskIds {
-        #expect(!bridgeResult.items.contains { $0.id == childId }, "Bridge should not return child task \(childId) of completed parent in remaining/default results")
-        #expect(!jxaResult.items.contains { $0.id == childId }, "JXA should not return child task \(childId) of completed parent in remaining/default results")
     }
 }
 

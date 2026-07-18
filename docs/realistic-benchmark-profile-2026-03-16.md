@@ -109,30 +109,11 @@ Interpretation rule:
 - use this profile to diagnose tail behavior and queue pressure
 - do not treat it as the only benchmark that matters for a single-user product
 
-## Transport A/B Profile
+## Architecture Baseline
 
-Use when:
-- re-evaluating transport only
-- query semantics are already frozen
-- you are explicitly comparing `plugin-url` and `plugin-jxa-dispatch`
-
-Settings:
-- total duration: `3 hours`
-- transport driver: `scripts/benchmark-transport-ab.sh`
-- same interval and cooldown as the stress profile by default
-
-Recommended command:
-```bash
-cd /Users/deverman/Documents/Code/swift/FocusRelayMCP-master-baseline
-RUN_ROOT="docs/benchmarks/transport-ab-$(date +%Y%m%d-%H%M%S)"
-caffeinate -dimsu ./scripts/benchmark-transport-ab.sh \
-  --total-hours 3 \
-  --warmup-calls 20 \
-  --interval-ms 1500 \
-  --cooldown-ms 3000 \
-  --memory-interval-seconds 30 \
-  --run-root "$RUN_ROOT"
-```
+Benchmarks measure the Bridge plugin path only. The transport experiment is
+closed by #80; historical A/B artifacts remain available for the decision
+record but are not an active validation profile.
 
 ## Decision Rules
 
@@ -140,11 +121,11 @@ caffeinate -dimsu ./scripts/benchmark-transport-ab.sh \
 2. Use smoke first after a code change.
 3. Use the realistic profile for merge confidence.
 4. Use the stress profile only when investigating reliability or runtime-pressure behavior.
-5. Do not mix query changes and transport changes in the same benchmark program.
+5. Change one Bridge query or reliability variable per benchmark branch.
 
 ## Current Recommendation
 
 For future work on this branch:
 - default benchmark profile: **realistic single-user validation**
 - stress profile: **diagnostic only**
-- transport A/B: **only for isolated transport experiments**
+- architecture comparisons: **historical evidence only**

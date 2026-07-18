@@ -30,8 +30,6 @@ struct FocusRelayCLI: AsyncParsableCommand {
 
         #if DEBUG
         commands += [
-            DebugInboxProbe.self,
-            DebugInboxProbeAlt.self,
             BenchmarkTaskCounts.self,
             BenchmarkListTasks.self,
             BenchmarkProjectCounts.self,
@@ -574,36 +572,6 @@ struct ProjectCounts: AsyncParsableCommand {
         print(try encodeJSON(counts))
     }
 }
-
-#if DEBUG
-struct DebugInboxProbe: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "debug-inbox-probe",
-        abstract: "Debug inbox query behavior (counts and samples).",
-        aliases: ["debug_inbox_probe"]
-    )
-
-    func run() async throws {
-        let service = OmniAutomationService()
-        let result = try await service.debugInboxProbe()
-        print(try encodeJSON(result))
-    }
-}
-
-struct DebugInboxProbeAlt: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "debug-inbox-probe-alt",
-        abstract: "Debug inbox query behavior using alternate queries and timings.",
-        aliases: ["debug_inbox_probe_alt"]
-    )
-
-    func run() async throws {
-        let service = OmniAutomationService()
-        let result = try await service.debugInboxProbeAlt()
-        print(try encodeJSON(result))
-    }
-}
-#endif
 
 struct BridgeHealthCheck: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

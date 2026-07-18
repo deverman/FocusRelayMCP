@@ -7,61 +7,32 @@ import OmniFocusCore
 struct BenchmarkGateCheck: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark-gate-check",
-        abstract: "Run production semantic contracts before benchmarks, with optional JXA parity diagnostics.",
+        abstract: "Run Bridge health and semantic contracts before benchmarks.",
         aliases: ["benchmark_gate_check"]
     )
 
     @Option(name: .customLong("tool"), help: "Gate scope: all, task-counts, list-tasks, or project-counts.")
     var tool: GateScope = .all
 
-    @Flag(name: .customLong("include-jxa-parity"), help: "Also run developer-only bridge versus pure-JXA parity diagnostics.")
-    var includeJXAParity = false
-
     func run() async throws {
         let bridge = OmniFocusBridgeService()
-        var checks: [GateCheck] = []
-
-        checks.append(await checkBridgeHealth(using: bridge))
+        var checks = [await checkBridgeHealth(using: bridge)]
 
         switch tool {
         case .all:
             checks.append(contentsOf: await taskCountContractChecks(using: bridge))
             checks.append(await projectCountsBridgeActiveContractCheck(using: bridge))
-        case .taskCounts:
-            checks.append(contentsOf: await taskCountContractChecks(using: bridge))
-        case .listTasks:
+        case .taskCounts, .listTasks:
             checks.append(contentsOf: await taskCountContractChecks(using: bridge))
         case .projectCounts:
             checks.append(await projectCountsBridgeActiveContractCheck(using: bridge))
-        }
-
-        if includeJXAParity {
-            let jxa = OmniAutomationService()
-            checks.append(await checkJXAProbe(using: jxa))
-            switch tool {
-            case .all:
-                checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
-                checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
-                checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
-            case .taskCounts:
-                checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
-            case .listTasks:
-                checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
-            case .projectCounts:
-                checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
-            }
-        }
-
-        if gateIncludesNativeEffectiveFlagContract(tool) {
-            checks.append(await nativeEffectiveFlagContractCheck(using: bridge))
         }
 
         let report = GateReport(
             ok: checks.allSatisfy(\.ok),
             tool: tool.rawValue,
             generatedAt: gateISO8601(Date()),
-            dispatchTransport: "url",
-            jxaParityIncluded: includeJXAParity,
+            architecture: "bridge-plugin-url",
             checks: checks
         )
 
@@ -78,22 +49,17 @@ struct BenchmarkGateCheck: AsyncParsableCommand {
 }
 
 enum GateScope: String, ExpressibleByArgument {
-    case all = "all"
+    case all
     case taskCounts = "task-counts"
     case listTasks = "list-tasks"
     case projectCounts = "project-counts"
-}
-
-func gateIncludesNativeEffectiveFlagContract(_ scope: GateScope) -> Bool {
-    scope == .all || scope == .taskCounts
 }
 
 private struct GateReport: Codable {
     let ok: Bool
     let tool: String
     let generatedAt: String
-    let dispatchTransport: String
-    let jxaParityIncluded: Bool
+    let architecture: String
     let checks: [GateCheck]
 }
 
@@ -115,51 +81,8 @@ struct GateTaskCountScenario {
     }
 }
 
-struct GateListTaskScenario {
-    let name: String
-    let filter: TaskFilter
-    let expectedTotal: Int?
-
-    init(name: String, filter: TaskFilter, expectedTotal: Int? = nil) {
-        self.name = name
-        self.filter = filter
-        self.expectedTotal = expectedTotal
-    }
-}
-
-struct GateProjectCountScenario {
-    let name: String
-    let filter: TaskFilter
-}
-
 private let gateCompletedAfterAnchor = Date(timeIntervalSince1970: 0)
 private let gateNoMatchSearch = "__focusrelay_semantic_gate_no_match_7f43d9__"
-
-private func checkBridgeHealth(using service: OmniFocusBridgeService) async -> GateCheck {
-    do {
-        let result = try service.healthCheck()
-        return GateCheck(
-            name: "bridge_health",
-            ok: result.ok,
-            detail: result.ok ? "plugin=\(result.plugin ?? "unknown") version=\(result.version ?? "unknown")" : (result.error ?? "Bridge health check failed")
-        )
-    } catch {
-        return GateCheck(name: "bridge_health", ok: false, detail: error.localizedDescription)
-    }
-}
-
-private func checkJXAProbe(using service: OmniAutomationService) async -> GateCheck {
-    do {
-        let probe = try await service.debugInboxProbe()
-        return GateCheck(
-            name: "jxa_probe",
-            ok: true,
-            detail: "inboxTasks=\(probe.inboxTasksCount) inInbox=\(probe.inboxInInboxCount)"
-        )
-    } catch {
-        return GateCheck(name: "jxa_probe", ok: false, detail: error.localizedDescription)
-    }
-}
 
 func gateTaskCountContractScenarios() -> [GateTaskCountScenario] {
     [
@@ -179,128 +102,23 @@ func gateTaskCountContractScenarios() -> [GateTaskCountScenario] {
     ]
 }
 
-func nativeEffectiveFlagActionCountAutomationSource() -> String {
-    """
-    JSON.stringify((function() {
-      var available = [Task.Status.Available, Task.Status.Next, Task.Status.DueSoon, Task.Status.Overdue];
-      return flattenedTasks.filter(function(task) {
-        if (available.indexOf(task.taskStatus) === -1 || !Boolean(task.effectiveFlagged)) { return false; }
-        var project = task.containingProject;
-        return !project || String(task.id.primaryKey) !== String(project.id.primaryKey);
-      }).length;
-    })())
-    """
-}
-
-private func nativeEffectiveFlagActionCount(using runner: ScriptRunner = ScriptRunner()) throws -> Int {
-    let source = nativeEffectiveFlagActionCountAutomationSource()
-    let literalData = try JSONEncoder().encode(source)
-    guard let literal = String(data: literalData, encoding: .utf8) else {
-        throw AutomationError.executionFailed("Failed to encode native effective-flag probe")
-    }
-    let outerScript = """
-    (function() {
-      var app = Application('OmniFocus');
-      var result = app.evaluateJavascript(\(literal));
-      if (Array.isArray(result)) {
-        if (result.length === 0 || result[0] === null || typeof result[0] === 'undefined') { return '0'; }
-        return String(result[0]);
-      }
-      return result === null || typeof result === 'undefined' ? '0' : String(result);
-    })();
-    """
-    let output = try runner.runJavaScript(outerScript)
-    guard let count = Int(output.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-        throw AutomationError.executionFailed("Native effective-flag probe returned an invalid count: \(output)")
-    }
-    return count
-}
-
-private func nativeEffectiveFlagContractCheck(using bridge: OmniFocusBridgeService) async -> GateCheck {
+private func checkBridgeHealth(using service: OmniFocusBridgeService) async -> GateCheck {
     do {
-        let nativeCount = try nativeEffectiveFlagActionCount()
-        let bridgeCounts = try await retryAsync(operation: "bridge native effective-flag contract") {
-            try await bridge.getTaskCounts(filter: TaskFilter(flagged: true))
-        }
-        let ok = bridgeCounts.total == nativeCount
-            && bridgeCounts.available == nativeCount
-            && bridgeCounts.flagged == nativeCount
-            && bridgeCounts.completed == 0
+        let result = try service.healthCheck()
         return GateCheck(
-            name: "task_counts_native_effective_flag_contract",
-            ok: ok,
-            detail: "native.availableEffectiveFlagActions=\(nativeCount) bridge=\(bridgeCounts)"
+            name: "bridge_health",
+            ok: result.ok,
+            detail: result.ok
+                ? "plugin=\(result.plugin ?? "unknown") version=\(result.version ?? "unknown")"
+                : (result.error ?? "Bridge health check failed")
         )
     } catch {
-        return GateCheck(
-            name: "task_counts_native_effective_flag_contract",
-            ok: false,
-            detail: error.localizedDescription
-        )
+        return GateCheck(name: "bridge_health", ok: false, detail: error.localizedDescription)
     }
-}
-
-func gateTaskCountParityScenarios() -> [GateTaskCountScenario] {
-    [
-        GateTaskCountScenario(name: "default", filter: TaskFilter()),
-        GateTaskCountScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true)),
-        GateTaskCountScenario(name: "available_only", filter: TaskFilter(availableOnly: true)),
-        GateTaskCountScenario(name: "flagged_only", filter: TaskFilter(flagged: true)),
-        GateTaskCountScenario(
-            name: "completed_after_anchor",
-            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
-        ),
-        GateTaskCountScenario(
-            name: "search_no_match",
-            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch),
-            expectedTotal: 0
-        )
-    ]
-}
-
-func gateListTaskParityScenarios(projectID: String?) -> [GateListTaskScenario] {
-    var scenarios = [
-        GateListTaskScenario(name: "default", filter: TaskFilter(includeTotalCount: true)),
-        GateListTaskScenario(name: "default_no_total", filter: TaskFilter(includeTotalCount: false)),
-        GateListTaskScenario(name: "inbox_only", filter: TaskFilter(inboxOnly: true, includeTotalCount: true)),
-        GateListTaskScenario(name: "inbox_only_no_total", filter: TaskFilter(inboxOnly: true, includeTotalCount: false)),
-        GateListTaskScenario(name: "available_only", filter: TaskFilter(availableOnly: true, includeTotalCount: true)),
-        GateListTaskScenario(name: "available_only_no_total", filter: TaskFilter(availableOnly: true, includeTotalCount: false)),
-        GateListTaskScenario(name: "flagged_only", filter: TaskFilter(flagged: true, includeTotalCount: true)),
-        GateListTaskScenario(name: "flagged_only_no_total", filter: TaskFilter(flagged: true, includeTotalCount: false)),
-        GateListTaskScenario(
-            name: "completed_after_anchor",
-            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor, includeTotalCount: true)
-        ),
-        GateListTaskScenario(
-            name: "search_no_match",
-            filter: TaskFilter(availableOnly: false, inboxView: "everything", search: gateNoMatchSearch, includeTotalCount: true),
-            expectedTotal: 0
-        )
-    ]
-
-    if let projectID, !projectID.isEmpty {
-        scenarios.append(GateListTaskScenario(name: "project_scoped_simple", filter: TaskFilter(project: projectID, includeTotalCount: true)))
-    }
-
-    return scenarios
-}
-
-func gateProjectCountParityScenarios() -> [GateProjectCountScenario] {
-    [
-        GateProjectCountScenario(name: "project_view_remaining", filter: TaskFilter(projectView: "remaining")),
-        GateProjectCountScenario(name: "project_view_active", filter: TaskFilter(projectView: "active")),
-        GateProjectCountScenario(
-            name: "completed_after_anchor",
-            filter: TaskFilter(completed: true, completedAfter: gateCompletedAfterAnchor)
-        )
-    ]
 }
 
 private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async -> [GateCheck] {
-    let scenarios = gateTaskCountContractScenarios()
-
-    return await scenarios.asyncMap { scenario in
+    await gateTaskCountContractScenarios().asyncMap { scenario in
         do {
             let counts = try await retryAsync(operation: "bridge task-counts contract \(scenario.name)") {
                 try await bridge.getTaskCounts(filter: scenario.filter)
@@ -309,7 +127,11 @@ private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async
                 try await bridge.listTasks(filter: scenario.filter, page: PageRequest(limit: 50), fields: ["id"])
             }
             guard let total = page.totalCount else {
-                return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: "list_tasks returned nil totalCount")
+                return GateCheck(
+                    name: "task_counts_contract_\(scenario.name)",
+                    ok: false,
+                    detail: "list_tasks returned nil totalCount"
+                )
             }
             let matchesExpectedTotal = scenario.expectedTotal.map { counts.total == $0 && total == $0 } ?? true
             return GateCheck(
@@ -318,91 +140,12 @@ private func taskCountContractChecks(using bridge: OmniFocusBridgeService) async
                 detail: "counts.total=\(counts.total) list.totalCount=\(total) expected=\(scenario.expectedTotal.map(String.init) ?? "any")"
             )
         } catch {
-            return GateCheck(name: "task_counts_contract_\(scenario.name)", ok: false, detail: error.localizedDescription)
-        }
-    }
-}
-
-private func taskCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let scenarios = gateTaskCountParityScenarios()
-
-    return await scenarios.asyncMap { scenario in
-        do {
-            let bridgeCounts = try await retryAsync(operation: "bridge task-counts parity \(scenario.name)") {
-                try await bridge.getTaskCounts(filter: scenario.filter)
-            }
-            let jxaCounts = try await retryAsync(operation: "jxa task-counts parity \(scenario.name)") {
-                try await jxa.getTaskCounts(filter: scenario.filter)
-            }
-            let ok = bridgeCounts.total == jxaCounts.total
-                && bridgeCounts.completed == jxaCounts.completed
-                && bridgeCounts.available == jxaCounts.available
-                && bridgeCounts.flagged == jxaCounts.flagged
-                && (scenario.expectedTotal.map { bridgeCounts.total == $0 && jxaCounts.total == $0 } ?? true)
             return GateCheck(
-                name: "task_counts_parity_\(scenario.name)",
-                ok: ok,
-                detail: "bridge=\(bridgeCounts) jxa=\(jxaCounts)"
-            )
-        } catch {
-            return GateCheck(name: "task_counts_parity_\(scenario.name)", ok: false, detail: error.localizedDescription)
-        }
-    }
-}
-
-private func listTaskParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let projectID = await gateSimpleActiveProjectID(using: bridge)
-    let scenarios = gateListTaskParityScenarios(projectID: projectID)
-    let fields = ["id", "name", "completed", "available", "completionDate"]
-
-    return await scenarios.asyncMap { scenario in
-        do {
-            let bridgePage = try await retryAsync(operation: "bridge list-tasks parity \(scenario.name)") {
-                try await bridge.listTasks(filter: scenario.filter, page: PageRequest(limit: 50), fields: fields)
-            }
-            let jxaPage = try await retryAsync(operation: "jxa list-tasks parity \(scenario.name)") {
-                try await jxa.listTasks(filter: scenario.filter, page: PageRequest(limit: 50), fields: fields)
-            }
-            let bridgeIDs = bridgePage.items.map(\.id)
-            let jxaIDs = jxaPage.items.map(\.id)
-            let ok = bridgePage.totalCount == jxaPage.totalCount
-                && bridgePage.returnedCount == jxaPage.returnedCount
-                && bridgePage.nextCursor == jxaPage.nextCursor
-                && bridgeIDs == jxaIDs
-                && (scenario.expectedTotal.map {
-                    bridgePage.totalCount == $0 && jxaPage.totalCount == $0 &&
-                        bridgePage.returnedCount == $0 && jxaPage.returnedCount == $0
-                } ?? true)
-            return GateCheck(
-                name: "list_tasks_parity_\(scenario.name)",
-                ok: ok,
-                detail: "bridge.total=\(bridgePage.totalCount.map(String.init) ?? "nil") jxa.total=\(jxaPage.totalCount.map(String.init) ?? "nil") bridge.returned=\(bridgePage.returnedCount) jxa.returned=\(jxaPage.returnedCount) bridge.next=\(bridgePage.nextCursor ?? "nil") jxa.next=\(jxaPage.nextCursor ?? "nil")"
-            )
-        } catch {
-            return GateCheck(name: "list_tasks_parity_\(scenario.name)", ok: false, detail: error.localizedDescription)
-        }
-    }
-}
-
-private func gateSimpleActiveProjectID(using bridge: OmniFocusBridgeService) async -> String? {
-    do {
-        let page = try await retryAsync(operation: "bridge list-projects active gate seed") {
-            try await bridge.listProjects(
-                page: PageRequest(limit: 10),
-                statusFilter: "active",
-                includeTaskCounts: false,
-                reviewDueBefore: nil,
-                reviewDueAfter: nil,
-                reviewPerspective: false,
-                completed: nil,
-                completedBefore: nil,
-                completedAfter: nil,
-                fields: ["id", "name"]
+                name: "task_counts_contract_\(scenario.name)",
+                ok: false,
+                detail: error.localizedDescription
             )
         }
-        return page.items.first?.id
-    } catch {
-        return nil
     }
 }
 
@@ -416,7 +159,11 @@ private func projectCountsBridgeActiveContractCheck(using bridge: OmniFocusBridg
             try await bridge.listTasks(filter: filter, page: PageRequest(limit: 50), fields: ["id"])
         }
         guard let total = page.totalCount else {
-            return GateCheck(name: "project_counts_active_contract_bridge", ok: false, detail: "list_tasks returned nil totalCount")
+            return GateCheck(
+                name: "project_counts_active_contract_bridge",
+                ok: false,
+                detail: "list_tasks returned nil totalCount"
+            )
         }
         return GateCheck(
             name: "project_counts_active_contract_bridge",
@@ -424,48 +171,32 @@ private func projectCountsBridgeActiveContractCheck(using bridge: OmniFocusBridg
             detail: "counts.actions=\(counts.actions) list.totalCount=\(total)"
         )
     } catch {
-        return GateCheck(name: "project_counts_active_contract_bridge", ok: false, detail: error.localizedDescription)
+        return GateCheck(
+            name: "project_counts_active_contract_bridge",
+            ok: false,
+            detail: error.localizedDescription
+        )
     }
 }
 
-private func projectCountParityChecks(bridge: OmniFocusBridgeService, jxa: OmniAutomationService) async -> [GateCheck] {
-    let scenarios = gateProjectCountParityScenarios()
-
-    return await scenarios.asyncMap { scenario in
-        do {
-            let bridgeCounts = try await retryAsync(operation: "bridge project-counts parity \(scenario.name)") {
-                try await bridge.getProjectCounts(filter: scenario.filter)
-            }
-            let jxaCounts = try await retryAsync(operation: "jxa project-counts parity \(scenario.name)") {
-                try await jxa.getProjectCounts(filter: scenario.filter)
-            }
-            let ok = bridgeCounts.projects == jxaCounts.projects && bridgeCounts.actions == jxaCounts.actions
-            return GateCheck(
-                name: "project_counts_parity_\(scenario.name)",
-                ok: ok,
-                detail: "bridge=\(bridgeCounts) jxa=\(jxaCounts)"
-            )
-        } catch {
-            return GateCheck(name: "project_counts_parity_\(scenario.name)", ok: false, detail: error.localizedDescription)
-        }
-    }
-}
-
-private func retryAsync<T>(operation: String, maxAttempts: Int = 2, delaySeconds: TimeInterval = 1.0, _ body: @escaping () async throws -> T) async throws -> T {
-    var attempt = 0
+private func retryAsync<T>(
+    operation: String,
+    maxAttempts: Int = 2,
+    delayNanoseconds: UInt64 = 750_000_000,
+    _ body: () async throws -> T
+) async throws -> T {
     var lastError: Error?
-    while attempt < maxAttempts {
-        attempt += 1
+    for attempt in 1...maxAttempts {
         do {
             return try await body()
         } catch {
             lastError = error
-            let lower = error.localizedDescription.lowercased()
-            let retryable = lower.contains("timed out") || lower.contains("timeout")
-            if !retryable || attempt >= maxAttempts {
-                throw AutomationError.executionFailed("\(operation) failed on attempt \(attempt)/\(maxAttempts): \(error.localizedDescription)")
+            if attempt == maxAttempts {
+                throw AutomationError.executionFailed(
+                    "\(operation) failed on attempt \(attempt)/\(maxAttempts): \(error.localizedDescription)"
+                )
             }
-            try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
         }
     }
     throw lastError ?? AutomationError.executionFailed("\(operation) failed without a specific error")

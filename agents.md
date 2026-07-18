@@ -101,8 +101,7 @@ semantic, and UAT checks against that same ready session.
   `userTimeZone` in bridge requests.
 - Projects and tags use the actor-based `CatalogCache` with a five-minute TTL;
   tasks are intentionally uncached.
-- Plugin URL dispatch is the only production transport; the JXA dispatch
-  option was removed in #80. The pure-JXA query engine and its benchmark
-  commands compile only in debug builds; release binaries do not link OSAKit.
-  Production semantic gates use plugin and native contracts; pass
-  `--include-jxa-parity` only for developer diagnostics.
+- Plugin URL dispatch through the Bridge plugin is the only architecture.
+  Direct JXA execution and OSAKit are not part of production, development,
+  tests, or benchmarks. Semantic gates use Bridge health plus list/count and
+  deterministic JavaScriptCore contracts.

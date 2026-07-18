@@ -2,6 +2,10 @@
 
 Date: 2026-03-13
 
+Finalized by #80 on 2026-07-18: the Bridge plugin is now the only executable
+architecture. Direct JXA and OSAKit code were removed after deterministic
+Bridge fixtures and live list/count contracts replaced its remaining value.
+
 Branch at decision time:
 - `exp/master-documented-query-baseline`
 

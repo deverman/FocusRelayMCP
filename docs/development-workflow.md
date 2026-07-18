@@ -23,7 +23,7 @@ Record these in the issue or PR:
 | `package` | dependencies, versioning, packaging, or release workflow | tests, clean release build, packaging/version checks |
 | `server-wire` | MCP SDK, schemas, handlers, content, or annotations | tests, release build, direct MCP success/error probes |
 | `mutation` | task/project writes or mutation bridge behavior | server-wire checks plus reversible live write/verify/restore |
-| `query` | task/project data, filtering, counts, status, or cache semantics | tests, native semantic oracle, list/count parity, canary |
+| `query` | task/project data, filtering, counts, status, or cache semantics | deterministic Bridge fixtures, live list/count contracts, canary |
 | `performance` | intended latency, throughput, or memory improvement | query checks plus targeted 10-minute smoke |
 | `transport-reliability` | IPC, dispatch, timeout, retry, or recovery logic | all semantic gates, targeted smoke, final release suite |
 

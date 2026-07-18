@@ -151,7 +151,6 @@ run_readiness_gate() {
     {
       echo "attempt=${attempts}"
       "$BIN" bridge-health-check
-      "$BIN" debug-inbox-probe
     } >> "$log_file" 2>&1 && {
       log "Readiness gate passed: ${label} attempt=${attempts}"
       return 0

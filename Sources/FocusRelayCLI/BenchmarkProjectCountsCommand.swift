@@ -9,14 +9,14 @@ private typealias ProjectCountsModel = OmniFocusCore.ProjectCounts
 struct BenchmarkProjectCounts: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark-project-counts",
-        abstract: "Benchmark get_project_counts for plugin vs JXA transports.",
+        abstract: "Benchmark get_project_counts through the Bridge plugin.",
         aliases: ["benchmark_get_project_counts"]
     )
 
     @Option(name: .customLong("duration-hours"), help: "Measured phase duration in hours.")
     var durationHours: Double = 3.0
 
-    @Option(name: .customLong("warmup-calls"), help: "Warmup calls per transport before measured runs.")
+    @Option(name: .customLong("warmup-calls"), help: "Warmup calls before measured runs.")
     var warmupCalls: Int = 20
 
     @Option(name: .customLong("interval-ms"), help: "Minimum start-to-start interval between calls in milliseconds.")
@@ -92,20 +92,17 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
         defer { memoryTask.cancel() }
 
         let pluginService = OmniFocusBridgeService()
-        let jxaService = OmniAutomationService()
 
         var statsByTransport: [Transport: StatsAccumulator] = [:]
         var statsByScenarioTransport: [String: [Transport: StatsAccumulator]] = [:]
-        var parityMismatches: [ProjectParityMismatch] = []
         var callIndex = 0
 
         if warmupCalls > 0 {
-            print("Warmup phase: \(warmupCalls) calls per transport")
+            print("Warmup phase: \(warmupCalls) calls")
             try await runWarmup(
                 warmupCalls: warmupCalls,
                 scenarios: scenarios,
                 pluginService: pluginService,
-                jxaService: jxaService,
                 rawURL: rawURL,
                 timeoutDiagnosticsURL: timeoutDiagnosticsURL,
                 intervalMS: intervalMS,
@@ -140,33 +137,6 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
                 await runTimeoutRecoveryGate()
             }
 
-            let jxaEvent = try await runProjectBenchCall(
-                transport: .jxa,
-                scenario: scenario,
-                phase: "measured",
-                service: jxaService,
-                timeoutDiagnosticsURL: timeoutDiagnosticsURL,
-                intervalMS: intervalMS,
-                cooldownMS: cooldownMS,
-                callIndex: &callIndex
-            )
-            try appendJSONLine(jxaEvent, to: rawURL)
-            accumulate(jxaEvent, byTransport: &statsByTransport, byScenarioTransport: &statsByScenarioTransport)
-            if jxaEvent.timeout {
-                await runTimeoutRecoveryGate()
-            }
-
-            if let pluginCounts = pluginEvent.counts,
-               let jxaCounts = jxaEvent.counts,
-               !projectCountsEqual(pluginCounts, jxaCounts) {
-                let mismatch = ProjectParityMismatch(
-                    timestamp: iso8601Now(),
-                    scenario: scenario.name,
-                    plugin: pluginCounts,
-                    jxa: jxaCounts
-                )
-                parityMismatches.append(mismatch)
-            }
         }
 
         try await writeSummary(
@@ -182,8 +152,7 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
             timeoutDiagnosticsURL: timeoutDiagnosticsURL,
             scenarios: scenarios,
             statsByTransport: statsByTransport,
-            statsByScenarioTransport: statsByScenarioTransport,
-            parityMismatches: parityMismatches
+            statsByScenarioTransport: statsByScenarioTransport
         )
 
         print("Benchmark complete.")
@@ -213,7 +182,6 @@ private func projectCountBenchmarkScenarios(completedAfter: Date) -> [BenchmarkS
 
 private enum Transport: String, Codable, CaseIterable {
     case plugin
-    case jxa
 }
 
 private struct ProjectBenchEvent: Codable {
@@ -246,13 +214,6 @@ private struct StatsAccumulator {
             }
         }
     }
-}
-
-private struct ProjectParityMismatch: Codable {
-    let timestamp: String
-    let scenario: String
-    let plugin: ProjectCountsModel
-    let jxa: ProjectCountsModel
 }
 
 private struct TimeoutQueueSnapshot: Codable {
@@ -298,7 +259,6 @@ private func runWarmup(
     warmupCalls: Int,
     scenarios: [BenchmarkScenario],
     pluginService: OmniFocusBridgeService,
-    jxaService: OmniAutomationService,
     rawURL: URL,
     timeoutDiagnosticsURL: URL,
     intervalMS: Int,
@@ -322,21 +282,6 @@ private func runWarmup(
         try appendJSONLine(event, to: rawURL)
     }
 
-    for _ in 0..<warmupCalls {
-        let scenario = scenarios[scenarioIndex % scenarios.count]
-        scenarioIndex += 1
-        let event = try await runProjectBenchCall(
-            transport: .jxa,
-            scenario: scenario,
-            phase: "warmup",
-            service: jxaService,
-            timeoutDiagnosticsURL: timeoutDiagnosticsURL,
-            intervalMS: intervalMS,
-            cooldownMS: cooldownMS,
-            callIndex: &callIndex
-        )
-        try appendJSONLine(event, to: rawURL)
-    }
 }
 
 private func runProjectBenchCall(
@@ -727,8 +672,7 @@ private func writeSummary(
     timeoutDiagnosticsURL: URL,
     scenarios: [BenchmarkScenario],
     statsByTransport: [Transport: StatsAccumulator],
-    statsByScenarioTransport: [String: [Transport: StatsAccumulator]],
-    parityMismatches: [ProjectParityMismatch]
+    statsByScenarioTransport: [String: [Transport: StatsAccumulator]]
 ) async throws {
     let memorySummary = loadMemorySummary(from: memoryURL)
     let timeoutDiagnosticCount = countLines(in: timeoutDiagnosticsURL)
@@ -738,7 +682,7 @@ private func writeSummary(
     lines.append("- Started: \(iso8601(startedAt))")
     lines.append("- Ended: \(iso8601(endedAt))")
     lines.append(String(format: "- Configured duration (hours): %.2f", durationHours))
-    lines.append("- Warmup calls per transport: \(warmupCalls)")
+    lines.append("- Warmup calls: \(warmupCalls)")
     lines.append("- Interval (ms): \(intervalMS)")
     lines.append("- Cooldown after failure (ms): \(cooldownMS)")
     lines.append("- Memory sampling interval (seconds): \(memoryIntervalSeconds)")
@@ -779,18 +723,6 @@ private func writeSummary(
         lines.append("")
     }
 
-    lines.append("## Parity")
-    lines.append("")
-    lines.append("- Mismatch count: \(parityMismatches.count)")
-    if !parityMismatches.isEmpty {
-        lines.append("")
-        lines.append("First mismatches:")
-        for mismatch in parityMismatches.prefix(10) {
-            lines.append("- \(mismatch.timestamp) scenario=\(mismatch.scenario) plugin=\(mismatch.plugin) jxa=\(mismatch.jxa)")
-        }
-    }
-
-    lines.append("")
     lines.append("## Memory Notes")
     lines.append("")
     lines.append("- `memory.csv` contains RSS samples for `focusrelay` and `OmniFocus`.")
@@ -835,11 +767,6 @@ private func formatDouble(_ value: Double) -> String {
 private func formatPercentage(_ value: Double) -> String {
     guard value.isFinite else { return "n/a" }
     return String(format: "%.2f%%", value)
-}
-
-private func projectCountsEqual(_ lhs: ProjectCountsModel, _ rhs: ProjectCountsModel) -> Bool {
-    lhs.projects == rhs.projects &&
-        lhs.actions == rhs.actions
 }
 
 private struct MemorySample {

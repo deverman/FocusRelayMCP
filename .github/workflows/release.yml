@@ -56,7 +56,7 @@ jobs:
           fi
           ./scripts/set-version.sh "$VERSION"
           swift build -c release --product focusrelay
-          ./scripts/check-release-surface.sh .build/release/focusrelay
+          ./scripts/check-bridge-only-architecture.sh .build/release/focusrelay
         
       - name: Package Release
         id: package

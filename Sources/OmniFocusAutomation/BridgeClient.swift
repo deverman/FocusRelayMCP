@@ -589,8 +589,6 @@ final class BridgeClient: @unchecked Sendable {
         case .executionFailed(let message):
             let lower = message.lowercased()
             return lower.contains("timed out") || lower.contains("timeout")
-        case .scriptCreationFailed, .notImplemented:
-            return false
         }
     }
 }

@@ -4,7 +4,7 @@ Use this before changing any production mutation path in FocusRelay.
 
 Scope:
 - Future mutation logic in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- Future mutation logic in `Sources/OmniFocusAutomation/OmniFocusAutomation.swift`
+- Mutation logic in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
 - Future shared mutation models and services
 - Future CLI and MCP mutation command wiring
 
