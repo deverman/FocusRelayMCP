@@ -1,3 +1,4 @@
+#if DEBUG
 import ArgumentParser
 import Foundation
 import OmniFocusAutomation
@@ -659,3 +660,4 @@ private func listTaskISO8601(_ date: Date) -> String {
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter.string(from: date)
 }
+#endif

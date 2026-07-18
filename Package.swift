@@ -42,10 +42,7 @@ let package = Package(
         ),
         .target(
             name: "OmniFocusAutomation",
-            dependencies: ["OmniFocusCore"],
-            linkerSettings: [
-                .linkedFramework("OSAKit")
-            ]
+            dependencies: ["OmniFocusCore"]
         ),
         .executableTarget(
             name: "FocusRelayCLI",

@@ -108,6 +108,9 @@ jobs:
       - name: Build release product
         run: swift build -c release --product focusrelay
 
+      - name: Check release surface
+        run: ./scripts/check-release-surface.sh .build/release/focusrelay
+
   ci:
     if: always()
     needs: [classify, docs, build-and-test]

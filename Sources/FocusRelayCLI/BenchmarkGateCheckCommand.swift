@@ -1,3 +1,4 @@
+#if DEBUG
 import ArgumentParser
 import Foundation
 import OmniFocusAutomation
@@ -486,3 +487,4 @@ private extension Array {
         return result
     }
 }
+#endif

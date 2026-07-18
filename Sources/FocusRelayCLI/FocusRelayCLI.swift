@@ -8,11 +8,8 @@ import FocusRelayVersion
 
 @main
 struct FocusRelayCLI: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "focusrelay",
-        abstract: "Query OmniFocus data from the command line or run the MCP server.",
-        version: FocusRelayBuildVersion.current,
-        subcommands: [
+    private static var subcommands: [ParsableCommand.Type] {
+        var commands: [ParsableCommand.Type] = [
             Serve.self,
             ListTasks.self,
             GetTask.self,
@@ -28,14 +25,28 @@ struct FocusRelayCLI: AsyncParsableCommand {
             MoveProjects.self,
             TaskCounts.self,
             ProjectCounts.self,
+            BridgeHealthCheck.self
+        ]
+
+        #if DEBUG
+        commands += [
             DebugInboxProbe.self,
             DebugInboxProbeAlt.self,
-            BridgeHealthCheck.self,
             BenchmarkTaskCounts.self,
             BenchmarkListTasks.self,
             BenchmarkProjectCounts.self,
             BenchmarkGateCheck.self
         ]
+        #endif
+
+        return commands
+    }
+
+    static let configuration = CommandConfiguration(
+        commandName: "focusrelay",
+        abstract: "Query OmniFocus data from the command line or run the MCP server.",
+        version: FocusRelayBuildVersion.current,
+        subcommands: subcommands
     )
 }
 
@@ -564,6 +575,7 @@ struct ProjectCounts: AsyncParsableCommand {
     }
 }
 
+#if DEBUG
 struct DebugInboxProbe: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "debug-inbox-probe",
@@ -591,6 +603,7 @@ struct DebugInboxProbeAlt: AsyncParsableCommand {
         print(try encodeJSON(result))
     }
 }
+#endif
 
 struct BridgeHealthCheck: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
