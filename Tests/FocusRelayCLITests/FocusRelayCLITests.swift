@@ -241,6 +241,22 @@ func benchmarkGateRunsIndependentNativeEffectiveFlagContract() {
 }
 
 @Test
+func benchmarkGateDefaultsToProductionContractsOnly() throws {
+    let command = try BenchmarkGateCheck.parse([])
+
+    #expect(command.tool == .all)
+    #expect(command.includeJXAParity == false)
+}
+
+@Test
+func benchmarkGateCanEnableDeveloperJXAParityDiagnostics() throws {
+    let command = try BenchmarkGateCheck.parse(["--include-jxa-parity", "--tool", "project-counts"])
+
+    #expect(command.tool == .projectCounts)
+    #expect(command.includeJXAParity)
+}
+
+@Test
 func benchmarkGateListTaskScenariosCoverRegressionShapes() {
     let baseNames = gateListTaskParityScenarios(projectID: nil).map(\.name)
     let projectNames = gateListTaskParityScenarios(projectID: "project-123").map(\.name)

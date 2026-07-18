@@ -6,36 +6,49 @@ import OmniFocusCore
 struct BenchmarkGateCheck: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "benchmark-gate-check",
-        abstract: "Run readiness, parity, and count-contract checks before benchmarks.",
+        abstract: "Run production semantic contracts before benchmarks, with optional JXA parity diagnostics.",
         aliases: ["benchmark_gate_check"]
     )
 
     @Option(name: .customLong("tool"), help: "Gate scope: all, task-counts, list-tasks, or project-counts.")
     var tool: GateScope = .all
 
+    @Flag(name: .customLong("include-jxa-parity"), help: "Also run developer-only bridge versus pure-JXA parity diagnostics.")
+    var includeJXAParity = false
+
     func run() async throws {
         let bridge = OmniFocusBridgeService()
-        let jxa = OmniAutomationService()
         var checks: [GateCheck] = []
 
         checks.append(await checkBridgeHealth(using: bridge))
-        checks.append(await checkJXAProbe(using: jxa))
 
         switch tool {
         case .all:
             checks.append(contentsOf: await taskCountContractChecks(using: bridge))
-            checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
-            checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
             checks.append(await projectCountsBridgeActiveContractCheck(using: bridge))
-            checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
         case .taskCounts:
             checks.append(contentsOf: await taskCountContractChecks(using: bridge))
-            checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
         case .listTasks:
-            checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
+            checks.append(contentsOf: await taskCountContractChecks(using: bridge))
         case .projectCounts:
             checks.append(await projectCountsBridgeActiveContractCheck(using: bridge))
-            checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
+        }
+
+        if includeJXAParity {
+            let jxa = OmniAutomationService()
+            checks.append(await checkJXAProbe(using: jxa))
+            switch tool {
+            case .all:
+                checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
+                checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
+                checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
+            case .taskCounts:
+                checks.append(contentsOf: await taskCountParityChecks(bridge: bridge, jxa: jxa))
+            case .listTasks:
+                checks.append(contentsOf: await listTaskParityChecks(bridge: bridge, jxa: jxa))
+            case .projectCounts:
+                checks.append(contentsOf: await projectCountParityChecks(bridge: bridge, jxa: jxa))
+            }
         }
 
         if gateIncludesNativeEffectiveFlagContract(tool) {
@@ -46,7 +59,8 @@ struct BenchmarkGateCheck: AsyncParsableCommand {
             ok: checks.allSatisfy(\.ok),
             tool: tool.rawValue,
             generatedAt: gateISO8601(Date()),
-            dispatchTransport: ProcessInfo.processInfo.environment["FOCUS_RELAY_BRIDGE_DISPATCH_TRANSPORT"] ?? "url",
+            dispatchTransport: "url",
+            jxaParityIncluded: includeJXAParity,
             checks: checks
         )
 
@@ -78,6 +92,7 @@ private struct GateReport: Codable {
     let tool: String
     let generatedAt: String
     let dispatchTransport: String
+    let jxaParityIncluded: Bool
     let checks: [GateCheck]
 }
 
