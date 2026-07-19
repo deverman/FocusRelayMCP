@@ -719,7 +719,7 @@ public enum FocusRelayServer {
                         filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     } catch {
                         logger.error("Failed to decode filter: \(String(describing: error))")
-                        return .init(content: [.text("Error decoding filter: \(error)")], isError: true)
+                        return .init(content: [.text(text: "Error decoding filter: \(error)", annotations: nil, _meta: nil)], isError: true)
                     }
                     let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
@@ -728,18 +728,18 @@ public enum FocusRelayServer {
                     let fieldSet = Set(fields)
                     let items = result.items.map { makeTaskOutput(from: $0, fields: fieldSet) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
-                    return .init(content: [.text(try encodeJSON(output))])
+                    return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "get_task":
                     let id = try decodeArgument(String.self, from: params.arguments, key: "id") ?? ""
                     if id.isEmpty {
-                        return .init(content: [.text("Missing id")], isError: true)
+                        return .init(content: [.text(text: "Missing id", annotations: nil, _meta: nil)], isError: true)
                     }
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.getTask(id: id, fields: fields)
                     let fieldSet = Set(fields)
                     let output = makeTaskOutput(from: result, fields: fieldSet)
-                    return .init(content: [.text(try encodeJSON(output))])
+                    return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "list_projects":
                     let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
@@ -771,7 +771,7 @@ public enum FocusRelayServer {
                     let fieldSet = Set(fields)
                     let items = result.items.map { makeProjectOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
-                    return .init(content: [.text(try encodeJSON(output))])
+                    return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "list_tags":
                     let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
@@ -780,7 +780,7 @@ public enum FocusRelayServer {
                     let fieldSet = Set(["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"])
                     let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
-                    return .init(content: [.text(try encodeJSON(output))])
+                    return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "list_folders":
                     let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
@@ -789,7 +789,7 @@ public enum FocusRelayServer {
                     let fieldSet = Set(fields)
                     let items = result.items.map { makeFolderOutput(from: $0, fields: fieldSet) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
-                    return .init(content: [.text(try encodeJSON(output))])
+                    return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "update_tasks":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let taskPatch = try decodeArgument(TaskPatchMutation.self, from: params.arguments, key: "taskPatch")
@@ -808,7 +808,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "set_tasks_completion":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let completion = try decodeArgument(CompletionMutation.self, from: params.arguments, key: "completion")
@@ -827,7 +827,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "move_tasks":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let move = try decodeArgument(MoveMutation.self, from: params.arguments, key: "move")
@@ -846,7 +846,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "update_projects":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let projectPatch = try decodeArgument(ProjectPatchMutation.self, from: params.arguments, key: "projectPatch")
@@ -865,7 +865,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "set_projects_status":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let projectStatus = try decodeArgument(ProjectStatusMutation.self, from: params.arguments, key: "projectStatus")
@@ -884,7 +884,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "set_projects_completion":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let completion = try decodeArgument(CompletionMutation.self, from: params.arguments, key: "completion")
@@ -903,7 +903,7 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "move_projects":
                     let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
                     let move = try decodeArgument(MoveMutation.self, from: params.arguments, key: "move")
@@ -922,21 +922,21 @@ public enum FocusRelayServer {
                         returnFields: returnFields
                     )
                     let result = try await service.performMutation(request)
-                    return .init(content: [.text(try encodeJSON(result))])
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "get_task_counts":
                     let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     let counts = try await service.getTaskCounts(filter: filter)
-                    return .init(content: [.text(try encodeJSON(counts))])
+                    return .init(content: [.text(text: try encodeJSON(counts), annotations: nil, _meta: nil)])
                 case "get_project_counts":
                     let filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
                     let counts = try await service.getProjectCounts(filter: filter)
-                    return .init(content: [.text(try encodeJSON(counts))])
+                    return .init(content: [.text(text: try encodeJSON(counts), annotations: nil, _meta: nil)])
                 default:
-                    return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
+                    return .init(content: [.text(text: "Unknown tool: \(params.name)", annotations: nil, _meta: nil)], isError: true)
                 }
             } catch {
                 logger.error("Tool call failed: \(error.localizedDescription)")
-                return .init(content: [.text("Error: \(error.localizedDescription)")], isError: true)
+                return .init(content: [.text(text: "Error: \(error.localizedDescription)", annotations: nil, _meta: nil)], isError: true)
             }
         }
 
