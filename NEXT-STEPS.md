@@ -20,6 +20,6 @@ The concise dependency order lives in
    [#83](https://github.com/deverman/FocusRelayMCP/issues/83) — create tasks,
    subtasks, and projects safely.
 
-The `v0.10.0-beta` release and its evidence are recorded in the GitHub release,
-closed release tracker #63, and the repository history rather than duplicated
+The `v0.10.1-beta` release and its evidence are recorded in the GitHub release,
+release tracker #131, and the repository history rather than duplicated
 here.
