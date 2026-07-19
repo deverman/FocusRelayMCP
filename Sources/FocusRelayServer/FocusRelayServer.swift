@@ -721,7 +721,7 @@ public enum FocusRelayServer {
                         logger.error("Failed to decode filter: \(String(describing: error))")
                         return .init(content: [.text("Error decoding filter: \(error)")], isError: true)
                     }
-                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 50)
+                    let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listTasks(filter: filter, page: page, fields: fields)
@@ -741,7 +741,7 @@ public enum FocusRelayServer {
                     let output = makeTaskOutput(from: result, fields: fieldSet)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_projects":
-                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
+                    let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let reviewDueBefore = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueBefore")
@@ -773,7 +773,7 @@ public enum FocusRelayServer {
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_tags":
-                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
+                    let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let result = try await service.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
@@ -782,7 +782,7 @@ public enum FocusRelayServer {
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
                     return .init(content: [.text(try encodeJSON(output))])
                 case "list_folders":
-                    let page = try decodePageRequest(from: params.arguments, defaultLimit: 150)
+                    let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listFolders(page: page, fields: fields)
@@ -956,11 +956,32 @@ public enum FocusRelayServer {
     }
 
     static func decodePageRequest(from args: [String: Value]?, defaultLimit: Int) throws -> PageRequest {
-        let page = try decodeArgument(PageRequest.self, from: args, key: "page") ?? PageRequest(limit: defaultLimit)
+        guard var pageValue = args?["page"] else {
+            return PageRequest(limit: defaultLimit)
+        }
+        if case .object(var pageObject) = pageValue, pageObject["limit"] == nil {
+            pageObject["limit"] = .int(defaultLimit)
+            pageValue = .object(pageObject)
+        }
+        let data = try JSONEncoder().encode(pageValue)
+        let page = try BridgeDateDecoding.makeJSONDecoder().decode(PageRequest.self, from: data)
         guard page.limit >= 1 else {
             throw MutationValidationError("page.limit must be at least 1.")
         }
         return page
+    }
+
+    static func decodePageRequest(from params: CallTool.Parameters) throws -> PageRequest {
+        let defaultLimit: Int
+        switch params.name {
+        case "list_tasks":
+            defaultLimit = 50
+        case "list_projects", "list_tags", "list_folders":
+            defaultLimit = 150
+        default:
+            throw MutationValidationError("Tool \(params.name) does not accept page arguments.")
+        }
+        return try decodePageRequest(from: params.arguments, defaultLimit: defaultLimit)
     }
 }
 

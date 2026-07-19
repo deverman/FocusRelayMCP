@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import FocusRelayServer
 import FocusRelayVersion
@@ -308,4 +309,51 @@ func pageRequestValidationAcceptsOmittedAndPositiveLimits() throws {
     )
     #expect(explicit.limit == 25)
     #expect(explicit.cursor == "50")
+}
+
+@Test
+func pageRequestAppliesToolDefaultLimitWhenCursorSentAlone() throws {
+    let taskPage = try FocusRelayServer.decodePageRequest(
+        from: ["page": .object(["cursor": .string("50")])],
+        defaultLimit: 50
+    )
+    #expect(taskPage.limit == 50)
+    #expect(taskPage.cursor == "50")
+
+    let projectPage = try FocusRelayServer.decodePageRequest(
+        from: ["page": .object(["cursor": .string("150")])],
+        defaultLimit: 150
+    )
+    #expect(projectPage.limit == 150)
+    #expect(projectPage.cursor == "150")
+}
+
+@Test
+func cursorOnlyPagesApplyDefaultsAtMCPWireBoundary() throws {
+    let cases = [
+        (tool: "list_tasks", cursor: "50", expectedLimit: 50),
+        (tool: "list_projects", cursor: "150", expectedLimit: 150)
+    ]
+
+    for testCase in cases {
+        let data = Data(
+            """
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "\(testCase.tool)",
+                "arguments": {"page": {"cursor": "\(testCase.cursor)"}}
+              }
+            }
+            """.utf8
+        )
+        let request = try JSONDecoder().decode(Request<CallTool>.self, from: data)
+        let page = try FocusRelayServer.decodePageRequest(from: request.params)
+
+        #expect(request.method == CallTool.name)
+        #expect(page.limit == testCase.expectedLimit)
+        #expect(page.cursor == testCase.cursor)
+    }
 }
