@@ -1,6 +1,6 @@
 # FocusRelay Next Steps
 
-Last updated: 2026-07-15
+Last updated: 2026-07-19
 
 GitHub issues are the source of truth for deliverables and validation evidence.
 The concise dependency order lives in
@@ -8,12 +8,12 @@ The concise dependency order lives in
 
 ## Current Priority
 
-1. [#95](https://github.com/deverman/FocusRelayMCP/issues/95) — reduce
-   development and release lead time without weakening quality.
-2. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — upgrade the
+1. [#75](https://github.com/deverman/FocusRelayMCP/issues/75) — upgrade the
    Swift MCP SDK and remove deprecated response construction.
-3. [#91](https://github.com/deverman/FocusRelayMCP/issues/91) — consolidate task
+2. [#91](https://github.com/deverman/FocusRelayMCP/issues/91) — consolidate task
    and project editing without reducing model correctness.
+3. [#129](https://github.com/deverman/FocusRelayMCP/issues/129) — support true
+   task dropping and restoration without recording false completion history.
 4. [#94](https://github.com/deverman/FocusRelayMCP/issues/94) — research
    discoverable MCP workflow prompts and slash-command compatibility.
 5. [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and
