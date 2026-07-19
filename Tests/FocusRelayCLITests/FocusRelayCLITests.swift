@@ -79,10 +79,11 @@ func taskPatchOptionsRejectConflictingTagModes() {
 }
 
 @Test
-func setTasksCompletionParsesCompletedState() throws {
-    let command = try SetTasksCompletion.parse([
+func editTasksParsesAndBuildsCompletionRequest() throws {
+    let command = try EditTasks.parse([
         "task-1",
         "task-2",
+        "--operation", "set_completion",
         "--state", "completed",
         "--verify",
         "--return-fields", "id,name,completed"
@@ -92,12 +93,14 @@ func setTasksCompletionParsesCompletedState() throws {
     #expect(command.state == .completed)
     #expect(command.verify)
     #expect(command.returnFields == "id,name,completed")
+    #expect(try command.makeRequest().operation.kind == .setTasksCompletion)
 }
 
 @Test
-func moveTasksParsesProjectDestination() throws {
-    let command = try MoveTasks.parse([
+func editTasksParsesAndBuildsMoveRequest() throws {
+    let command = try EditTasks.parse([
         "task-1",
+        "--operation", "move",
         "--destination-kind", "project",
         "--destination-id", "project-1",
         "--position", "beginning",
@@ -110,6 +113,7 @@ func moveTasksParsesProjectDestination() throws {
     #expect(command.destinationID == "project-1")
     #expect(command.position == "beginning")
     #expect(command.verify)
+    #expect(try command.makeRequest().operation.kind == .moveTasks)
 }
 
 @Test
@@ -136,9 +140,10 @@ func projectPatchOptionsBuildSharedProjectPatch() throws {
 }
 
 @Test
-func setProjectsStatusParsesOnHoldState() throws {
-    let command = try SetProjectsStatus.parse([
+func editProjectsParsesAndBuildsStatusRequest() throws {
+    let command = try EditProjects.parse([
         "project-1",
+        "--operation", "set_status",
         "--status", "on_hold",
         "--verify",
         "--return-fields", "id,name,status"
@@ -147,13 +152,15 @@ func setProjectsStatusParsesOnHoldState() throws {
     #expect(command.ids == ["project-1"])
     #expect(command.status == .onHold)
     #expect(command.verify)
+    #expect(try command.makeRequest().operation.kind == .setProjectsStatus)
 }
 
 @Test
-func moveProjectsParsesFolderDestination() throws {
-    let command = try MoveProjects.parse([
+func editProjectsParsesAndBuildsFolderMoveRequest() throws {
+    let command = try EditProjects.parse([
         "project-1",
         "project-2",
+        "--operation", "move",
         "--destination-kind", "folder",
         "--destination-id", "folder-1",
         "--position", "beginning",
@@ -167,12 +174,14 @@ func moveProjectsParsesFolderDestination() throws {
     #expect(command.position == "beginning")
     #expect(command.verify)
     #expect(command.returnFields == "id,name,status")
+    #expect(try command.makeRequest().operation.kind == .moveProjects)
 }
 
 @Test
-func moveProjectsAllowsRootLibraryDestination() throws {
-    let command = try MoveProjects.parse([
+func editProjectsAllowsRootLibraryDestination() throws {
+    let command = try EditProjects.parse([
         "project-1",
+        "--operation", "move",
         "--destination-kind", "folder",
         "--position", "ending"
     ])
@@ -197,10 +206,11 @@ func listFoldersParsesFieldsAndPagination() throws {
 }
 
 @Test
-func setProjectsCompletionParsesCompletedState() throws {
-    let command = try SetProjectsCompletion.parse([
+func editProjectsParsesAndBuildsCompletionRequest() throws {
+    let command = try EditProjects.parse([
         "project-1",
         "project-2",
+        "--operation", "set_completion",
         "--state", "completed",
         "--verify",
         "--return-fields", "id,name,status,completionDate"
@@ -210,6 +220,31 @@ func setProjectsCompletionParsesCompletedState() throws {
     #expect(command.state == .completed)
     #expect(command.verify)
     #expect(command.returnFields == "id,name,status,completionDate")
+    #expect(try command.makeRequest().operation.kind == .setProjectsCompletion)
+}
+
+@Test
+func cliExposesOnlyConsolidatedEditCommands() {
+    let names = Set(FocusRelayCLI.configuration.subcommands.map { $0.configuration.commandName })
+    #expect(names.contains("edit-tasks"))
+    #expect(names.contains("edit-projects"))
+    #expect(names.isDisjoint(with: [
+        "update-tasks", "set-tasks-completion", "move-tasks", "update-projects",
+        "set-projects-status", "set-projects-completion", "move-projects"
+    ]))
+}
+
+@Test
+func cliEditCommandsRejectContradictoryOperationOptions() throws {
+    let command = try EditTasks.parse([
+        "task-1",
+        "--operation", "set_completion",
+        "--state", "completed",
+        "--flagged", "true"
+    ])
+    #expect(throws: MutationValidationError.self) {
+        _ = try command.makeRequest()
+    }
 }
 
 @Test

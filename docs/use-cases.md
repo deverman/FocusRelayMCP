@@ -62,8 +62,8 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with inbox filter
 - `list_projects` (for categorization context)
-- `update_tasks` (rename, flag, tag, due/defer dates, estimates)
-- `move_tasks` (move inbox items to a project or parent task)
+- `edit_tasks` with `update` (rename, flag, tag, due/defer dates, estimates)
+- `edit_tasks` with `move` (move inbox items to a project or parent task)
 - Future: `create_task`, `create_project` when an inbox item needs a new destination
 
 ---
@@ -83,7 +83,7 @@ This document captures real-world use cases and questions users ask AI about the
 **MCP Tools Needed**:
 - `list_tasks` with estimatedMinutes field
 - `list_tasks` with due date filters
-- `update_tasks` to set estimates
+- `edit_tasks` with `update` to set estimates
 
 ---
 
@@ -162,8 +162,8 @@ This document captures real-world use cases and questions users ask AI about the
 - `list_tasks` by project
 - `get_project_counts`
 - `get_task_counts`
-- `set_projects_status` (put projects on hold, reactivate, or drop)
-- `set_projects_completion` (complete or uncomplete projects)
+- `edit_projects` with `set_status` (put projects on hold, reactivate, or drop)
+- `edit_projects` with `set_completion` (complete or uncomplete projects)
 
 ---
 
@@ -316,13 +316,13 @@ This document captures real-world use cases and questions users ask AI about the
 
 ### Current Write Capabilities
 ✅ **Working Today**:
-- Update existing task fields with `update_tasks`
-- Complete or uncomplete tasks with `set_tasks_completion`
-- Move tasks to inbox, project, or parent task with `move_tasks`
-- Update existing project fields with `update_projects`
-- Set project active/on-hold/dropped status with `set_projects_status`
-- Complete or uncomplete projects with `set_projects_completion`
-- Move projects to a known folder ID or root library with `move_projects`
+- Update existing task fields with `edit_tasks` operation `update`
+- Complete or uncomplete tasks with `edit_tasks` operation `set_completion`
+- Move tasks with `edit_tasks` operation `move`
+- Update existing project fields with `edit_projects` operation `update`
+- Set project active/on-hold/dropped status with `edit_projects` operation `set_status`
+- Complete or uncomplete projects with `edit_projects` operation `set_completion`
+- Move projects with `edit_projects` operation `move`
 
 ⚠️ **Important Constraints**:
 - Writes target IDs only; use read tools first to resolve names to IDs.

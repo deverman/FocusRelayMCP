@@ -1,185 +1,99 @@
 # Mutation Workflows For CLI And MCP
 
-FocusRelay v1 write tools are designed to be low-token, deterministic, and easy for AI agents to route correctly. The core split is:
+FocusRelay exposes two edit commands for existing OmniFocus items:
 
-- Use `update_*` for field patches.
-- Use `set_*_completion` for complete or uncomplete lifecycle changes.
-- Use `set_projects_status` for project active, on-hold, or dropped state.
-- Use `move_*` for structural moves.
+- `edit_tasks` / `focusrelay edit-tasks`
+- `edit_projects` / `focusrelay edit-projects`
+
+Every request identifies existing items by ID, declares one explicit operation,
+and supplies exactly one matching payload. One call applies the same operation
+and payload to every target ID.
 
 ## Core Rules
 
-- Mutations target IDs only. Use read tools first to find IDs; do not mutate by name.
-- Bulk calls are homogeneous. One call applies one shared patch, state, or destination to every ID.
-- Single-item writes use the same tools as bulk writes with one ID.
-- Use `previewOnly=true` before risky or bulk writes.
-- Use `verify=true` for real writes when the agent needs readback confidence.
-- Use `returnFields` to keep responses compact.
-- Do not mix unrelated writes in one call. `batch_mutate_tasks` is intentionally out of scope for v1.
+- Use read tools first to resolve names to IDs. Do not mutate by name.
+- Use `previewOnly=true` before risky or broad writes.
+- Use `verify=true` when post-write readback matters.
+- Use compact `returnFields` for only the state needed next.
+- Do not combine field, lifecycle, status, or move payloads in one request.
+- Task dropping is not supported. Never translate drop, discard, abandon, or
+  cancel into task completion.
 
-## Tool Routing
+## Operation Routing
 
-| Intent | MCP tool | CLI command |
-| --- | --- | --- |
-| Rename, flag, note, due/defer date, estimate, or task tags | `update_tasks` | `focusrelay update-tasks` |
-| Complete or uncomplete tasks | `set_tasks_completion` | `focusrelay set-tasks-completion` |
-| Move tasks to inbox, project, or parent task | `move_tasks` | `focusrelay move-tasks` |
-| Rename, flag, note, due/defer date, sequential, or review interval | `update_projects` | `focusrelay update-projects` |
-| Set project active, on-hold, or dropped | `set_projects_status` | `focusrelay set-projects-status` |
-| Complete or uncomplete projects | `set_projects_completion` | `focusrelay set-projects-completion` |
-| Move projects to a folder or root library | `move_projects` | `focusrelay move-projects` |
-| Discover project folder IDs before moves | `list_folders` | `focusrelay list-folders` |
+| Intent | Tool | Operation | Matching payload |
+| --- | --- | --- | --- |
+| Change task fields or tags | `edit_tasks` | `update` | `taskPatch` |
+| Complete or reopen tasks | `edit_tasks` | `set_completion` | `completion` |
+| Move tasks | `edit_tasks` | `move` | `move` |
+| Change project fields | `edit_projects` | `update` | `projectPatch` |
+| Activate, hold, or drop projects | `edit_projects` | `set_status` | `projectStatus` |
+| Complete or reopen projects | `edit_projects` | `set_completion` | `completion` |
+| Move projects | `edit_projects` | `move` | `move` |
 
-Do not use `update_tasks` or `update_projects` for completion, status, or move behavior.
+Use `list_folders` before a project folder move when the destination ID is not
+already known. Omit `destinationID` to move a project to the root library.
 
 ## Read Before Write
 
-Use this pattern for both CLI and MCP:
-
-1. Read candidates with only the fields needed to identify the target.
-2. Ask the user to confirm if the target is ambiguous or the write is broad.
-3. Preview the mutation with the target IDs.
-4. Execute with `verify=true` and minimal `returnFields`.
-
-CLI example:
+1. Read only the fields needed to identify candidates.
+2. Ask the user to disambiguate when multiple items could match.
+3. Preview the exact IDs and operation when the write is risky or broad.
+4. Execute with `verify=true` and compact `returnFields`.
 
 ```bash
-focusrelay list-tasks --search "intro call" --fields id,name,projectName,tagNames --limit 5
-focusrelay update-tasks task-1 --flagged true --preview-only --return-fields id,name,flagged
-focusrelay update-tasks task-1 --flagged true --verify --return-fields id,name,flagged
+focusrelay list-tasks --search "intro call" --fields id,name,projectName --limit 5
+focusrelay edit-tasks task-1 --operation update --flagged true --preview-only --return-fields id,name,flagged
+focusrelay edit-tasks task-1 --operation update --flagged true --verify --return-fields id,name,flagged
 ```
 
-MCP example:
+Equivalent MCP call:
 
 ```json
 {
-  "tool": "update_tasks",
+  "tool": "edit_tasks",
   "arguments": {
+    "operation": "update",
     "targetIDs": ["task-1"],
     "taskPatch": { "flagged": true },
-    "previewOnly": true,
+    "verify": true,
     "returnFields": ["id", "name", "flagged"]
   }
 }
 ```
 
-## Low-Token Output
-
-When a mutation needs tag, project, parent-task, or folder IDs, read those IDs first. Do not ask the model to infer IDs from names already shown in prior conversation unless the ID is still visible in context. Use `list_folders` before folder moves when the folder ID is not already known, or omit `destinationID` to move projects to the root library.
-
-Default mutation responses are compact. Add `returnFields` only when the next step needs those fields.
-
-Good field sets:
-
-- Task patch: `["id", "name", "flagged", "dueDate", "deferDate"]`
-- Task completion: `["id", "name", "completed", "completionDate"]`
-- Task move: `["id", "name", "projectID", "projectName"]`
-- Project patch/status: `["id", "name", "status", "flagged"]`
-- Project completion: `["id", "name", "status", "completionDate"]`
-
-Avoid returning notes unless the user needs note content.
-
 ## CLI Examples
 
-### Task Patches
-
-Set and clear fields:
+### Tasks
 
 ```bash
-focusrelay update-tasks task-1 task-2 --flagged true --verify --return-fields id,name,flagged
-focusrelay update-tasks task-1 --due-date 2026-04-18T16:00:00Z --verify --return-fields id,name,dueDate
-focusrelay update-tasks task-1 --clear-due-date --verify --return-fields id,name,dueDate
-focusrelay update-tasks task-1 --estimated-minutes 30 --verify --return-fields id,name,estimatedMinutes
+focusrelay edit-tasks task-1 task-2 --operation update --estimated-minutes 30 --verify --return-fields id,name,estimatedMinutes
+focusrelay edit-tasks task-1 --operation update --tag-add tag-1 --verify --return-fields id,name,tagIDs,tagNames
+focusrelay edit-tasks task-1 --operation set_completion --state completed --verify --return-fields id,name,completed,completionDate
+focusrelay edit-tasks task-1 --operation set_completion --state active --verify --return-fields id,name,completed,completionDate
+focusrelay edit-tasks task-1 --operation move --destination-kind inbox --verify --return-fields id,name,projectID
+focusrelay edit-tasks task-1 --operation move --destination-kind project --destination-id project-1 --position ending --verify --return-fields id,name,projectID,projectName
 ```
 
-Rename and note changes:
+### Projects
 
 ```bash
-focusrelay update-tasks task-1 --name "Send intro call notes" --verify --return-fields id,name
-focusrelay update-tasks task-1 --note-append "Follow up after call." --verify --return-fields id,name
+focusrelay edit-projects project-1 --operation update --sequential true --verify --return-fields id,name
+focusrelay edit-projects project-1 --operation set_status --status on_hold --verify --return-fields id,name,status
+focusrelay edit-projects project-1 --operation set_status --status dropped --verify --return-fields id,name,status
+focusrelay edit-projects project-1 --operation set_completion --state completed --verify --return-fields id,name,status,completionDate
+focusrelay edit-projects project-1 --operation set_completion --state active --verify --return-fields id,name,status,completionDate
+focusrelay edit-projects project-1 --operation move --destination-kind folder --destination-id folder-1 --verify --return-fields id,name,status
+focusrelay edit-projects project-1 --operation move --destination-kind folder --verify --return-fields id,name,status
 ```
-
-Tags use tag IDs:
-
-```bash
-focusrelay list-tags --include-task-counts
-focusrelay update-tasks task-1 --tag-add tag-1 --verify --return-fields id,name,tagIDs,tagNames
-focusrelay update-tasks task-1 --tag-remove tag-1 --verify --return-fields id,name,tagIDs,tagNames
-```
-
-### Task Completion
-
-```bash
-focusrelay set-tasks-completion task-1 task-2 --state completed --verify --return-fields id,name,completed,completionDate
-focusrelay set-tasks-completion task-1 --state active --verify --return-fields id,name,completed,completionDate
-```
-
-For repeating tasks, OmniFocus may complete an occurrence and advance the original task. Use `verify=true` and read the returned message.
-
-### Task Moves
-
-```bash
-focusrelay move-tasks task-1 --destination-kind inbox --verify --return-fields id,name,projectID,projectName
-focusrelay move-tasks task-1 task-2 --destination-kind project --destination-id project-1 --verify --return-fields id,name,projectID,projectName
-focusrelay move-tasks task-1 --destination-kind parent_task --destination-id parent-task-1 --position ending --verify --return-fields id,name
-```
-
-### Project Patches
-
-```bash
-focusrelay update-projects project-1 --flagged true --verify --return-fields id,name,flagged
-focusrelay update-projects project-1 --due-date 2026-04-30T16:00:00Z --verify --return-fields id,name,dueDate
-focusrelay update-projects project-1 --sequential true --verify --return-fields id,name
-focusrelay update-projects project-1 --review-steps 1 --review-unit weeks --verify --return-fields id,name,reviewInterval
-```
-
-### Project Status And Completion
-
-Use status for active/on-hold/dropped. Use completion for done/active lifecycle.
-
-```bash
-focusrelay set-projects-status project-1 --status on_hold --verify --return-fields id,name,status
-focusrelay set-projects-status project-1 --status active --verify --return-fields id,name,status
-focusrelay set-projects-completion project-1 --state completed --verify --return-fields id,name,status,completionDate
-focusrelay set-projects-completion project-1 --state active --verify --return-fields id,name,status,completionDate
-```
-
-### Project Moves
-
-Move to a known folder ID, or omit `--destination-id` to move to the root library.
-
-```bash
-focusrelay list-folders --fields id,name,parentID,parentName --limit 50
-focusrelay move-projects project-1 --destination-kind folder --destination-id folder-1 --verify --return-fields id,name,status
-focusrelay move-projects project-1 --destination-kind folder --verify --return-fields id,name,status
-```
-
-Agents must not invent folder IDs. Use `list_folders` when the destination folder ID is not already known.
 
 ## MCP Examples
 
-The JSON blocks below are MCP tool arguments. Call the tool named in each heading.
-
-### Bulk Task Update
+Complete tasks:
 
 ```json
 {
-  "targetIDs": ["task-1", "task-2"],
-  "taskPatch": {
-    "flagged": true,
-    "dueDate": "2026-04-18T16:00:00Z"
-  },
-  "previewOnly": true,
-  "returnFields": ["id", "name", "flagged", "dueDate"]
-}
-```
-
-Call `update_tasks` again with `"previewOnly": false` and `"verify": true` after confirmation.
-
-### Complete Tasks
-
-```json
-{
+  "operation": "set_completion",
   "targetIDs": ["task-1", "task-2"],
   "completion": { "state": "completed" },
   "verify": true,
@@ -187,25 +101,26 @@ Call `update_tasks` again with `"previewOnly": false` and `"verify": true` after
 }
 ```
 
-### Move Tasks To A Project
+Move tasks to a project:
 
 ```json
 {
-  "targetIDs": ["task-1", "task-2"],
+  "operation": "move",
+  "targetIDs": ["task-1"],
   "move": {
     "destinationKind": "project",
     "destinationID": "project-1",
     "position": "ending"
   },
-  "verify": true,
-  "returnFields": ["id", "name", "projectID", "projectName"]
+  "verify": true
 }
 ```
 
-### Update Project Status
+Put a project on hold:
 
 ```json
 {
+  "operation": "set_status",
   "targetIDs": ["project-1"],
   "projectStatus": { "status": "on_hold" },
   "verify": true,
@@ -213,39 +128,36 @@ Call `update_tasks` again with `"previewOnly": false` and `"verify": true` after
 }
 ```
 
-### Move Projects
-
-Before a folder move, call `list_folders` with compact fields if you do not already have the folder ID:
+Move a project to a folder:
 
 ```json
 {
-  "fields": ["id", "name", "parentID", "parentName"],
-  "limit": 50
-}
-```
-
-Then call `move_projects`:
-
-```json
-{
+  "operation": "move",
   "targetIDs": ["project-1"],
   "move": {
     "destinationKind": "folder",
     "destinationID": "folder-1",
     "position": "ending"
   },
-  "verify": true,
-  "returnFields": ["id", "name", "status"]
+  "verify": true
 }
 ```
 
-For root-library moves, omit `destinationID`.
+## Breaking Migration
 
-## Safety Notes
+There are no compatibility aliases. Add the discriminator and keep the former
+payload unchanged:
 
-- Prefer preview for every bulk write.
-- Ask for confirmation before real writes when the user has not explicitly approved the exact IDs and operation.
-- Do not use `update_tasks` to complete tasks; use `set_tasks_completion`.
-- Do not use `update_projects` to complete, drop, or move projects; use the lifecycle/status/move tools.
-- Do not mutate by name. Names are only for read-side discovery and user confirmation.
-- Do not attempt create/delete/repeat-rule/planned-date writes in v1.
+| Removed MCP tool | Replacement MCP arguments | Removed CLI command | Replacement CLI example |
+| --- | --- | --- | --- |
+| `update_tasks` | `edit_tasks`: `{"operation":"update","targetIDs":["ID"],"taskPatch":{"flagged":true}}` | `update-tasks` | `edit-tasks ID --operation update --flagged true` |
+| `set_tasks_completion` | `edit_tasks`: `{"operation":"set_completion","targetIDs":["ID"],"completion":{"state":"completed"}}` | `set-tasks-completion` | `edit-tasks ID --operation set_completion --state completed` |
+| `move_tasks` | `edit_tasks`: `{"operation":"move","targetIDs":["ID"],"move":{"destinationKind":"inbox"}}` | `move-tasks` | `edit-tasks ID --operation move --destination-kind inbox` |
+| `update_projects` | `edit_projects`: `{"operation":"update","targetIDs":["ID"],"projectPatch":{"flagged":true}}` | `update-projects` | `edit-projects ID --operation update --flagged true` |
+| `set_projects_status` | `edit_projects`: `{"operation":"set_status","targetIDs":["ID"],"projectStatus":{"status":"on_hold"}}` | `set-projects-status` | `edit-projects ID --operation set_status --status on_hold` |
+| `set_projects_completion` | `edit_projects`: `{"operation":"set_completion","targetIDs":["ID"],"completion":{"state":"completed"}}` | `set-projects-completion` | `edit-projects ID --operation set_completion --state completed` |
+| `move_projects` | `edit_projects`: `{"operation":"move","targetIDs":["ID"],"move":{"destinationKind":"folder","destinationID":"FOLDER_ID"}}` | `move-projects` | `edit-projects ID --operation move --destination-kind folder --destination-id FOLDER_ID` |
+
+Default mutation responses remain compact. For repeating tasks or projects,
+OmniFocus may complete an occurrence and advance the original item; use
+`verify=true` and inspect the returned per-target message.

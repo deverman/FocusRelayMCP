@@ -25,24 +25,23 @@ Relevant reference pages:
 - Keep CLI and MCP mutation semantics aligned to one shared contract.
 - v1 mutations are homogeneous bulk only: one call, one operation kind, one patch or destination or state applied to all passed IDs.
 - v1 mutations are ID-only. Name lookup remains a read-side concern.
-- `update_*` is for field patches only.
-- `set_*_completion` owns completion lifecycle transitions.
-- `set_projects_status` owns project status transitions.
-- `move_*` owns structural location changes.
+- `edit_tasks` and `edit_projects` require one explicit operation and exactly
+  one matching payload.
+- `update` is for field patches only.
+- `set_completion` owns completion lifecycle transitions.
+- Project `set_status` owns project status transitions.
+- `move` owns structural location changes.
+- Task status/drop changes are not supported until the task edit surface gains
+  a distinct status operation.
 - Successful mutations must invalidate cached `list_projects` and `list_tags` results before later reads.
 
 ## Locked V1 Public Surface
 
-### Task tools
-- `update_tasks`
-- `set_tasks_completion`
-- `move_tasks`
+### Task tool
+- `edit_tasks`: `update`, `set_completion`, or `move`
 
-### Project tools
-- `update_projects`
-- `set_projects_status`
-- `set_projects_completion`
-- `move_projects`
+### Project tool
+- `edit_projects`: `update`, `set_status`, `set_completion`, or `move`
 
 ## Shared Request Semantics
 

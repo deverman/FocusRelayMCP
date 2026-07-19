@@ -154,13 +154,8 @@ func publicMCPToolSurfaceExcludesInternalDiagnostics() {
         "list_projects",
         "list_tags",
         "list_folders",
-        "update_tasks",
-        "set_tasks_completion",
-        "move_tasks",
-        "update_projects",
-        "set_projects_status",
-        "set_projects_completion",
-        "move_projects",
+        "edit_tasks",
+        "edit_projects",
         "get_task_counts",
         "get_project_counts"
     ])
@@ -172,16 +167,247 @@ func publicMCPToolSurfaceExcludesInternalDiagnostics() {
 @Test
 func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
     #expect(FocusRelayServer.mutationToolNames == [
-        "update_tasks",
-        "set_tasks_completion",
-        "move_tasks",
-        "update_projects",
-        "set_projects_status",
-        "set_projects_completion",
-        "move_projects"
+        "edit_tasks",
+        "edit_projects"
     ])
     #expect(FocusRelayServer.mutationToolNames.isSubset(of: Set(FocusRelayServer.publicToolNames)))
     #expect(FocusRelayServer.publicToolNames.count - FocusRelayServer.mutationToolNames.count == 7)
+
+    let annotations = FocusRelayServer.mutationToolAnnotations
+    #expect(annotations.readOnlyHint == false)
+    #expect(annotations.destructiveHint == true)
+    #expect(annotations.idempotentHint == false)
+    #expect(annotations.openWorldHint == false)
+}
+
+@Test
+func productionToolsListMatchesGoldenPublicCatalog() throws {
+    let packageRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let executable = packageRoot.appendingPathComponent(".build/debug/focusrelay")
+    #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+
+    let process = Process()
+    let standardInput = Pipe()
+    let standardOutput = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+    process.arguments = ["-e", "alarm 10; exec @ARGV", executable.path, "serve"]
+    process.currentDirectoryURL = packageRoot
+    process.standardInput = standardInput
+    process.standardOutput = standardOutput
+    process.standardError = Pipe()
+    try process.run()
+    defer {
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+
+    let requests = [
+        #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"catalog-test","version":"1"}}}"#,
+        #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
+        #"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#
+    ].joined(separator: "\n") + "\n"
+    try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
+
+    var buffered = Data()
+    var response: [String: Any]?
+    while response == nil {
+        let chunk = standardOutput.fileHandleForReading.availableData
+        guard !chunk.isEmpty else {
+            Issue.record("MCP server exited before returning tools/list")
+            break
+        }
+        buffered.append(chunk)
+        while let newline = buffered.firstIndex(of: 0x0A) {
+            let line = buffered[..<newline]
+            buffered.removeSubrange(...newline)
+            guard let object = try JSONSerialization.jsonObject(with: line) as? [String: Any],
+                  object["id"] as? Int == 2 else {
+                continue
+            }
+            response = object
+            break
+        }
+    }
+
+    let result = try #require(response?["result"] as? [String: Any])
+    let tools = try #require(result["tools"] as? [[String: Any]])
+    #expect(tools.compactMap { $0["name"] as? String } == FocusRelayServer.publicToolNames)
+
+    for name in FocusRelayServer.mutationToolNames {
+        let tool = try #require(tools.first { $0["name"] as? String == name })
+        let annotations = try #require(tool["annotations"] as? [String: Any])
+        #expect(annotations["readOnlyHint"] as? Bool == false)
+        #expect(annotations["destructiveHint"] as? Bool == true)
+        #expect(annotations["idempotentHint"] as? Bool == false)
+        #expect(annotations["openWorldHint"] as? Bool == false)
+
+        let schema = try #require(tool["inputSchema"] as? [String: Any])
+        #expect(schema["additionalProperties"] as? Bool == false)
+        #expect((schema["oneOf"] as? [[String: Any]])?.isEmpty == false)
+    }
+}
+
+@Test
+func editToolSchemasRequireExactlyOneMatchingPayload() throws {
+    let common: [String: Value] = [
+        "operation": .object(["type": .string("string")]),
+        "targetIDs": .object(["type": .string("array")])
+    ]
+    let taskSchema = FocusRelayServer.makeTaskEditSchema(properties: common.merging([
+        "taskPatch": .object(["type": .string("object")]),
+        "completion": .object(["type": .string("object")]),
+        "move": .object(["type": .string("object")])
+    ]) { _, new in new })
+    let projectSchema = FocusRelayServer.makeProjectEditSchema(properties: common.merging([
+        "projectPatch": .object(["type": .string("object")]),
+        "projectStatus": .object(["type": .string("object")]),
+        "completion": .object(["type": .string("object")]),
+        "move": .object(["type": .string("object")])
+    ]) { _, new in new })
+
+    try expectDiscriminatedSchema(
+        taskSchema,
+        operationPayloads: [
+            "update": "taskPatch",
+            "set_completion": "completion",
+            "move": "move"
+        ]
+    )
+    try expectDiscriminatedSchema(
+        projectSchema,
+        operationPayloads: [
+            "update": "projectPatch",
+            "set_status": "projectStatus",
+            "set_completion": "completion",
+            "move": "move"
+        ]
+    )
+}
+
+@Test
+func taskEditWireArgumentsDispatchEveryOperation() throws {
+    let update = try FocusRelayServer.decodeTaskEditRequest(from: [
+        "operation": .string("update"),
+        "targetIDs": .array([.string("task-1")]),
+        "taskPatch": .object(["flagged": .bool(true)])
+    ])
+    #expect(update.operation.kind == .updateTasks)
+    #expect(update.operation.taskPatch?.flagged == true)
+
+    let completion = try FocusRelayServer.decodeTaskEditRequest(from: [
+        "operation": .string("set_completion"),
+        "targetIDs": .array([.string("task-1")]),
+        "completion": .object(["state": .string("completed")])
+    ])
+    #expect(completion.operation.kind == .setTasksCompletion)
+
+    let move = try FocusRelayServer.decodeTaskEditRequest(from: [
+        "operation": .string("move"),
+        "targetIDs": .array([.string("task-1")]),
+        "move": .object(["destinationKind": .string("inbox")])
+    ])
+    #expect(move.operation.kind == .moveTasks)
+}
+
+@Test
+func projectEditWireArgumentsDispatchEveryOperation() throws {
+    let cases: [(String, String, Value, MutationOperationKind)] = [
+        ("update", "projectPatch", .object(["flagged": .bool(true)]), .updateProjects),
+        ("set_status", "projectStatus", .object(["status": .string("on_hold")]), .setProjectsStatus),
+        ("set_completion", "completion", .object(["state": .string("completed")]), .setProjectsCompletion),
+        ("move", "move", .object(["destinationKind": .string("folder")]), .moveProjects)
+    ]
+
+    for (operation, payloadName, payload, expectedKind) in cases {
+        let request = try FocusRelayServer.decodeProjectEditRequest(from: [
+            "operation": .string(operation),
+            "targetIDs": .array([.string("project-1")]),
+            payloadName: payload
+        ])
+        #expect(request.operation.kind == expectedKind)
+    }
+}
+
+@Test
+func editWireArgumentsRejectMissingMismatchedAndContradictoryPayloads() {
+    #expect(throws: MutationValidationError.self) {
+        try FocusRelayServer.decodeTaskEditRequest(from: [
+            "operation": .string("update"),
+            "targetIDs": .array([.string("task-1")])
+        ])
+    }
+    #expect(throws: MutationValidationError.self) {
+        try FocusRelayServer.decodeTaskEditRequest(from: [
+            "operation": .string("move"),
+            "targetIDs": .array([.string("task-1")]),
+            "completion": .object(["state": .string("completed")])
+        ])
+    }
+    #expect(throws: MutationValidationError.self) {
+        try FocusRelayServer.decodeProjectEditRequest(from: [
+            "operation": .string("set_status"),
+            "targetIDs": .array([.string("project-1")]),
+            "projectStatus": .object(["status": .string("active")]),
+            "completion": .object(["state": .string("active")])
+        ])
+    }
+}
+
+@Test
+func taskEditRejectsStatusInsteadOfTreatingDropAsCompletion() {
+    do {
+        _ = try FocusRelayServer.decodeTaskEditRequest(from: [
+            "operation": .string("set_status"),
+            "targetIDs": .array([.string("task-1")]),
+            "projectStatus": .object(["status": .string("dropped")])
+        ])
+        Issue.record("Expected task set_status to be rejected")
+    } catch {
+        #expect(error.localizedDescription.contains("Task dropping is not supported"))
+    }
+}
+
+private func expectDiscriminatedSchema(
+    _ value: Value,
+    operationPayloads: [String: String]
+) throws {
+    guard case let .object(schema) = value else {
+        Issue.record("Expected an object schema")
+        return
+    }
+    #expect(schema["additionalProperties"] == .bool(false))
+    #expect(schema["required"] == .array([.string("operation"), .string("targetIDs")]))
+
+    guard case let .array(alternatives)? = schema["oneOf"] else {
+        Issue.record("Expected oneOf operation alternatives")
+        return
+    }
+    #expect(alternatives.count == operationPayloads.count)
+
+    for (operation, payload) in operationPayloads {
+        let alternative = try #require(alternatives.first { value in
+            guard case let .object(branch) = value,
+                  case let .object(properties)? = branch["properties"],
+                  case let .object(operationSchema)? = properties["operation"] else {
+                return false
+            }
+            return operationSchema["const"] == .string(operation)
+        })
+        guard case let .object(branch) = alternative else { continue }
+        #expect(branch["required"] == .array([.string(payload)]))
+
+        guard case let .object(notSchema)? = branch["not"],
+              case let .array(forbidden)? = notSchema["anyOf"] else {
+            Issue.record("Expected forbidden payload alternatives for \(operation)")
+            continue
+        }
+        #expect(forbidden.count == operationPayloads.count - 1)
+        #expect(!forbidden.contains(.object(["required": .array([.string(payload)])])))
+    }
 }
 
 @Test

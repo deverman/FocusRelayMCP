@@ -120,6 +120,52 @@ func mutationRequestRoundTripPreservesOperationShape() throws {
 }
 
 @Test
+func consolidatedEditFactoriesPreserveSpecializedRequestShapes() throws {
+    let shared = (previewOnly: true, verify: true, returnFields: ["id", "name"])
+    let taskPatch = TaskPatchMutation(flagged: true)
+    let completion = CompletionMutation(state: .completed)
+    let taskMove = MoveMutation(destinationKind: .project, destinationID: "project-2", position: "ending")
+    let projectPatch = ProjectPatchMutation(flagged: true)
+    let projectStatus = ProjectStatusMutation(status: .onHold)
+    let projectMove = MoveMutation(destinationKind: .folder, destinationID: "folder-1", position: "beginning")
+
+    let cases: [(MutationRequest, MutationRequest)] = [
+        (
+            try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .update, taskPatch: taskPatch, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .task, targetIDs: ["task-1"], operation: MutationOperation(kind: .updateTasks, taskPatch: taskPatch), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .setCompletion, completion: completion, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .task, targetIDs: ["task-1"], operation: MutationOperation(kind: .setTasksCompletion, completion: completion), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .move, move: taskMove, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .task, targetIDs: ["task-1"], operation: MutationOperation(kind: .moveTasks, move: taskMove), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editProjects(targetIDs: ["project-1"], operation: .update, projectPatch: projectPatch, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .project, targetIDs: ["project-1"], operation: MutationOperation(kind: .updateProjects, projectPatch: projectPatch), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editProjects(targetIDs: ["project-1"], operation: .setStatus, projectStatus: projectStatus, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .project, targetIDs: ["project-1"], operation: MutationOperation(kind: .setProjectsStatus, projectStatus: projectStatus), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editProjects(targetIDs: ["project-1"], operation: .setCompletion, completion: completion, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .project, targetIDs: ["project-1"], operation: MutationOperation(kind: .setProjectsCompletion, completion: completion), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editProjects(targetIDs: ["project-1"], operation: .move, move: projectMove, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
+            MutationRequest(targetType: .project, targetIDs: ["project-1"], operation: MutationOperation(kind: .moveProjects, move: projectMove), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        )
+    ]
+
+    for (consolidated, specialized) in cases {
+        #expect(consolidated == specialized)
+    }
+}
+
+@Test
 func mutationRequestValidationRejectsWrongTargetType() {
     let request = MutationRequest(
         targetType: .task,

@@ -213,7 +213,8 @@ focusrelay list-tasks \
   --fields name
 
 # Preview a change without touching OmniFocus
-focusrelay update-tasks <task-id> \
+focusrelay edit-tasks <task-id> \
+  --operation update \
   --flagged true \
   --preview-only \
   --return-fields id,name,flagged
@@ -234,7 +235,7 @@ and applies changes through documented OmniFocus APIs.
 | --- | --- | --- | --- | --- | --- |
 | Runtime | **Native Swift · Homebrew** | TypeScript · npx | TypeScript · npx | Native Rust · Homebrew; Python and TypeScript available | Python · uvx |
 | OmniFocus access | **Bridge plug-in inside Omni Automation; documented APIs** | JXA and Omni Automation through `osascript` | Omni Automation through `osascript` | Omni Automation through `osascript` | Internal SQLite read cache; OmniJS fallback |
-| Public MCP tools | **14 → 11 after [#91](https://github.com/deverman/FocusRelayMCP/issues/91), [#82](https://github.com/deverman/FocusRelayMCP/issues/82), and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
+| Public MCP tools | **9 after [#91](https://github.com/deverman/FocusRelayMCP/issues/91); 11 after planned creation tools [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
 | Find, filter, and count tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing projects | ✅ | ✅ | ✅ | ✅ | ◇ v1.5 roadmap |

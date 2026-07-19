@@ -26,26 +26,46 @@ public enum FocusRelayServer {
         "list_projects",
         "list_tags",
         "list_folders",
-        "update_tasks",
-        "set_tasks_completion",
-        "move_tasks",
-        "update_projects",
-        "set_projects_status",
-        "set_projects_completion",
-        "move_projects",
+        "edit_tasks",
+        "edit_projects",
         "get_task_counts",
         "get_project_counts"
     ]
 
     static let mutationToolNames: Set<String> = [
-        "update_tasks",
-        "set_tasks_completion",
-        "move_tasks",
-        "update_projects",
-        "set_projects_status",
-        "set_projects_completion",
-        "move_projects"
+        "edit_tasks",
+        "edit_projects"
     ]
+
+    static let mutationToolAnnotations = Tool.Annotations(
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: false
+    )
+
+    static func makeTaskEditSchema(properties: [String: Value]) -> Value {
+        discriminatedToolSchema(
+            properties: properties,
+            operationPayloads: [
+                "update": "taskPatch",
+                "set_completion": "completion",
+                "move": "move"
+            ]
+        )
+    }
+
+    static func makeProjectEditSchema(properties: [String: Value]) -> Value {
+        discriminatedToolSchema(
+            properties: properties,
+            operationPayloads: [
+                "update": "projectPatch",
+                "set_status": "projectStatus",
+                "set_completion": "completion",
+                "move": "move"
+            ]
+        )
+    }
 
     static let listProjectsToolDescription = """
     List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include child-task counts.
@@ -352,7 +372,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "list_folders",
-                    description: "List OmniFocus folders with pagination for project move destination discovery. Use this before move_projects when moving projects into a folder. Compact default fields are id and name; request parentID, parentName, projectCount, or childFolderCount when needed.",
+                    description: "List OmniFocus folders with pagination for project move destination discovery. Use this before edit_projects with operation=move when moving projects into a folder. Compact default fields are id and name; request parentID, parentName, projectCount, or childFolderCount when needed.",
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -372,10 +392,15 @@ public enum FocusRelayServer {
                     annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
                 ),
                 Tool(
-                    name: "update_tasks",
-                    description: "Apply one shared task field patch to multiple task IDs. Supports name, note replace, note append, flagged, estimated minutes, due date set/clear, defer date set/clear, and deterministic tag add/remove/set/clear operations.\n\nV1 constraints:\n- task IDs only\n- one shared patch for all targets\n- no completion changes\n- no moves/reparenting\n- no plannedDate writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write task fields in the per-item results.",
-                    inputSchema: toolSchema(
+                    name: "edit_tasks",
+                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_completion only for complete/reopen, and move for inbox/project/parent changes. Dropping, discarding, abandoning, or cancelling tasks is not supported and must not be treated as completion. No plannedDate writes.\n\nSet previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task.",
+                    inputSchema: makeTaskEditSchema(
                         properties: [
+                            "operation": .object([
+                                "type": .string("string"),
+                                "enum": .array([.string("update"), .string("set_completion"), .string("move")]),
+                                "description": .string("Required edit operation. Include exactly one matching payload.")
+                            ]),
                             "targetIDs": .object([
                                 "type": .string("array"),
                                 "description": .string("Task IDs to update."),
@@ -406,78 +431,33 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional task fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ],
-                        required: ["targetIDs", "taskPatch"]
-                    ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
-                ),
-                Tool(
-                    name: "set_tasks_completion",
-                    description: "Apply one shared lifecycle state to multiple task IDs. This tool owns task complete and uncomplete behavior and keeps lifecycle semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no moves/reparenting\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating tasks, OmniFocus completes a generated occurrence and advances the original task, so result messages may describe that special case.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Task IDs to change."),
-                                "items": .object(["type": .string("string")])
-                            ]),
                             "completion": .object([
                                 "type": .string("object"),
-                                "description": .string("Shared completion payload applied to every task ID in targetIDs."),
+                                "description": .string("Required only for operation=set_completion. Never use completion to drop a task."),
                                 "properties": .object([
                                     "state": .object([
                                         "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("completed")]),
-                                        "description": .string("Lifecycle state to apply.")
+                                        "enum": .array([.string("active"), .string("completed")])
                                     ])
-                                ])
-                            ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional task fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ],
-                        required: ["targetIDs", "completion"]
-                    ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
-                ),
-                Tool(
-                    name: "move_tasks",
-                    description: "Move or reparent multiple task IDs to one shared destination. This tool owns structural task relocation and keeps move semantics out of update_tasks.\n\nV1 constraints:\n- task IDs only\n- one shared destination for all targets\n- supported destination kinds: inbox, project, parent_task\n- supported placement values: beginning, ending\n- no field edits\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Task IDs to move."),
-                                "items": .object(["type": .string("string")])
+                                ]),
+                                "required": .array([.string("state")])
                             ]),
                             "move": .object([
                                 "type": .string("object"),
-                                "description": .string("Shared move payload applied to every task ID in targetIDs."),
+                                "description": .string("Required only for operation=move. Shared task destination."),
                                 "properties": .object([
                                     "destinationKind": .object([
                                         "type": .string("string"),
-                                        "enum": .array([.string("inbox"), .string("project"), .string("parent_task")]),
-                                        "description": .string("Destination kind.")
+                                        "enum": .array([.string("inbox"), .string("project"), .string("parent_task")])
                                     ]),
-                                    "destinationID": propertySchema(type: "string", description: "Destination project ID or parent task ID. Omit for inbox moves."),
+                                    "destinationID": propertySchema(type: "string", description: "Project or parent task ID. Omit for inbox moves."),
                                     "position": .object([
                                         "type": .string("string"),
                                         "enum": .array([.string("beginning"), .string("ending")]),
-                                        "description": .string("Placement inside the destination."),
                                         "default": .string("ending")
                                     ])
-                                ])
+                                ]),
+                                "required": .array([.string("destinationKind")])
                             ]),
                             "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
                             "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
@@ -486,16 +466,20 @@ public enum FocusRelayServer {
                                 "description": .string("Optional task fields to return in per-item results after mutation."),
                                 "items": .object(["type": .string("string")])
                             ])
-                        ],
-                        required: ["targetIDs", "move"]
+                        ]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                    annotations: mutationToolAnnotations
                 ),
                 Tool(
-                    name: "update_projects",
-                    description: "Apply one shared project field patch to multiple project IDs. Supports name, note replace, note append, flagged, due date set/clear, defer date set/clear, sequential state, and review interval updates.\n\nV1 constraints:\n- project IDs only\n- one shared patch for all targets\n- no status changes\n- no completion changes\n- no folder moves\n- no tag or containsSingletonActions writes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. Use returnFields to request compact post-write project fields in the per-item results.",
-                    inputSchema: toolSchema(
+                    name: "edit_projects",
+                    description: "Edit existing OmniFocus projects by ID. Choose exactly one operation and include only its matching payload: update with projectPatch, set_status with projectStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse set_status for active/on-hold/dropped and set_completion for complete/reopen. Use list_folders before a folder move when its ID is unknown; omit destinationID for the root library. Project tags and containsSingletonActions writes are not supported.\n\nSet previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original project.",
+                    inputSchema: makeProjectEditSchema(
                         properties: [
+                            "operation": .object([
+                                "type": .string("string"),
+                                "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
+                                "description": .string("Required edit operation. Include exactly one matching payload.")
+                            ]),
                             "targetIDs": .object([
                                 "type": .string("array"),
                                 "description": .string("Project IDs to update."),
@@ -524,111 +508,44 @@ public enum FocusRelayServer {
                                     ])
                                 ])
                             ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional project fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ],
-                        required: ["targetIDs", "projectPatch"]
-                    ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
-                ),
-                Tool(
-                    name: "set_projects_status",
-                    description: "Apply one shared project status to multiple project IDs. This tool owns project status transitions and keeps lifecycle/status semantics out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared status for all targets\n- supported statuses: active, on_hold, dropped\n- no field edits\n- no completion changes\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Project IDs to change."),
-                                "items": .object(["type": .string("string")])
-                            ]),
                             "projectStatus": .object([
                                 "type": .string("object"),
-                                "description": .string("Shared project status payload applied to every project ID in targetIDs."),
+                                "description": .string("Required only for operation=set_status."),
                                 "properties": .object([
                                     "status": .object([
                                         "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("on_hold"), .string("dropped")]),
-                                        "description": .string("Project status to apply.")
+                                        "enum": .array([.string("active"), .string("on_hold"), .string("dropped")])
                                     ])
-                                ])
-                            ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional project fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ],
-                        required: ["targetIDs", "projectStatus"]
-                    ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
-                ),
-                Tool(
-                    name: "set_projects_completion",
-                    description: "Apply one shared lifecycle state to multiple project IDs. This tool owns project complete and uncomplete behavior and keeps lifecycle semantics out of update_projects and set_projects_status.\n\nV1 constraints:\n- project IDs only\n- one shared state for all targets\n- supported states: active, completed\n- no field edits\n- no status-only transitions\n- no folder moves\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state. For repeating projects, OmniFocus completes a generated project occurrence and advances the original project, so result messages may describe that special case.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Project IDs to change."),
-                                "items": .object(["type": .string("string")])
+                                ]),
+                                "required": .array([.string("status")])
                             ]),
                             "completion": .object([
                                 "type": .string("object"),
-                                "description": .string("Shared completion payload applied to every project ID in targetIDs."),
+                                "description": .string("Required only for operation=set_completion."),
                                 "properties": .object([
                                     "state": .object([
                                         "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("completed")]),
-                                        "description": .string("Lifecycle state to apply.")
+                                        "enum": .array([.string("active"), .string("completed")])
                                     ])
-                                ])
-                            ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional project fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ],
-                        required: ["targetIDs", "completion"]
-                    ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
-                ),
-                Tool(
-                    name: "move_projects",
-                    description: "Move multiple project IDs to one shared folder or the root library. Use list_folders first when the destination folder ID is not already known. This tool owns structural project relocation and keeps folder moves out of update_projects.\n\nV1 constraints:\n- project IDs only\n- one shared destination for all targets\n- supported destination kind: folder\n- omit destinationID to move to the root library\n- supported placement values: beginning, ending\n- no field edits\n- no status changes\n- no completion changes\n\nSet previewOnly=true to validate without mutating. When false or omitted, this tool writes immediately. Use verify=true to confirm the final state after the move.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Project IDs to move."),
-                                "items": .object(["type": .string("string")])
+                                ]),
+                                "required": .array([.string("state")])
                             ]),
                             "move": .object([
                                 "type": .string("object"),
-                                "description": .string("Shared move payload applied to every project ID in targetIDs."),
+                                "description": .string("Required only for operation=move. Omit destinationID for the root library."),
                                 "properties": .object([
                                     "destinationKind": .object([
                                         "type": .string("string"),
-                                        "enum": .array([.string("folder")]),
-                                        "description": .string("Destination kind. Use folder for both folder and root-library project moves.")
+                                        "enum": .array([.string("folder")])
                                     ]),
-                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID from list_folders. Omit to move projects to the root library."),
+                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID from list_folders."),
                                     "position": .object([
                                         "type": .string("string"),
                                         "enum": .array([.string("beginning"), .string("ending")]),
-                                        "description": .string("Placement inside the folder or root library."),
                                         "default": .string("ending")
                                     ])
-                                ])
+                                ]),
+                                "required": .array([.string("destinationKind")])
                             ]),
                             "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
                             "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
@@ -637,10 +554,9 @@ public enum FocusRelayServer {
                                 "description": .string("Optional project fields to return in per-item results after mutation."),
                                 "items": .object(["type": .string("string")])
                             ])
-                        ],
-                        required: ["targetIDs", "move"]
+                        ]
                     ),
-                    annotations: .init(readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                    annotations: mutationToolAnnotations
                 ),
                 Tool(
                     name: "get_task_counts",
@@ -708,6 +624,10 @@ public enum FocusRelayServer {
                 defer {
                     let elapsed = Date().timeIntervalSince(toolStart)
                     logger.info("Tool \(params.name) completed in \(String(format: "%.3f", elapsed))s")
+                }
+
+                guard publicToolNames.contains(params.name) else {
+                    return .init(content: [.text(text: "Unknown tool: \(params.name)", annotations: nil, _meta: nil)], isError: true)
                 }
 
                 switch params.name {
@@ -790,137 +710,12 @@ public enum FocusRelayServer {
                     let items = result.items.map { makeFolderOutput(from: $0, fields: fieldSet) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
                     return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
-                case "update_tasks":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let taskPatch = try decodeArgument(TaskPatchMutation.self, from: params.arguments, key: "taskPatch")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .task,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .updateTasks,
-                            taskPatch: taskPatch
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
+                case "edit_tasks":
+                    let request = try decodeTaskEditRequest(from: params.arguments)
                     let result = try await service.performMutation(request)
                     return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "set_tasks_completion":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let completion = try decodeArgument(CompletionMutation.self, from: params.arguments, key: "completion")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .task,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .setTasksCompletion,
-                            completion: completion
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
-                    let result = try await service.performMutation(request)
-                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "move_tasks":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let move = try decodeArgument(MoveMutation.self, from: params.arguments, key: "move")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .task,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .moveTasks,
-                            move: move
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
-                    let result = try await service.performMutation(request)
-                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "update_projects":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let projectPatch = try decodeArgument(ProjectPatchMutation.self, from: params.arguments, key: "projectPatch")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .project,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .updateProjects,
-                            projectPatch: projectPatch
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
-                    let result = try await service.performMutation(request)
-                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "set_projects_status":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let projectStatus = try decodeArgument(ProjectStatusMutation.self, from: params.arguments, key: "projectStatus")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .project,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .setProjectsStatus,
-                            projectStatus: projectStatus
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
-                    let result = try await service.performMutation(request)
-                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "set_projects_completion":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let completion = try decodeArgument(CompletionMutation.self, from: params.arguments, key: "completion")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .project,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .setProjectsCompletion,
-                            completion: completion
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
-                    let result = try await service.performMutation(request)
-                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
-                case "move_projects":
-                    let targetIDs = try decodeArgument([String].self, from: params.arguments, key: "targetIDs") ?? []
-                    let move = try decodeArgument(MoveMutation.self, from: params.arguments, key: "move")
-                    let previewOnly = try decodeArgument(Bool.self, from: params.arguments, key: "previewOnly") ?? false
-                    let verify = try decodeArgument(Bool.self, from: params.arguments, key: "verify") ?? false
-                    let returnFields = decodeStringArray(params.arguments?["returnFields"])
-                    let request = MutationRequest(
-                        targetType: .project,
-                        targetIDs: targetIDs,
-                        operation: MutationOperation(
-                            kind: .moveProjects,
-                            move: move
-                        ),
-                        previewOnly: previewOnly,
-                        verify: verify,
-                        returnFields: returnFields
-                    )
+                case "edit_projects":
+                    let request = try decodeProjectEditRequest(from: params.arguments)
                     let result = try await service.performMutation(request)
                     return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)])
                 case "get_task_counts":
@@ -953,6 +748,52 @@ public enum FocusRelayServer {
         // Match bridge payload decoding: fractional and standard ISO8601.
         let decoder = BridgeDateDecoding.makeJSONDecoder()
         return try decoder.decode(T.self, from: data)
+    }
+
+    static func decodeTaskEditRequest(from args: [String: Value]?) throws -> MutationRequest {
+        let operationName = try decodeArgument(String.self, from: args, key: "operation")
+        guard let operationName else {
+            throw MutationValidationError("edit_tasks requires an operation: update, set_completion, or move.")
+        }
+        if operationName == "set_status" {
+            throw MutationValidationError("Task dropping is not supported. Do not use set_completion to drop, discard, abandon, or cancel a task.")
+        }
+        guard let operation = TaskEditOperation(rawValue: operationName) else {
+            throw MutationValidationError("Unsupported edit_tasks operation: \(operationName).")
+        }
+
+        return try MutationRequest.editTasks(
+            targetIDs: try decodeArgument([String].self, from: args, key: "targetIDs") ?? [],
+            operation: operation,
+            taskPatch: try decodeArgument(TaskPatchMutation.self, from: args, key: "taskPatch"),
+            completion: try decodeArgument(CompletionMutation.self, from: args, key: "completion"),
+            move: try decodeArgument(MoveMutation.self, from: args, key: "move"),
+            previewOnly: try decodeArgument(Bool.self, from: args, key: "previewOnly") ?? false,
+            verify: try decodeArgument(Bool.self, from: args, key: "verify") ?? false,
+            returnFields: decodeStringArray(args?["returnFields"])
+        )
+    }
+
+    static func decodeProjectEditRequest(from args: [String: Value]?) throws -> MutationRequest {
+        let operationName = try decodeArgument(String.self, from: args, key: "operation")
+        guard let operationName else {
+            throw MutationValidationError("edit_projects requires an operation: update, set_status, set_completion, or move.")
+        }
+        guard let operation = ProjectEditOperation(rawValue: operationName) else {
+            throw MutationValidationError("Unsupported edit_projects operation: \(operationName).")
+        }
+
+        return try MutationRequest.editProjects(
+            targetIDs: try decodeArgument([String].self, from: args, key: "targetIDs") ?? [],
+            operation: operation,
+            projectPatch: try decodeArgument(ProjectPatchMutation.self, from: args, key: "projectPatch"),
+            projectStatus: try decodeArgument(ProjectStatusMutation.self, from: args, key: "projectStatus"),
+            completion: try decodeArgument(CompletionMutation.self, from: args, key: "completion"),
+            move: try decodeArgument(MoveMutation.self, from: args, key: "move"),
+            previewOnly: try decodeArgument(Bool.self, from: args, key: "previewOnly") ?? false,
+            verify: try decodeArgument(Bool.self, from: args, key: "verify") ?? false,
+            returnFields: decodeStringArray(args?["returnFields"])
+        )
     }
 
     static func decodePageRequest(from args: [String: Value]?, defaultLimit: Int) throws -> PageRequest {
@@ -996,6 +837,41 @@ private func toolSchema(properties: [String: Value], required: [String] = []) ->
     }
 
     return .object(schema)
+}
+
+func discriminatedToolSchema(
+    properties: [String: Value],
+    operationPayloads: [String: String]
+) -> Value {
+    let payloadNames = Array(operationPayloads.values)
+    let alternatives = operationPayloads.keys.sorted().map { operation -> Value in
+        let forbiddenPayloads = payloadNames
+            .filter { $0 != operationPayloads[operation] }
+            .sorted()
+            .map { payload in
+                Value.object([
+                    "required": .array([.string(payload)])
+                ])
+            }
+
+        return .object([
+            "properties": .object([
+                "operation": .object(["const": .string(operation)])
+            ]),
+            "required": .array([.string(operationPayloads[operation] ?? "")]),
+            "not": .object([
+                "anyOf": .array(forbiddenPayloads)
+            ])
+        ])
+    }
+
+    return .object([
+        "type": .string("object"),
+        "properties": .object(properties),
+        "required": .array([.string("operation"), .string("targetIDs")]),
+        "additionalProperties": .bool(false),
+        "oneOf": .array(alternatives)
+    ])
 }
 
 private func propertySchema(

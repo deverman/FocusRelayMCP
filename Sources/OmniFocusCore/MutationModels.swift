@@ -15,6 +15,19 @@ public enum MutationOperationKind: String, Codable, Sendable {
     case moveProjects = "move_projects"
 }
 
+public enum TaskEditOperation: String, Codable, Sendable {
+    case update
+    case setCompletion = "set_completion"
+    case move
+}
+
+public enum ProjectEditOperation: String, Codable, Sendable {
+    case update
+    case setStatus = "set_status"
+    case setCompletion = "set_completion"
+    case move
+}
+
 public enum MutationCompletionState: String, Codable, Sendable {
     case active
     case completed
@@ -470,6 +483,104 @@ public struct MutationRequest: Codable, Sendable, Equatable {
         self.previewOnly = previewOnly
         self.verify = verify
         self.returnFields = returnFields
+    }
+
+    public static func editTasks(
+        targetIDs: [String],
+        operation: TaskEditOperation,
+        taskPatch: TaskPatchMutation? = nil,
+        completion: CompletionMutation? = nil,
+        move: MoveMutation? = nil,
+        previewOnly: Bool = false,
+        verify: Bool = false,
+        returnFields: [String]? = nil
+    ) throws -> MutationRequest {
+        let payloads = [taskPatch != nil, completion != nil, move != nil].filter { $0 }.count
+        guard payloads == 1 else {
+            throw MutationValidationError("edit_tasks requires exactly one operation payload: taskPatch, completion, or move.")
+        }
+
+        let mutationOperation: MutationOperation
+        switch operation {
+        case .update:
+            guard let taskPatch, completion == nil, move == nil else {
+                throw MutationValidationError("edit_tasks operation update requires only taskPatch.")
+            }
+            mutationOperation = MutationOperation(kind: .updateTasks, taskPatch: taskPatch)
+        case .setCompletion:
+            guard let completion, taskPatch == nil, move == nil else {
+                throw MutationValidationError("edit_tasks operation set_completion requires only completion.")
+            }
+            mutationOperation = MutationOperation(kind: .setTasksCompletion, completion: completion)
+        case .move:
+            guard let move, taskPatch == nil, completion == nil else {
+                throw MutationValidationError("edit_tasks operation move requires only move.")
+            }
+            mutationOperation = MutationOperation(kind: .moveTasks, move: move)
+        }
+
+        let request = MutationRequest(
+            targetType: .task,
+            targetIDs: targetIDs,
+            operation: mutationOperation,
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: returnFields
+        )
+        try request.validate()
+        return request
+    }
+
+    public static func editProjects(
+        targetIDs: [String],
+        operation: ProjectEditOperation,
+        projectPatch: ProjectPatchMutation? = nil,
+        projectStatus: ProjectStatusMutation? = nil,
+        completion: CompletionMutation? = nil,
+        move: MoveMutation? = nil,
+        previewOnly: Bool = false,
+        verify: Bool = false,
+        returnFields: [String]? = nil
+    ) throws -> MutationRequest {
+        let payloads = [projectPatch != nil, projectStatus != nil, completion != nil, move != nil].filter { $0 }.count
+        guard payloads == 1 else {
+            throw MutationValidationError("edit_projects requires exactly one operation payload: projectPatch, projectStatus, completion, or move.")
+        }
+
+        let mutationOperation: MutationOperation
+        switch operation {
+        case .update:
+            guard let projectPatch, projectStatus == nil, completion == nil, move == nil else {
+                throw MutationValidationError("edit_projects operation update requires only projectPatch.")
+            }
+            mutationOperation = MutationOperation(kind: .updateProjects, projectPatch: projectPatch)
+        case .setStatus:
+            guard let projectStatus, projectPatch == nil, completion == nil, move == nil else {
+                throw MutationValidationError("edit_projects operation set_status requires only projectStatus.")
+            }
+            mutationOperation = MutationOperation(kind: .setProjectsStatus, projectStatus: projectStatus)
+        case .setCompletion:
+            guard let completion, projectPatch == nil, projectStatus == nil, move == nil else {
+                throw MutationValidationError("edit_projects operation set_completion requires only completion.")
+            }
+            mutationOperation = MutationOperation(kind: .setProjectsCompletion, completion: completion)
+        case .move:
+            guard let move, projectPatch == nil, projectStatus == nil, completion == nil else {
+                throw MutationValidationError("edit_projects operation move requires only move.")
+            }
+            mutationOperation = MutationOperation(kind: .moveProjects, move: move)
+        }
+
+        let request = MutationRequest(
+            targetType: .project,
+            targetIDs: targetIDs,
+            operation: mutationOperation,
+            previewOnly: previewOnly,
+            verify: verify,
+            returnFields: returnFields
+        )
+        try request.validate()
+        return request
     }
 
     public func validate() throws {
