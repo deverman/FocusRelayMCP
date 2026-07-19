@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1-beta] - 2026-07-19
+
+### Added
+
+- Bridge response warnings now appear in server logs and list responses instead
+  of being silently discarded.
+- Impact-based development and release validation commands, explicit benchmark
+  profiles, production fingerprint reports, and Markdown link validation.
+- MCP Registry metadata, contribution guidance, and an MIT license.
+
+### Changed
+
+- FocusRelay now has one OmniFocus architecture: the installed Bridge plugin
+  invoked through plugin URL dispatch. Retired direct-JXA and OSAKit runtime,
+  diagnostic, and benchmark paths were removed from debug and release builds.
+- Blocking Bridge response waits run outside Swift's cooperative thread pool so
+  concurrent MCP requests do not monopolize executor threads.
+- Bridge-only benchmark commands share one implementation while preserving
+  established scenarios and artifact fields.
+- Default tag listing avoids calculating per-tag task counts unless
+  `includeTaskCounts=true`.
+
+### Fixed
+
+- Completed-project date-window queries no longer disappear under the default
+  active-project status filter.
+- `completed=false` now means remaining work and excludes dropped tasks and
+  children of completed or dropped parents.
+- `get_project_counts` uses the documented inclusive `completedBefore` bound for
+  task counts.
+- MCP arguments accept ISO8601 timestamps with fractional seconds.
+- List tools reject non-positive page limits instead of producing empty or
+  backwards pagination, and cursor-only page objects use each tool's documented
+  default limit.
+- Unsupported project patch fields fail clearly instead of appearing to succeed
+  as no-ops.
+
+## [0.10.0-beta] - 2026-07-14
+
 ### Added
 
 - A preview-first write surface for homogeneous bulk task and project updates,
