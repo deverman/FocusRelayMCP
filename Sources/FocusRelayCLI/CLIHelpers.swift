@@ -5,6 +5,8 @@ import OmniFocusCore
 extension MutationCompletionState: ExpressibleByArgument {}
 extension MutationMoveDestinationKind: ExpressibleByArgument {}
 extension MutationProjectStatus: ExpressibleByArgument {}
+extension TaskEditOperation: ExpressibleByArgument {}
+extension ProjectEditOperation: ExpressibleByArgument {}
 
 enum FieldList {
     static func parse(_ raw: String?) -> [String] {

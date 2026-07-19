@@ -23,10 +23,10 @@ Reference:
 Minimum invariant list:
 - v1 writes are homogeneous bulk only
 - v1 writes target IDs only
-- `update_*` is field patch only
-- `set_*_completion` owns completion lifecycle
-- `set_projects_status` owns project active/on-hold/dropped transitions
-- `move_*` owns structural location changes
+- `update` is field patch only
+- `set_completion` owns completion lifecycle
+- `edit_projects` operation `set_status` owns project active/on-hold/dropped transitions
+- `move` owns structural location changes
 - successful writes invalidate cached `list_projects` and `list_tags`
 
 ## 2. Confirm The Official API Surface
