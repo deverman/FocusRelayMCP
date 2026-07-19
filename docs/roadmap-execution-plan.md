@@ -63,7 +63,7 @@ records only current sequencing and cross-issue dependencies.
 
 ## Release Reference
 
-- Current release: [`v0.10.0-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.10.0-beta)
+- Current release: [`v0.10.1-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.10.1-beta)
 - Release engineering: [`release-engineering-checklist.md`](release-engineering-checklist.md)
 - Development validation: [`development-workflow.md`](development-workflow.md)
 - User-facing changes: [`../CHANGELOG.md`](../CHANGELOG.md)
