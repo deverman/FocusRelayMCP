@@ -3,17 +3,16 @@
 Use this before changing any production mutation path in FocusRelay.
 
 Scope:
-- Future mutation logic in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
 - Mutation logic in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- Future shared mutation models and services
-- Future CLI and MCP mutation command wiring
+- Shared mutation models and services
+- CLI and MCP edit-command wiring
 
 ## 1. Freeze The Contract First
 
 Before coding, write down:
 - the documented Omni Automation write APIs the change is allowed to use
 - the exact public tool or CLI shape being introduced or modified
-- whether the mutation is a patch, lifecycle transition, or move
+- whether the mutation is a patch, lifecycle transition, status change, or move
 - the validation and failure semantics
 - whether cache invalidation is required after success
 
@@ -92,7 +91,7 @@ Do not:
 
 ## 6. Verify The Read-After-Write Contract
 
-For every mutation tool, define the post-write readback rule up front:
+For every mutation operation, define the post-write readback rule up front:
 - what fields are returned by default
 - what fields are returned only when `returnFields` is set
 - when `verify=true` is required or recommended
@@ -100,8 +99,8 @@ For every mutation tool, define the post-write readback rule up front:
 
 Minimum readback invariants:
 - the target ID remains stable after non-repeating updates and moves
-- completion/status tools report the final lifecycle state accurately
-- repeating completion tools document and verify the returned object identity behavior
+- completion/status operations report the final lifecycle state accurately
+- repeating completion operations document and verify the returned object identity behavior
 - cache invalidation prevents stale `list_projects` and `list_tags` responses after success
 
 ## 7. Update Docs Before Shipping
@@ -109,7 +108,7 @@ Minimum readback invariants:
 Before merge, make sure:
 - public docs reflect the exact tool names and schemas
 - examples show both single-item and homogeneous-bulk usage
-- docs explain the split between patch vs lifecycle vs move tools
+- docs explain the split between patch, lifecycle, status, and move operations
 - docs state what is intentionally out of scope for v1
 
 If the change alters install, approval, or restart behavior:

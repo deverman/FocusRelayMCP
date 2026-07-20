@@ -85,5 +85,7 @@ do {
 ```
 
 ## Notes
-- If we add write tools later, batch updates and require explicit confirmations.
+- For existing inbox tasks, use homogeneous `edit_tasks` `update` and `move`
+  operations and require explicit confirmation for broad changes.
+- Creating a missing project, tag, or destination remains future work.
 - Avoid sending full catalogs into the prompt unless asked.
