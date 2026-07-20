@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Seven task and project mutation tools and CLI commands were
+  consolidated into `edit_tasks` / `edit-tasks` and
+  `edit_projects` / `edit-projects`. Each request now selects an explicit
+  operation and supplies exactly one matching payload; legacy aliases were
+  removed. See the
+  [migration table](docs/mutation-workflows.md#breaking-migration).
+
 ## [0.10.1-beta] - 2026-07-19
 
 ### Added

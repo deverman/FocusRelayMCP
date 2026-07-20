@@ -28,23 +28,23 @@ Try prompts like:
 - “Set [task name] due tomorrow at 5 PM in my local timezone and verify the
   change.”
 
-These workflows were tested against the released Homebrew build with Kimi K2.7
-Code, and the inbox query with a second MCP-capable model. Updates target stable
-OmniFocus IDs and can verify the saved result. If names are duplicated, ask to
-see the candidates before changing anything.
+These workflows were tested with Kimi K2.7 Code and another MCP-capable model.
+Updates target stable OmniFocus IDs and can verify the saved result. If names
+are duplicated, ask to see the candidates before changing anything.
 
-FocusRelay 0.10.0-beta can:
+The current source build can:
 
 - find and count tasks using dates, flags, tags, projects, availability, inbox
   state, completion, estimates, and text search;
 - review projects, folders, tags, task counts, and stalled work;
 - update names, notes, flags, dates, estimates, tags, project settings, and
   review intervals;
-- complete, reactivate, change status, and move existing tasks and projects;
+- complete, reactivate, and move existing tasks;
+- complete, reactivate, change status, and move existing projects;
 - preview a proposed change and verify the saved result.
 
-The current beta updates existing tasks and projects. Creating or deleting
-items is not part of this release; creation is tracked in
+The current source build updates existing tasks and projects. Creating or
+deleting items is not supported; creation is tracked in
 [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and
 [#83](https://github.com/deverman/FocusRelayMCP/issues/83).
 
@@ -52,9 +52,10 @@ items is not part of this release; creation is tracked in
 
 ### Keep the assistant focused
 
-FocusRelay exposes 14 model-facing tools—seven for reading and seven for making
-supported changes. Internal diagnostics stay in the CLI, count commands avoid
-returning long item lists, and field selection keeps responses compact.
+The current source build exposes nine model-facing tools: seven read tools plus
+`edit_tasks` and `edit_projects` for supported changes. Internal diagnostics
+stay in the CLI, count commands avoid returning long item lists, and field
+selection keeps responses compact.
 
 ### Native Swift speed at real-library scale
 
@@ -73,7 +74,7 @@ database.
 
 ### Make changes you can check
 
-Update tools target stable IDs and support previews, per-item results, compact
+Edit tools target stable IDs and support previews, per-item results, compact
 return fields, and optional verification. A failed save, update, or verification
 is reported as a failure—not success.
 
@@ -201,6 +202,11 @@ MCP lets compatible assistants discover FocusRelay and choose the right action.
 The CLI is useful for scripts, debugging, and agents that already have shell
 access.
 
+The examples below target the current source build. The latest Homebrew release,
+`v0.10.1-beta`, predates the consolidated edit commands and still exposes the
+former 14-tool surface. Build from source to use `edit-tasks` and
+`edit-projects` before the next release updates Homebrew.
+
 ```bash
 # Count without returning every matching task
 focusrelay task-counts --flagged true
@@ -235,7 +241,7 @@ and applies changes through documented OmniFocus APIs.
 | --- | --- | --- | --- | --- | --- |
 | Runtime | **Native Swift · Homebrew** | TypeScript · npx | TypeScript · npx | Native Rust · Homebrew; Python and TypeScript available | Python · uvx |
 | OmniFocus access | **Bridge plug-in inside Omni Automation; documented APIs** | JXA and Omni Automation through `osascript` | Omni Automation through `osascript` | Omni Automation through `osascript` | Internal SQLite read cache; OmniJS fallback |
-| Public MCP tools | **9 after [#91](https://github.com/deverman/FocusRelayMCP/issues/91); 11 after planned creation tools [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
+| Public MCP tools | **Current source: 9, with seven read tools plus `edit_tasks` and `edit_projects`; 11 after planned creation tools [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
 | Find, filter, and count tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing projects | ✅ | ✅ | ✅ | ✅ | ◇ v1.5 roadmap |

@@ -99,13 +99,16 @@ Future alternative, only if client-managed installation becomes valuable:
 
 ## 3. Correct directory listings
 
-Use this correction packet for every listing:
+Use this correction packet after the consolidated edit commands ship in a
+Homebrew release. Until then, keep directory listings aligned with the current
+released catalog rather than advertising source-only commands.
 
 > **FocusRelay** is a free, open-source OmniFocus MCP server and CLI for macOS.
 > It is written in Swift, runs locally, and uses documented OmniFocus APIs. The
-> current beta provides 14 focused MCP tools for reading and safely updating
-> tasks and projects. Install it with Homebrew; it is not an npm package and is
-> not cross-platform. License: MIT. Repository:
+> current build provides nine focused MCP tools: seven read tools and two
+> consolidated edit tools for safely updating tasks and projects. Install it
+> with Homebrew; it is not an npm package and is not cross-platform. License:
+> MIT. Repository:
 > https://github.com/deverman/FocusRelayMCP
 
 Install commands:
@@ -146,14 +149,17 @@ Ready-to-post update:
 > **FocusRelay 0.10 beta: AI can now safely update OmniFocus**
 >
 > FocusRelay can now do more than answer questions about your OmniFocus data.
-> AI tools can update task and project details, dates, flags, tags, status, and
-> location while previewing or verifying important changes. FocusRelay remains
-> a fast, local Swift app that uses documented OmniFocus APIs and keeps its MCP
-> tool set deliberately small to reduce context use. Install it with Homebrew
-> and see examples at https://github.com/deverman/FocusRelayMCP
+> AI tools can update task and project details, dates, flags, tags, and location;
+> complete or reopen tasks and projects; and change project status while
+> previewing or verifying important changes. Task dropping and restoration are
+> not yet supported. FocusRelay remains a fast, local Swift app that uses
+> documented OmniFocus APIs and keeps its MCP tool set deliberately small to
+> reduce context use. Install it with Homebrew and see examples at
+> https://github.com/deverman/FocusRelayMCP
 
 Before posting, replace `0.10 beta` if a newer release is current and confirm
-every listed update still works in the release UAT.
+every listed update still works in the release UAT. Do not post the nine-tool
+claim before the consolidated edit commands are available through Homebrew.
 
 ## 5. Submit to maintained collections
 

@@ -3,9 +3,9 @@
 This document defines the Omni Automation APIs and product rules that are allowed in FocusRelay v1 mutation paths.
 
 Scope:
-- Any future task or project mutation helper in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- Mutation helpers in `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
-- Any future shared mutation core used by CLI and MCP
+- Current and future task or project mutation helpers in
+  `Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js`
+- The shared mutation core used by CLI and MCP
 
 Workflow companion:
 - [`docs/mutation-change-checklist.md`](./mutation-change-checklist.md)
@@ -59,7 +59,7 @@ Relevant reference pages:
 - `previewOnly=true` validates and resolves targets without mutating OmniFocus.
 - `verify=true` performs a post-write readback using the documented read path and returns the resolved post-state.
 - `returnFields` is opt-in and limits post-write payload shape.
-- Mutation tools should default to compact result summaries rather than full object payloads.
+- Mutation operations should default to compact result summaries rather than full object payloads.
 
 ### Failure semantics
 - Validation failures should be reported before any mutation is attempted.
@@ -140,7 +140,7 @@ Relevant reference pages:
 - Notification mutation
 - Repetition-rule mutation
 - Project review date direct mutation using undocumented surfaces
-- Tag reordering as part of update tools
+- Tag reordering as part of the `update` operation
 - Placement controls beyond documented move destinations unless a later issue validates a concrete use case
 - `plannedDate` writes
 
@@ -148,7 +148,8 @@ Relevant reference pages:
 
 ### Repeating completion semantics
 - `markComplete(...)` on repeating tasks and projects can clone the repeated item and mark that clone complete.
-- `set_*_completion` must treat repeating items as lifecycle operations that require post-write verification rather than assuming a simple boolean flip.
+- `set_completion` must treat repeating items as lifecycle operations that
+  require post-write verification rather than assuming a simple boolean flip.
 
 ### Project root-task details
 - Omni Automation documents that many “task-like” project properties are ultimately held on the project’s root task.
