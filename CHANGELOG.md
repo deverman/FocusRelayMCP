@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP tool calls now reject unknown top-level and nested arguments before
   dispatch instead of silently turning malformed filters into plausible
   unfiltered queries.
+- Review perspective project queries now honor `statusFilter`, so active and
+  on-hold review batches are disjoint while `all` includes both reviewable
+  statuses and still excludes dropped/done projects.
 
 ## [0.10.1-beta] - 2026-07-19
 

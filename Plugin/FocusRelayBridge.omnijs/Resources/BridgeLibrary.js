@@ -1595,9 +1595,21 @@
     }
 
     function shouldApplyListProjectsStatusFilter(statusFilter, reviewPerspective, isCompletionQuery) {
-      if (reviewPerspective) { return false; }
       if (isCompletionQuery) { return false; }
       if (!statusFilter || statusFilter === "all") { return false; }
+      return true;
+    }
+
+    function projectMatchesListStatus(status, statusFilter) {
+      if (statusFilter === "active") {
+        return status === Project.Status.Active;
+      } else if (statusFilter === "onhold" || statusFilter === "on_hold") {
+        return status === Project.Status.OnHold;
+      } else if (statusFilter === "dropped") {
+        return status === Project.Status.Dropped;
+      } else if (statusFilter === "done" || statusFilter === "completed") {
+        return status === Project.Status.Done;
+      }
       return true;
     }
     // END PROJECT COMPLETION QUERY MODULE
@@ -2434,23 +2446,14 @@
             projects = projects.filter(p => {
               const status = safe(() => p.status);
               if (!status) return false;
-              return status !== Project.Status.Dropped && status !== Project.Status.Done;
+              const isReviewable = status !== Project.Status.Dropped && status !== Project.Status.Done;
+              return isReviewable && projectMatchesListStatus(status, statusFilter);
             });
           } else if (shouldApplyListProjectsStatusFilter(statusFilter, false, isCompletionQuery)) {
             projects = projects.filter(p => {
               const status = safe(() => p.status);
               if (!status) return false;
-              
-              if (statusFilter === "active") {
-                return status === Project.Status.Active;
-              } else if (statusFilter === "onhold" || statusFilter === "on_hold") {
-                return status === Project.Status.OnHold;
-              } else if (statusFilter === "dropped") {
-                return status === Project.Status.Dropped;
-              } else if (statusFilter === "done" || statusFilter === "completed") {
-                return status === Project.Status.Done;
-              }
-              return true;
+              return projectMatchesListStatus(status, statusFilter);
             });
           }
 

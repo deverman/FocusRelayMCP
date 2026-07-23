@@ -89,6 +89,7 @@ public enum FocusRelayServer {
 
     REVIEW PERSPECTIVE:
     - Use reviewPerspective=true to return projects pending review (excludes dropped/done and applies nextReviewDate <= now when reviewDueBefore is omitted).
+    - statusFilter remains active inside Review queries: use 'active' or 'onHold' for disjoint groups, or 'all' for every reviewable active/on-hold project.
     - Optionally set reviewDueBefore/reviewDueAfter (ISO8601 UTC) to bound nextReviewDate.
     """
 
@@ -317,7 +318,7 @@ public enum FocusRelayServer {
                             ]),
                             "reviewPerspective": .object([
                                 "type": .string("boolean"),
-                                "description": .string("If true, apply OmniFocus Review perspective defaults: exclude dropped/done and require nextReviewDate <= now when reviewDueBefore is omitted"),
+                                "description": .string("If true, apply OmniFocus Review perspective defaults: exclude dropped/done, honor statusFilter for active/onHold grouping, and require nextReviewDate <= now when reviewDueBefore is omitted"),
                                 "default": .bool(false)
                             ]),
                             "reviewDueBefore": propertySchema(

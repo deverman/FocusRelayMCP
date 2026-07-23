@@ -123,5 +123,80 @@ func projectCompletionQueryHelpersIgnoreNonCompletionFilters() throws {
     #expect(decoded.afterOnly)
     #expect(decoded.applyActive)
     #expect(!decoded.applyAll)
-    #expect(!decoded.applyReview)
+    #expect(decoded.applyReview)
+}
+
+@Test
+func reviewPerspectiveHonorsStatusFilterBeforeCountAndPagination() throws {
+    let sourceURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js")
+    let librarySource = try String(contentsOf: sourceURL, encoding: .utf8)
+    let startMarker = "// PROJECT COMPLETION QUERY MODULE - list_projects completion vs statusFilter"
+    let endMarker = "// END PROJECT COMPLETION QUERY MODULE"
+    let start = try #require(librarySource.range(of: startMarker))
+    let end = try #require(
+        librarySource.range(of: endMarker, range: start.upperBound..<librarySource.endIndex)
+    )
+    let module = String(librarySource[start.lowerBound..<end.upperBound])
+
+    let context = JSContext()!
+    let script = """
+    const Project = { Status: {
+      Active: "Active",
+      OnHold: "OnHold",
+      Dropped: "Dropped",
+      Done: "Done"
+    }};
+    \(module)
+    const projects = [
+      { id: "active-1", status: Project.Status.Active },
+      { id: "hold-1", status: Project.Status.OnHold },
+      { id: "active-2", status: Project.Status.Active },
+      { id: "dropped-1", status: Project.Status.Dropped },
+      { id: "done-1", status: Project.Status.Done }
+    ];
+    function reviewPage(statusFilter, limit) {
+      const filtered = projects.filter(project => {
+        const reviewable =
+          project.status !== Project.Status.Dropped &&
+          project.status !== Project.Status.Done;
+        return reviewable && projectMatchesListStatus(project.status, statusFilter);
+      });
+      return {
+        ids: filtered.slice(0, limit).map(project => project.id),
+        totalCount: filtered.length,
+        nextCursor: filtered.length > limit ? String(limit) : null
+      };
+    }
+    JSON.stringify({
+      active: reviewPage("active", 1),
+      onHold: reviewPage("onhold", 10),
+      all: reviewPage("all", 10)
+    });
+    """
+    let json = try #require(context.evaluateScript(script)?.toString())
+    struct Result: Decodable {
+        struct Page: Decodable {
+            let ids: [String]
+            let totalCount: Int
+            let nextCursor: String?
+        }
+        let active: Page
+        let onHold: Page
+        let all: Page
+    }
+    let decoded = try JSONDecoder().decode(Result.self, from: Data(json.utf8))
+
+    #expect(decoded.active.ids == ["active-1"])
+    #expect(decoded.active.totalCount == 2)
+    #expect(decoded.active.nextCursor == "1")
+    #expect(decoded.onHold.ids == ["hold-1"])
+    #expect(decoded.onHold.totalCount == 1)
+    #expect(decoded.onHold.nextCursor == nil)
+    #expect(decoded.all.ids == ["active-1", "hold-1", "active-2"])
+    #expect(decoded.all.totalCount == 3)
+    #expect(Set(decoded.active.ids).isDisjoint(with: decoded.onHold.ids))
 }
