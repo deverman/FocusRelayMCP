@@ -144,7 +144,7 @@ Mark an active or on-hold project reviewed:
 ```
 
 `reviewedNow` must be the only project patch field. FocusRelay preflights the
-whole batch, uses one local-day review timestamp, preserves each review
+whole batch, uses one request-level review timestamp, preserves each review
 interval, and lets OmniFocus calculate each next review date.
 
 Move a project to a folder:

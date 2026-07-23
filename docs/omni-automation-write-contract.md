@@ -112,7 +112,7 @@ Relevant reference pages:
 - `project.status`
 - `project.markComplete(date)`
 - `project.markIncomplete()`
-- `project.lastReviewDate`, assigned to `Calendar.current.startOfDay(now)` for
+- `project.lastReviewDate`, assigned one request-level current timestamp for
   active or on-hold projects after complete-batch eligibility preflight
 
 ### Project moves
@@ -130,7 +130,7 @@ Relevant reference pages:
 - Use `task.markComplete(...)` and `task.markIncomplete()` rather than synthesizing completion by direct date assignment.
 - Use `project.markComplete(...)` and `project.markIncomplete()` rather than synthesizing completion by direct date assignment.
 - Use `project.status` for project active/on-hold/dropped transitions.
-- Mark projects reviewed by assigning one request-level local-day timestamp to
+- Mark projects reviewed by assigning one request-level current timestamp to
   `project.lastReviewDate`; preserve `reviewInterval` and verify OmniFocus's
   resulting `nextReviewDate` rather than calculating it independently.
 - Use `moveTasks(...)` and `moveSections(...)` for structural moves instead of delete/recreate flows.
@@ -164,8 +164,8 @@ Relevant reference pages:
   for active or on-hold projects with a usable review interval.
 - Every target is preflighted before any write so mixed eligible/ineligible
   batches fail without partial mutation.
-- Use `Calendar.current.startOfDay(new Date())`, matching OmniFocus's native
-  day-based Mark Reviewed behavior; do not persist an arbitrary clock time.
+- Use one `new Date()` value for the complete request, matching the timestamp
+  recorded by OmniFocus's native Mark Reviewed action.
 - One request timestamp applies to the whole batch. Verification requires the
   saved date, unchanged interval, and an OmniFocus-generated next review date.
 
