@@ -39,7 +39,7 @@ The current source build can:
 - review projects, folders, tags, task counts, and stalled work;
 - update names, notes, flags, dates, estimates, tags, project settings, and
   review intervals;
-- complete, reactivate, and move existing tasks;
+- drop, restore, complete, reactivate, and move existing tasks;
 - complete, reactivate, change status, and move existing projects;
 - preview a proposed change and verify the saved result.
 

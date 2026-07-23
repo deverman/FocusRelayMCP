@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Task dropping and restoration through `edit_tasks` / `edit-tasks` operation
+  `set_status`, including explicit repeating occurrence/series scope, preview,
+  verified `taskStatus` and `dropDate` readback, and all-or-nothing preflight.
+
 ### Changed
 
 - **Breaking:** Seven task and project mutation tools and CLI commands were
