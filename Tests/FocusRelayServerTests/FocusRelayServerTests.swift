@@ -116,7 +116,8 @@ func everyPublicSparseProjectPatchSurvivesMCPValueDecoding() throws {
         ["deferDate": .string("2026-07-16T08:00:00Z")],
         ["clearDeferDate": .bool(true)],
         ["sequential": .bool(true)],
-        ["reviewInterval": .object(["steps": .int(2), "unit": .string("weeks")])]
+        ["reviewInterval": .object(["steps": .int(2), "unit": .string("weeks")])],
+        ["reviewedNow": .bool(true)]
     ]
 
     for value in cases {
@@ -343,6 +344,22 @@ func projectEditWireArgumentsDispatchEveryOperation() throws {
         ])
         #expect(request.operation.kind == expectedKind)
     }
+}
+
+@Test
+func projectReviewedNowWireArgumentsUseUpdatePatch() throws {
+    let request = try FocusRelayServer.decodeProjectEditRequest(from: [
+        "operation": .string("update"),
+        "targetIDs": .array([.string("project-1"), .string("project-2")]),
+        "projectPatch": .object(["reviewedNow": .bool(true)]),
+        "previewOnly": .bool(true),
+        "verify": .bool(true),
+        "returnFields": .array([.string("id"), .string("lastReviewDate"), .string("nextReviewDate")])
+    ])
+
+    #expect(request.operation.projectPatch?.reviewedNow == true)
+    #expect(request.previewOnly)
+    #expect(request.verify)
 }
 
 @Test

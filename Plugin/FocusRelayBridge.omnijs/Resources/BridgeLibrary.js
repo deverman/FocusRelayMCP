@@ -299,11 +299,17 @@
 
         if (mutation.previewOnly) {
           try {
-            results.push({
+            const previewResult = {
               id: id,
               status: "previewed",
               message: options.previewMessage(target, id)
-            });
+            };
+            if (options.returnedFields) {
+              previewResult.returnedFields = options.previewReturnedFields
+                ? options.previewReturnedFields(target, id)
+                : options.returnedFields(target, {}, id);
+            }
+            results.push(previewResult);
           } catch (error) {
             results.push(stageFailure(id, "preview validation", error));
           }
@@ -579,6 +585,15 @@
 
     function validateProjectPatch(projectPatch) {
       if (!projectPatch) { return "update_projects requires a projectPatch payload."; }
+      if (projectPatch.reviewedNow !== undefined && projectPatch.reviewedNow !== null) {
+        if (projectPatch.reviewedNow !== true) {
+          return "reviewedNow only accepts true.";
+        }
+        const otherKeys = Object.keys(projectPatch).filter(key => key !== "reviewedNow" && projectPatch[key] !== undefined && projectPatch[key] !== null && projectPatch[key] !== false);
+        if (otherKeys.length > 0) {
+          return "reviewedNow must be the only projectPatch field.";
+        }
+      }
       if (projectPatch.dueDate && projectPatch.clearDueDate) {
         return "Project patches cannot set and clear dueDate in the same request.";
       }
@@ -596,6 +611,62 @@
         }
       }
       return null;
+    }
+
+    function reviewIntervalSnapshot(project) {
+      const interval = safe(() => project.reviewInterval);
+      if (!interval) { return null; }
+      const steps = Number(safe(() => interval.steps));
+      const unit = String(safe(() => interval.unit) || "");
+      if (!isFinite(steps) || steps <= 0 || unit.length === 0) { return null; }
+      return { steps: steps, unit: unit };
+    }
+
+    function preflightReviewedNow(ids, projectByID) {
+      const failures = [];
+      ids.forEach(id => {
+        const project = projectByID[id];
+        if (!project) {
+          failures.push(id + ": target ID not found");
+          return;
+        }
+        const status = projectStatusString(project);
+        if (status !== "active" && status !== "onHold") {
+          failures.push(id + ": project status " + status + " is not eligible for review");
+        }
+        if (!reviewIntervalSnapshot(project)) {
+          failures.push(id + ": project has no usable review interval");
+        }
+      });
+      return failures.length === 0
+        ? null
+        : "Project review preflight failed: " + failures.join("; ") + ". No projects were changed.";
+    }
+
+    function applyReviewedNow(project, reviewedAt) {
+      const reviewInterval = reviewIntervalSnapshot(project);
+      project.lastReviewDate = reviewedAt;
+      return { reviewedAt: reviewedAt, reviewInterval: reviewInterval };
+    }
+
+    function verifyReviewedNow(project, context) {
+      const lastReviewDate = safe(() => project.lastReviewDate);
+      if (!lastReviewDate || lastReviewDate.getTime() !== context.reviewedAt.getTime()) {
+        return "lastReviewDate did not match the request-level review timestamp.";
+      }
+      const currentInterval = reviewIntervalSnapshot(project);
+      if (!currentInterval || currentInterval.steps !== context.reviewInterval.steps || currentInterval.unit !== context.reviewInterval.unit) {
+        return "reviewInterval changed while marking the project reviewed.";
+      }
+      const nextReviewDate = safe(() => project.nextReviewDate);
+      if (!nextReviewDate || typeof nextReviewDate.getTime !== "function" || isNaN(nextReviewDate.getTime())) {
+        return "OmniFocus did not produce a usable nextReviewDate.";
+      }
+      return null;
+    }
+
+    function reviewedNowPreviewFields(project) {
+      return projectReturnedFields(project, ["id", "name", "status", "lastReviewDate", "nextReviewDate", "reviewInterval"]);
     }
 
     function applyProjectPatch(project, projectPatch) {
@@ -1643,6 +1714,24 @@
             const patchError = validateProjectPatch(operation.projectPatch);
             if (patchError) {
               response.data = failedMutationEnvelope(targetType, operation.kind, mutation, ids, patchError);
+            } else if (operation.projectPatch.reviewedNow === true) {
+              const projectByID = projectByIDIndex();
+              const preflightError = preflightReviewedNow(ids, projectByID);
+              if (preflightError) {
+                response.data = failedMutationEnvelope(targetType, operation.kind, mutation, ids, preflightError);
+              } else {
+                const reviewedAt = new Date();
+                const results = executeTargetMutation(ids, projectByID, mutation, {
+                  saveMode: "batch",
+                  previewMessage: () => "Validated eligible project for reviewedNow preview.",
+                  previewReturnedFields: project => reviewedNowPreviewFields(project),
+                  apply: project => applyReviewedNow(project, reviewedAt),
+                  verify: (project, context) => verifyReviewedNow(project, context),
+                  returnedFields: project => projectReturnedFields(project, mutation.returnFields),
+                  mutatedMessage: () => verifiedMessage("Project marked reviewed.", mutation.verify)
+                });
+                response.data = mutationEnvelope(targetType, operation.kind, mutation, ids, results);
+              }
             } else {
               const results = executeTargetMutation(ids, projectByIDIndex(), mutation, {
                 saveMode: "perItem",

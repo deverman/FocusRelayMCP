@@ -522,7 +522,11 @@ public enum FocusRelayServer {
                                             "steps": propertySchema(type: "integer", description: "Review interval step count."),
                                             "unit": propertySchema(type: "string", description: "Review interval unit, such as days, weeks, months, or years.")
                                         ])
-                                    ])
+                                    ]),
+                                    "reviewedNow": propertySchema(
+                                        type: "boolean",
+                                        description: "Mark active or on-hold projects reviewed now. Only true is accepted, and it must be the only projectPatch field."
+                                    )
                                 ])
                             ]),
                             "projectStatus": .object([

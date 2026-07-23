@@ -171,6 +171,38 @@ func projectPatchOptionsBuildSharedProjectPatch() throws {
 }
 
 @Test
+func editProjectsParsesReviewedNowUpdate() throws {
+    let command = try EditProjects.parse([
+        "project-1", "project-2",
+        "--operation", "update",
+        "--reviewed-now",
+        "--preview-only",
+        "--verify",
+        "--return-fields", "id,name,status,lastReviewDate,nextReviewDate,reviewInterval"
+    ])
+
+    let request = try command.makeRequest()
+    #expect(request.operation.kind == .updateProjects)
+    #expect(request.operation.projectPatch?.reviewedNow == true)
+    #expect(request.previewOnly)
+    #expect(request.verify)
+}
+
+@Test
+func editProjectsRejectsReviewedNowWithOtherPatchFields() throws {
+    let command = try EditProjects.parse([
+        "project-1",
+        "--operation", "update",
+        "--reviewed-now",
+        "--flagged", "true"
+    ])
+
+    #expect(throws: MutationValidationError.self) {
+        _ = try command.makeRequest()
+    }
+}
+
+@Test
 func editProjectsParsesAndBuildsStatusRequest() throws {
     let command = try EditProjects.parse([
         "project-1",

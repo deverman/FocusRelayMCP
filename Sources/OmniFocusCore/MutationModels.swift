@@ -280,6 +280,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
     public let containsSingletonActions: Bool?
     public let completedByChildren: Bool?
     public let reviewInterval: ReviewInterval?
+    public let reviewedNow: Bool?
     public let tags: TagMutation?
 
     public init(
@@ -295,6 +296,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         containsSingletonActions: Bool? = nil,
         completedByChildren: Bool? = nil,
         reviewInterval: ReviewInterval? = nil,
+        reviewedNow: Bool? = nil,
         tags: TagMutation? = nil
     ) {
         self.name = name
@@ -309,6 +311,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         self.containsSingletonActions = containsSingletonActions
         self.completedByChildren = completedByChildren
         self.reviewInterval = reviewInterval
+        self.reviewedNow = reviewedNow
         self.tags = tags
     }
 
@@ -325,6 +328,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         case containsSingletonActions
         case completedByChildren
         case reviewInterval
+        case reviewedNow
         case tags
     }
 
@@ -342,6 +346,7 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         containsSingletonActions = try container.decodeIfPresent(Bool.self, forKey: .containsSingletonActions)
         completedByChildren = try container.decodeIfPresent(Bool.self, forKey: .completedByChildren)
         reviewInterval = try container.decodeIfPresent(ReviewInterval.self, forKey: .reviewInterval)
+        reviewedNow = try container.decodeIfPresent(Bool.self, forKey: .reviewedNow)
         tags = try container.decodeIfPresent(TagMutation.self, forKey: .tags)
     }
 
@@ -358,10 +363,23 @@ public struct ProjectPatchMutation: Codable, Sendable, Equatable {
         containsSingletonActions == nil &&
         completedByChildren == nil &&
         reviewInterval == nil &&
+        reviewedNow == nil &&
         tags == nil
     }
 
     public func validate() throws {
+        if let reviewedNow {
+            guard reviewedNow else {
+                throw MutationValidationError("reviewedNow only accepts true.")
+            }
+            let hasOtherField = name != nil || note != nil || noteAppend != nil || flagged != nil ||
+                dueDate != nil || clearDueDate || deferDate != nil || clearDeferDate ||
+                sequential != nil || containsSingletonActions != nil || completedByChildren != nil ||
+                reviewInterval != nil || tags != nil
+            if hasOtherField {
+                throw MutationValidationError("reviewedNow must be the only projectPatch field.")
+            }
+        }
         if containsSingletonActions != nil {
             throw MutationValidationError("containsSingletonActions updates are not supported yet; see the edit-surface consolidation roadmap item.")
         }

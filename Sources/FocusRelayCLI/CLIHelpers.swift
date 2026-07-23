@@ -250,6 +250,9 @@ struct ProjectPatchOptions: ParsableArguments {
     @Option(name: .customLong("review-unit"), help: "Set review interval unit: days, weeks, months, years.")
     var reviewUnit: String? = nil
 
+    @Flag(name: .customLong("reviewed-now"), help: "Mark active or on-hold projects reviewed now. Must be the only update field.")
+    var reviewedNow: Bool = false
+
     func makeProjectPatchMutation() throws -> ProjectPatchMutation {
         let reviewInterval: ReviewInterval?
         switch (reviewSteps, reviewUnit) {
@@ -271,7 +274,8 @@ struct ProjectPatchOptions: ParsableArguments {
             deferDate: try ISO8601DateParser.parseOptional(deferDate, argumentName: "--defer-date"),
             clearDeferDate: clearDeferDate,
             sequential: sequential,
-            reviewInterval: reviewInterval
+            reviewInterval: reviewInterval,
+            reviewedNow: reviewedNow ? true : nil
         )
         try patch.validate()
         return patch

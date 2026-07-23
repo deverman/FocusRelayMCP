@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Active and on-hold projects can be marked reviewed through
+  `projectPatch.reviewedNow=true`; FocusRelay preflights the complete batch,
+  preserves review intervals, uses one request-level timestamp, and verifies the
+  OmniFocus-generated next review date.
 - Task dropping and restoration through `edit_tasks` / `edit-tasks` operation
   `set_status`, including explicit repeating occurrence/series scope, preview,
   verified `taskStatus` and `dropDate` readback, and all-or-nothing preflight.
