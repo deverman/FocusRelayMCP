@@ -1,7 +1,9 @@
 # MCP Workflow Prompt Research
 
-Date: 2026-07-23  
-Issue: [#94](https://github.com/deverman/FocusRelayMCP/issues/94)  
+Date: 2026-07-23
+
+Issue: [#94](https://github.com/deverman/FocusRelayMCP/issues/94)
+
 Validation impact: `docs`
 
 ## Acceptance Journey
@@ -84,8 +86,10 @@ exchange, prompt requests, and visible UI behavior during live testing.
 
 ## Prototype Contract
 
-Working prompt name: `process_inbox`  
-Arguments: none for the first comparison  
+Working prompt name: `process_inbox`
+
+Arguments: none for the first comparison
+
 `prompts/get` payload: one user message containing workflow instructions only
 
 The instruction-first variant should tell the model to:
