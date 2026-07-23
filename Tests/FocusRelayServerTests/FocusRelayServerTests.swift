@@ -260,6 +260,7 @@ func editToolSchemasRequireExactlyOneMatchingPayload() throws {
     ]
     let taskSchema = FocusRelayServer.makeTaskEditSchema(properties: common.merging([
         "taskPatch": .object(["type": .string("object")]),
+        "taskStatus": .object(["type": .string("object")]),
         "completion": .object(["type": .string("object")]),
         "move": .object(["type": .string("object")])
     ]) { _, new in new })
@@ -274,6 +275,7 @@ func editToolSchemasRequireExactlyOneMatchingPayload() throws {
         taskSchema,
         operationPayloads: [
             "update": "taskPatch",
+            "set_status": "taskStatus",
             "set_completion": "completion",
             "move": "move"
         ]
@@ -298,6 +300,17 @@ func taskEditWireArgumentsDispatchEveryOperation() throws {
     ])
     #expect(update.operation.kind == .updateTasks)
     #expect(update.operation.taskPatch?.flagged == true)
+
+    let status = try FocusRelayServer.decodeTaskEditRequest(from: [
+        "operation": .string("set_status"),
+        "targetIDs": .array([.string("task-1")]),
+        "taskStatus": .object([
+            "status": .string("dropped"),
+            "recurrenceScope": .string("series")
+        ])
+    ])
+    #expect(status.operation.kind == .setTasksStatus)
+    #expect(status.operation.taskStatus == TaskStatusMutation(status: .dropped, recurrenceScope: .series))
 
     let completion = try FocusRelayServer.decodeTaskEditRequest(from: [
         "operation": .string("set_completion"),
@@ -375,16 +388,13 @@ func editWireArgumentsRejectMissingMismatchedAndContradictoryPayloads() {
 }
 
 @Test
-func taskEditRejectsStatusInsteadOfTreatingDropAsCompletion() {
-    do {
-        _ = try FocusRelayServer.decodeTaskEditRequest(from: [
+func taskEditStatusRequiresTaskStatusPayload() {
+    #expect(throws: MutationValidationError.self) {
+        try FocusRelayServer.decodeTaskEditRequest(from: [
             "operation": .string("set_status"),
             "targetIDs": .array([.string("task-1")]),
             "projectStatus": .object(["status": .string("dropped")])
         ])
-        Issue.record("Expected task set_status to be rejected")
-    } catch {
-        #expect(error.localizedDescription.contains("Task dropping is not supported"))
     }
 }
 

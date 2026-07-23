@@ -41,7 +41,7 @@ The current source build can:
   review intervals;
 - mark active and on-hold projects reviewed using OmniFocus's native review
   timestamp and next-review semantics;
-- complete, reactivate, and move existing tasks;
+- drop, restore, complete, reactivate, and move existing tasks;
 - complete, reactivate, change status, and move existing projects;
 - preview a proposed change and verify the saved result.
 

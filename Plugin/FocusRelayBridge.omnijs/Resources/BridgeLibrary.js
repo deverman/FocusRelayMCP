@@ -107,6 +107,7 @@
       const dueDate = hasField("dueDate") ? safe(() => t.dueDate) : null;
       const plannedDate = hasField("plannedDate") ? safe(() => t.plannedDate) : null;
       const deferDate = hasField("deferDate") ? safe(() => t.deferDate) : null;
+      const dropDate = hasField("dropDate") ? safe(() => t.dropDate) : null;
 
       return {
         id: hasField("id") ? String(safe(() => t.id.primaryKey) || "") : null,
@@ -120,6 +121,8 @@
         plannedDate: hasField("plannedDate") && plannedDate ? plannedDate.toISOString() : null,
         deferDate: hasField("deferDate") && deferDate ? deferDate.toISOString() : null,
         completionDate: hasField("completionDate") ? (safe(() => t.completionDate) ? t.completionDate.toISOString() : null) : null,
+        dropDate: hasField("dropDate") && dropDate ? dropDate.toISOString() : null,
+        taskStatus: hasField("taskStatus") ? normalizedTaskLifecycleStatus(t) : null,
         completed: hasField("completed") ? isCompletedStatus(t) : null,
         flagged: hasField("flagged") ? Boolean(t.flagged) : null,
         effectiveFlagged: hasField("effectiveFlagged") ? isTaskEffectivelyFlagged(t) : null,
@@ -193,7 +196,7 @@
     }
 
     function mutationEnvelope(targetType, operationKind, mutation, ids, results, previewOnlyOverride) {
-      const successCount = results.filter(result => result.status === "previewed" || result.status === "mutated").length;
+      const successCount = results.filter(result => result.status === "previewed" || result.status === "mutated" || result.status === "unchanged").length;
       return {
         targetType: targetType,
         operationKind: operationKind,
@@ -310,6 +313,21 @@
           } catch (error) {
             results.push(stageFailure(id, "preview validation", error));
           }
+          return;
+        }
+
+        if (options.isNoOp && options.isNoOp(target, id)) {
+          const unchanged = {
+            id: id,
+            status: "unchanged",
+            message: options.unchangedMessage ? options.unchangedMessage(target, id) : "Target already satisfies the requested state."
+          };
+          try {
+            unchanged.returnedFields = options.returnedFields(target, {}, id);
+          } catch (error) {
+            unchanged.message += " Unable to return requested fields: " + errorDetail(error);
+          }
+          results.push(unchanged);
           return;
         }
 
@@ -787,6 +805,77 @@
         return "Completion state must be either active or completed.";
       }
       return null;
+    }
+
+    function normalizedTaskLifecycleStatus(task) {
+      if (isCompletedStatus(task)) { return "completed"; }
+      if (isDroppedStatus(task)) { return "dropped"; }
+      return "active";
+    }
+
+    function validateTaskStatusMutation(taskStatusMutation) {
+      if (!taskStatusMutation || !taskStatusMutation.status) {
+        return "set_tasks_status requires a taskStatus payload.";
+      }
+      if (taskStatusMutation.status !== "active" && taskStatusMutation.status !== "dropped") {
+        return "Task status must be either active or dropped.";
+      }
+      if (taskStatusMutation.status === "active" && taskStatusMutation.recurrenceScope) {
+        return "recurrenceScope is only valid when dropping a repeating task.";
+      }
+      if (taskStatusMutation.recurrenceScope && taskStatusMutation.recurrenceScope !== "occurrence" && taskStatusMutation.recurrenceScope !== "series") {
+        return "recurrenceScope must be occurrence or series.";
+      }
+      return null;
+    }
+
+    function preflightTaskStatusMutation(ids, taskByID, taskStatusMutation) {
+      const failures = [];
+      ids.forEach(id => {
+        const task = taskByID[id];
+        if (!task) {
+          failures.push(id + ": target ID not found");
+          return;
+        }
+        if (isCompletedStatus(task)) {
+          failures.push(id + ": completed tasks must first be reopened with set_completion");
+          return;
+        }
+        const isRepeating = Boolean(safe(() => task.repetitionRule));
+        if (taskStatusMutation.status === "dropped" && isRepeating && !taskStatusMutation.recurrenceScope) {
+          failures.push(id + ": repeating tasks require recurrenceScope occurrence or series");
+        }
+        if (taskStatusMutation.status === "dropped" && !isRepeating && taskStatusMutation.recurrenceScope) {
+          failures.push(id + ": recurrenceScope is not valid for a non-repeating task");
+        }
+      });
+      if (failures.length === 0) { return null; }
+      return "Task status preflight failed: " + failures.join("; ") + ". No tasks were changed.";
+    }
+
+    function taskStatusPreviewMessage(task, taskStatusMutation) {
+      const requestedStatus = taskStatusMutation.status;
+      const currentStatus = normalizedTaskLifecycleStatus(task);
+      const descendants = toTaskArray(safe(() => task.flattenedTasks)).filter(child => !isCompletedStatus(child) && !isDroppedStatus(child)).length;
+      const descendantMessage = descendants > 0 ? " " + descendants + " descendant task(s) may change effective availability." : "";
+      if (currentStatus === requestedStatus) {
+        return "Validated target; task already has " + requestedStatus + " status and no write is needed." + descendantMessage;
+      }
+      return "Validated target for " + requestedStatus + " status preview." + descendantMessage;
+    }
+
+    function applyTaskStatus(task, taskStatusMutation) {
+      if (taskStatusMutation.status === "active") {
+        task.active = true;
+      } else {
+        task.drop(taskStatusMutation.recurrenceScope === "series");
+      }
+      return {};
+    }
+
+    function verifyTaskStatus(task, requestedStatus) {
+      const actual = normalizedTaskLifecycleStatus(task);
+      return actual === requestedStatus ? null : "task did not reach " + requestedStatus + " status.";
     }
 
     function currentTaskTagIDs(task) {
@@ -1743,6 +1832,30 @@
                   verify: project => verifyProjectMove(project, destination),
                   returnedFields: project => projectReturnedFields(project, mutation.returnFields),
                   mutatedMessage: () => verifiedMessage("Project moved to " + destination.label + ".", mutation.verify)
+                });
+                response.data = mutationEnvelope(targetType, operation.kind, mutation, ids, results);
+              }
+            }
+          } else if (operation.kind === "set_tasks_status") {
+            const statusError = validateTaskStatusMutation(operation.taskStatus);
+            if (statusError) {
+              response.data = failedMutationEnvelope(targetType, operation.kind, mutation, ids, statusError);
+            } else {
+              const taskByID = taskByIDIndex();
+              const preflightError = preflightTaskStatusMutation(ids, taskByID, operation.taskStatus);
+              if (preflightError) {
+                response.data = failedMutationEnvelope(targetType, operation.kind, mutation, ids, preflightError);
+              } else {
+                const requestedStatus = operation.taskStatus.status;
+                const results = executeTargetMutation(ids, taskByID, mutation, {
+                  saveMode: "batch",
+                  previewMessage: task => taskStatusPreviewMessage(task, operation.taskStatus),
+                  isNoOp: task => normalizedTaskLifecycleStatus(task) === requestedStatus,
+                  unchangedMessage: () => "Task already has " + requestedStatus + " status; no write was needed.",
+                  apply: task => applyTaskStatus(task, operation.taskStatus),
+                  verify: task => verifyTaskStatus(task, requestedStatus),
+                  returnedFields: task => taskReturnedFields(task, mutation.returnFields),
+                  mutatedMessage: () => verifiedMessage(requestedStatus === "dropped" ? "Task dropped." : "Task restored to active.", mutation.verify)
                 });
                 response.data = mutationEnvelope(targetType, operation.kind, mutation, ids, results);
               }

@@ -49,6 +49,7 @@ public enum FocusRelayServer {
             properties: properties,
             operationPayloads: [
                 "update": "taskPatch",
+                "set_status": "taskStatus",
                 "set_completion": "completion",
                 "move": "move"
             ]
@@ -393,12 +394,12 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "edit_tasks",
-                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_completion only for complete/reopen, and move for inbox/project/parent changes. Dropping, discarding, abandoning, or cancelling tasks is not supported and must not be treated as completion. No plannedDate writes.\n\nSet previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task.",
+                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_status with taskStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_status for dropping/restoring, set_completion only for complete/reopen, and move for inbox/project/parent changes. Never translate drop, discard, abandon, or cancel into completion. Repeating drops require an explicit occurrence or series scope. No plannedDate writes.\n\nSet previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task.",
                     inputSchema: makeTaskEditSchema(
                         properties: [
                             "operation": .object([
                                 "type": .string("string"),
-                                "enum": .array([.string("update"), .string("set_completion"), .string("move")]),
+                                "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
                                 "description": .string("Required edit operation. Include exactly one matching payload.")
                             ]),
                             "targetIDs": .object([
@@ -441,6 +442,22 @@ public enum FocusRelayServer {
                                     ])
                                 ]),
                                 "required": .array([.string("state")])
+                            ]),
+                            "taskStatus": .object([
+                                "type": .string("object"),
+                                "description": .string("Required only for operation=set_status. Use dropped to discard without completion or active to restore a dropped task."),
+                                "properties": .object([
+                                    "status": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("active"), .string("dropped")])
+                                    ]),
+                                    "recurrenceScope": .object([
+                                        "type": .string("string"),
+                                        "enum": .array([.string("occurrence"), .string("series")]),
+                                        "description": .string("Required when dropping a repeating task and forbidden otherwise.")
+                                    ])
+                                ]),
+                                "required": .array([.string("status")])
                             ]),
                             "move": .object([
                                 "type": .string("object"),
@@ -757,10 +774,7 @@ public enum FocusRelayServer {
     static func decodeTaskEditRequest(from args: [String: Value]?) throws -> MutationRequest {
         let operationName = try decodeArgument(String.self, from: args, key: "operation")
         guard let operationName else {
-            throw MutationValidationError("edit_tasks requires an operation: update, set_completion, or move.")
-        }
-        if operationName == "set_status" {
-            throw MutationValidationError("Task dropping is not supported. Do not use set_completion to drop, discard, abandon, or cancel a task.")
+            throw MutationValidationError("edit_tasks requires an operation: update, set_status, set_completion, or move.")
         }
         guard let operation = TaskEditOperation(rawValue: operationName) else {
             throw MutationValidationError("Unsupported edit_tasks operation: \(operationName).")
@@ -770,6 +784,7 @@ public enum FocusRelayServer {
             targetIDs: try decodeArgument([String].self, from: args, key: "targetIDs") ?? [],
             operation: operation,
             taskPatch: try decodeArgument(TaskPatchMutation.self, from: args, key: "taskPatch"),
+            taskStatus: try decodeArgument(TaskStatusMutation.self, from: args, key: "taskStatus"),
             completion: try decodeArgument(CompletionMutation.self, from: args, key: "completion"),
             move: try decodeArgument(MoveMutation.self, from: args, key: "move"),
             previewOnly: try decodeArgument(Bool.self, from: args, key: "previewOnly") ?? false,

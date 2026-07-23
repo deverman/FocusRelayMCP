@@ -136,6 +136,57 @@ func successMessageFailurePreservesSavedMutationStatus() throws {
 }
 
 @Test
+func alreadySatisfiedMutationSkipsApplyAndSave() throws {
+    let results = try evaluateMutationExecutor(
+        body: """
+        const target = { value: "dropped" };
+        let saveCount = 0;
+        globalThis.save = () => { saveCount += 1; };
+        const output = executeTargetMutation(["task-1"], { "task-1": target }, mutation, {
+          saveMode: "batch",
+          isNoOp: item => item.value === "dropped",
+          unchangedMessage: () => "Already dropped.",
+          apply: item => { item.value = "dropped"; return {}; },
+          verify: () => null,
+          returnedFields: item => ({ value: item.value }),
+          mutatedMessage: () => "Dropped."
+        });
+        output[0].saveCount = saveCount;
+        return output;
+        """
+    )
+
+    #expect(results[0]["status"] as? String == "unchanged")
+    #expect(results[0]["saveCount"] as? Int == 0)
+    #expect((results[0]["returnedFields"] as? [String: Any])?["value"] as? String == "dropped")
+}
+
+@Test
+func taskStatusPreflightRejectsEntireMixedBatch() throws {
+    let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
+    let preflight = try extractJavaScriptFunction(named: "preflightTaskStatusMutation", from: source)
+    let context = try #require(JSContext())
+    let script = """
+    const safe = fn => { try { return fn(); } catch (_) { return null; } };
+    const isCompletedStatus = task => task.status === "completed";
+    \(preflight)
+    preflightTaskStatusMutation(
+      ["eligible", "completed", "missing"],
+      {
+        eligible: { status: "active", repetitionRule: null },
+        completed: { status: "completed", repetitionRule: null }
+      },
+      { status: "dropped" }
+    );
+    """
+
+    let message = context.evaluateScript(script)?.toString()
+    #expect(message?.contains("completed: completed tasks must first be reopened") == true)
+    #expect(message?.contains("missing: target ID not found") == true)
+    #expect(message?.contains("No tasks were changed") == true)
+}
+
+@Test
 func reviewedNowPreflightRejectsIneligibleAndMissingProjectsTogether() throws {
     let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
     let preflight = try extractJavaScriptFunction(named: "preflightReviewedNow", from: source)

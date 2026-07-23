@@ -140,6 +140,7 @@ func consolidatedEditFactoriesPreserveSpecializedRequestShapes() throws {
     let shared = (previewOnly: true, verify: true, returnFields: ["id", "name"])
     let taskPatch = TaskPatchMutation(flagged: true)
     let completion = CompletionMutation(state: .completed)
+    let taskStatus = TaskStatusMutation(status: .dropped, recurrenceScope: .series)
     let taskMove = MoveMutation(destinationKind: .project, destinationID: "project-2", position: "ending")
     let projectPatch = ProjectPatchMutation(flagged: true)
     let projectStatus = ProjectStatusMutation(status: .onHold)
@@ -149,6 +150,10 @@ func consolidatedEditFactoriesPreserveSpecializedRequestShapes() throws {
         (
             try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .update, taskPatch: taskPatch, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
             MutationRequest(targetType: .task, targetIDs: ["task-1"], operation: MutationOperation(kind: .updateTasks, taskPatch: taskPatch), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields)
+        ),
+        (
+            try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .setStatus, taskStatus: taskStatus, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: ["id", "taskStatus", "dropDate"]),
+            MutationRequest(targetType: .task, targetIDs: ["task-1"], operation: MutationOperation(kind: .setTasksStatus, taskStatus: taskStatus), previewOnly: shared.previewOnly, verify: shared.verify, returnFields: ["id", "taskStatus", "dropDate"])
         ),
         (
             try MutationRequest.editTasks(targetIDs: ["task-1"], operation: .setCompletion, completion: completion, previewOnly: shared.previewOnly, verify: shared.verify, returnFields: shared.returnFields),
@@ -178,6 +183,17 @@ func consolidatedEditFactoriesPreserveSpecializedRequestShapes() throws {
 
     for (consolidated, specialized) in cases {
         #expect(consolidated == specialized)
+    }
+}
+
+@Test
+func taskStatusMutationRejectsRecurrenceScopeWhenRestoring() {
+    #expect(throws: MutationValidationError.self) {
+        _ = try MutationRequest.editTasks(
+            targetIDs: ["task-1"],
+            operation: .setStatus,
+            taskStatus: TaskStatusMutation(status: .active, recurrenceScope: .occurrence)
+        )
     }
 }
 

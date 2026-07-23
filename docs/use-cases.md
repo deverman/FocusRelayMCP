@@ -317,6 +317,7 @@ This document captures real-world use cases and questions users ask AI about the
 ### Current Write Capabilities
 ✅ **Working Today**:
 - Update existing task fields with `edit_tasks` operation `update`
+- Drop or restore tasks with `edit_tasks` operation `set_status`
 - Complete or uncomplete tasks with `edit_tasks` operation `set_completion`
 - Move tasks with `edit_tasks` operation `move`
 - Update existing project fields with `edit_projects` operation `update`
@@ -337,28 +338,11 @@ This document captures real-world use cases and questions users ask AI about the
 - Name-based or fuzzy mutation targeting
 - Planned-date writes
 
-## Priority Roadmap
+## Product Roadmap
 
-### Phase 1: Read And Write Foundation
-1. Date range filters (`dueBefore`, `dueAfter`, completion windows)
-2. Duration filtering (`maxEstimatedMinutes`)
-3. Tag-based filtering
-4. Completion date parity
-5. V1 mutation tools for existing tasks and projects
-
-### Phase 2: Search & Discovery (Medium Priority)
-1. Add `search_projects` tool
-2. Add `search_tags` tool
-3. Add per-project task counts
-4. Add folder discovery for project moves
-5. Add analytics endpoints
-
-### Phase 3: Creation And Advanced Writes (Future)
-1. Task creation tools
-2. Project creation tools
-3. Inbox processing automation that can create missing destinations
-4. Delete/archive tools with explicit confirmation
-5. Advanced batch workflows if a clear safe contract emerges
+Current delivery order and dependencies live only in
+[`roadmap-execution-plan.md`](roadmap-execution-plan.md). GitHub issues own the
+detailed behavior contracts and validation evidence.
 
 ## Success Metrics
 

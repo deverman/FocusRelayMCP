@@ -24,6 +24,7 @@ Minimum invariant list:
 - v1 writes target IDs only
 - `update` is field patch only
 - `set_completion` owns completion lifecycle
+- `edit_tasks` operation `set_status` owns task active/dropped transitions
 - `edit_projects` operation `set_status` owns project active/on-hold/dropped transitions
 - `move` owns structural location changes
 - successful writes invalidate cached `list_projects` and `list_tags`
@@ -57,6 +58,7 @@ Minimum categories:
 
 Add focused coverage when applicable:
 - repeating task completion
+- repeating task occurrence/series drop behavior
 - repeating project completion
 - move destination validation
 - task tag add/remove/set behavior

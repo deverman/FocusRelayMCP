@@ -29,16 +29,16 @@ Relevant reference pages:
   one matching payload.
 - `update` is for field patches only.
 - `set_completion` owns completion lifecycle transitions.
+- Task `set_status` owns active/dropped transitions and must never be translated
+  into completion.
 - Project `set_status` owns project status transitions.
 - `move` owns structural location changes.
-- Task status/drop changes are not supported until the task edit surface gains
-  a distinct status operation.
 - Successful mutations must invalidate cached `list_projects` and `list_tags` results before later reads.
 
 ## Locked V1 Public Surface
 
 ### Task tool
-- `edit_tasks`: `update`, `set_completion`, or `move`
+- `edit_tasks`: `update`, `set_status`, `set_completion`, or `move`
 
 ### Project tool
 - `edit_projects`: `update`, `set_status`, `set_completion`, or `move`
@@ -83,6 +83,8 @@ Relevant reference pages:
 ### Task lifecycle
 - `task.markComplete(date)`
 - `task.markIncomplete()`
+- `task.drop(allOccurrences)`
+- `task.active` for restoring a dropped task
 - `task.active`
 
 ### Task moves
@@ -128,6 +130,8 @@ Relevant reference pages:
 - Resolve task IDs to task objects and apply one homogeneous patch across all targets.
 - Resolve project IDs to project objects and apply one homogeneous patch across all targets.
 - Use `task.markComplete(...)` and `task.markIncomplete()` rather than synthesizing completion by direct date assignment.
+- Use `task.drop(...)` and `task.active` for drop/restore status changes; keep
+  occurrence-versus-series scope explicit for repeating tasks.
 - Use `project.markComplete(...)` and `project.markIncomplete()` rather than synthesizing completion by direct date assignment.
 - Use `project.status` for project active/on-hold/dropped transitions.
 - Mark projects reviewed by assigning one request-level current timestamp to

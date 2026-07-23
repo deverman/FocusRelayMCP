@@ -3,6 +3,8 @@ import Foundation
 import OmniFocusCore
 
 extension MutationCompletionState: ExpressibleByArgument {}
+extension MutationTaskStatus: ExpressibleByArgument {}
+extension MutationRecurrenceScope: ExpressibleByArgument {}
 extension MutationMoveDestinationKind: ExpressibleByArgument {}
 extension MutationProjectStatus: ExpressibleByArgument {}
 extension TaskEditOperation: ExpressibleByArgument {}
