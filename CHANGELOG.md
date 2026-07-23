@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Review perspective project queries now honor `statusFilter`, so active and
   on-hold review batches are disjoint while `all` includes both reviewable
   statuses and still excludes dropped/done projects.
+- List cursors are now opaque and bound to the originating query; malformed,
+  stale-version, or filter-mismatched cursors fail before Bridge dispatch.
 
 ## [0.10.1-beta] - 2026-07-19
 

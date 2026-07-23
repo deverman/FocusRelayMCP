@@ -96,6 +96,7 @@ let package = Package(
             name: "FocusRelayServerTests",
             dependencies: [
                 "FocusRelayServer",
+                "OmniFocusAutomation",
                 "FocusRelayVersion"
             ]
         ),

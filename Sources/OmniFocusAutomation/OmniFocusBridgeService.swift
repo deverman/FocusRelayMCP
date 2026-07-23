@@ -15,7 +15,12 @@ public final class OmniFocusBridgeService: OmniFocusService {
     }
 
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
-        return try await Task.detached { try self.client.listTasks(filter: filter, page: page, fields: fields) }.value
+        let queryKey = try QueryBoundCursor.queryKey(tool: "list_tasks", input: filter)
+        let bridgePage = try QueryBoundCursor.bridgePage(from: page, queryKey: queryKey)
+        let result = try await Task.detached {
+            try self.client.listTasks(filter: filter, page: bridgePage, fields: fields)
+        }.value
+        return try QueryBoundCursor.publicPage(from: result, queryKey: queryKey)
     }
 
     public func getTask(id: String, fields: [String]?) async throws -> TaskItem {
@@ -34,20 +39,35 @@ public final class OmniFocusBridgeService: OmniFocusService {
         completedAfter: Date?,
         fields: [String]?
     ) async throws -> Page<ProjectItem> {
+        let projectFilter = ProjectFilter(
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts,
+            reviewDueBefore: reviewDueBefore,
+            reviewDueAfter: reviewDueAfter,
+            reviewPerspective: reviewPerspective,
+            completed: completed,
+            completedBefore: completedBefore,
+            completedAfter: completedAfter
+        )
+        let queryKey = try QueryBoundCursor.queryKey(
+            tool: "list_projects",
+            input: projectFilter
+        )
+        let bridgePage = try QueryBoundCursor.bridgePage(from: page, queryKey: queryKey)
         let shouldBypassCache = reviewPerspective || reviewDueBefore != nil || reviewDueAfter != nil || completed != nil || completedBefore != nil || completedAfter != nil
         if !shouldBypassCache {
             let key = CacheKey.projects(
-                page: page,
+                page: bridgePage,
                 fields: fields,
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts
             )
             if let cached = await cache.getProjects(key: key) {
-                return cached
+                return try QueryBoundCursor.publicPage(from: cached, queryKey: queryKey)
             }
             let pageResult = try await Task.detached {
                 try self.client.listProjects(
-                    page: page,
+                    page: bridgePage,
                     statusFilter: statusFilter,
                     includeTaskCounts: includeTaskCounts,
                     reviewDueBefore: reviewDueBefore,
@@ -60,12 +80,12 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 )
             }.value
             await cache.setProjects(pageResult, key: key, ttl: cacheTTL)
-            return pageResult
+            return try QueryBoundCursor.publicPage(from: pageResult, queryKey: queryKey)
         }
 
-        return try await Task.detached {
+        let pageResult = try await Task.detached {
             try self.client.listProjects(
-                page: page,
+                page: bridgePage,
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts,
                 reviewDueBefore: reviewDueBefore,
@@ -77,24 +97,45 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 fields: fields
             )
         }.value
+        return try QueryBoundCursor.publicPage(from: pageResult, queryKey: queryKey)
     }
 
     public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {
+        let filter = TagFilter(
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts
+        )
+        let queryKey = try QueryBoundCursor.queryKey(tool: "list_tags", input: filter)
+        let bridgePage = try QueryBoundCursor.bridgePage(from: page, queryKey: queryKey)
         let key = CacheKey.tags(
-            page: page,
+            page: bridgePage,
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts
         )
         if let cached = await cache.getTags(key: key) {
-            return cached
+            return try QueryBoundCursor.publicPage(from: cached, queryKey: queryKey)
         }
-        let pageResult = try await Task.detached { try self.client.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts) }.value
+        let pageResult = try await Task.detached {
+            try self.client.listTags(
+                page: bridgePage,
+                statusFilter: statusFilter,
+                includeTaskCounts: includeTaskCounts
+            )
+        }.value
         await cache.setTags(pageResult, key: key, ttl: cacheTTL)
-        return pageResult
+        return try QueryBoundCursor.publicPage(from: pageResult, queryKey: queryKey)
     }
 
     public func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {
-        return try await Task.detached { try self.client.listFolders(page: page, fields: fields) }.value
+        let queryKey = try QueryBoundCursor.queryKey(
+            tool: "list_folders",
+            input: "stable-folder-order-v1"
+        )
+        let bridgePage = try QueryBoundCursor.bridgePage(from: page, queryKey: queryKey)
+        let result = try await Task.detached {
+            try self.client.listFolders(page: bridgePage, fields: fields)
+        }.value
+        return try QueryBoundCursor.publicPage(from: result, queryKey: queryKey)
     }
 
     public func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts {
