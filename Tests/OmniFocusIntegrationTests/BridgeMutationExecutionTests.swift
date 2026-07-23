@@ -135,6 +135,69 @@ func successMessageFailurePreservesSavedMutationStatus() throws {
     #expect((results[0]["returnedFields"] as? [String: Any])?["value"] as? Int == 1)
 }
 
+@Test
+func reviewedNowPreflightRejectsIneligibleAndMissingProjectsTogether() throws {
+    let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
+    let preflight = try extractJavaScriptFunction(named: "preflightReviewedNow", from: source)
+    let context = try #require(JSContext())
+    let script = """
+    const projectStatusString = project => project.status;
+    const reviewIntervalSnapshot = project => project.reviewInterval || null;
+    \(preflight)
+    preflightReviewedNow(
+      ["active", "done", "missing", "no-interval"],
+      {
+        active: { status: "active", reviewInterval: { steps: 1, unit: "weeks" } },
+        done: { status: "done", reviewInterval: { steps: 1, unit: "weeks" } },
+        "no-interval": { status: "onHold", reviewInterval: null }
+      }
+    );
+    """
+
+    let message = context.evaluateScript(script)?.toString()
+    #expect(message?.contains("done: project status done is not eligible") == true)
+    #expect(message?.contains("missing: target ID not found") == true)
+    #expect(message?.contains("no-interval: project has no usable review interval") == true)
+    #expect(message?.contains("No projects were changed") == true)
+}
+
+@Test
+func reviewedNowUsesOneTimestampAndPreservesIntervals() throws {
+    let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
+    let intervalSnapshot = try extractJavaScriptFunction(named: "reviewIntervalSnapshot", from: source)
+    let apply = try extractJavaScriptFunction(named: "applyReviewedNow", from: source)
+    let verify = try extractJavaScriptFunction(named: "verifyReviewedNow", from: source)
+    let context = try #require(JSContext())
+    let script = """
+    const safe = fn => { try { return fn(); } catch (_) { return null; } };
+    \(intervalSnapshot)
+    \(apply)
+    \(verify)
+    const reviewedAt = new Date("2026-07-23T01:02:03.456Z");
+    const first = { reviewInterval: { steps: 1, unit: "weeks" }, lastReviewDate: null, nextReviewDate: null };
+    const second = { reviewInterval: { steps: 2, unit: "months" }, lastReviewDate: null, nextReviewDate: null };
+    const firstContext = applyReviewedNow(first, reviewedAt);
+    const secondContext = applyReviewedNow(second, reviewedAt);
+    first.nextReviewDate = new Date("2026-07-30T01:02:03.456Z");
+    second.nextReviewDate = new Date("2026-09-23T01:02:03.456Z");
+    JSON.stringify({
+      sameTimestamp: first.lastReviewDate.getTime() === second.lastReviewDate.getTime(),
+      firstVerified: verifyReviewedNow(first, firstContext),
+      secondVerified: verifyReviewedNow(second, secondContext),
+      firstInterval: first.reviewInterval,
+      secondInterval: second.reviewInterval
+    });
+    """
+
+    let json = try #require(context.evaluateScript(script)?.toString())
+    let result = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+    #expect(result["sameTimestamp"] as? Bool == true)
+    #expect(result["firstVerified"] is NSNull)
+    #expect(result["secondVerified"] is NSNull)
+    #expect((result["firstInterval"] as? [String: Any])?["steps"] as? Int == 1)
+    #expect((result["secondInterval"] as? [String: Any])?["steps"] as? Int == 2)
+}
+
 private func evaluateMutationExecutor(body: String) throws -> [[String: Any]] {
     let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
     let safe = try extractJavaScriptFunction(named: "safe", from: source)

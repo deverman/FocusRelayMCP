@@ -45,13 +45,29 @@ func everySupportedSparseProjectFieldDecodes() throws {
         #"{"deferDate":"2026-07-15T09:00:00Z"}"#,
         #"{"clearDeferDate":true}"#,
         #"{"sequential":true}"#,
-        #"{"reviewInterval":{"steps":1,"unit":"weeks"}}"#
+        #"{"reviewInterval":{"steps":1,"unit":"weeks"}}"#,
+        #"{"reviewedNow":true}"#
     ]
 
     for patch in patches {
         let decoded = try decodeMutation(ProjectPatchMutation.self, from: patch)
         #expect(!decoded.isEmpty)
         try decoded.validate()
+    }
+}
+
+@Test
+func reviewedNowRejectsFalseAndMixedProjectPatches() {
+    let patches = [
+        ProjectPatchMutation(reviewedNow: false),
+        ProjectPatchMutation(flagged: true, reviewedNow: true),
+        ProjectPatchMutation(reviewInterval: ReviewInterval(steps: 1, unit: "weeks"), reviewedNow: true)
+    ]
+
+    for patch in patches {
+        #expect(throws: MutationValidationError.self) {
+            try patch.validate()
+        }
     }
 }
 
