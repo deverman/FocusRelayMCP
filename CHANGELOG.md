@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bulk task and project mutations now preflight every target before applying or
   saving, so one unknown target fails the whole request without changing valid
   targets.
+- MCP tool calls now reject unknown top-level and nested arguments before
+  dispatch instead of silently turning malformed filters into plausible
+  unfiltered queries.
 
 ## [0.10.1-beta] - 2026-07-19
 

@@ -233,7 +233,7 @@ public enum FocusRelayServer {
         }
         let service: OmniFocusService = bridgeService
 
-        await server.withMethodHandler(ListTools.self) { _ in
+        func makeTools() -> [Tool] {
             let tools = [
                 Tool(
                     name: "list_tasks",
@@ -636,7 +636,12 @@ public enum FocusRelayServer {
                 "Mutation tool annotations must truthfully describe write risk."
             )
 
-            return .init(tools: tools)
+            return tools
+        }
+
+        let tools = makeTools()
+        await server.withMethodHandler(ListTools.self) { _ in
+            .init(tools: tools)
         }
 
         await server.withMethodHandler(CallTool.self) { params in
@@ -647,9 +652,14 @@ public enum FocusRelayServer {
                     logger.info("Tool \(params.name) completed in \(String(format: "%.3f", elapsed))s")
                 }
 
-                guard publicToolNames.contains(params.name) else {
+                guard let tool = tools.first(where: { $0.name == params.name }) else {
                     return .init(content: [.text(text: "Unknown tool: \(params.name)", annotations: nil, _meta: nil)], isError: true)
                 }
+                try validateToolArguments(
+                    toolName: params.name,
+                    arguments: params.arguments ?? [:],
+                    schema: tool.inputSchema
+                )
 
                 switch params.name {
                 case "list_tasks":
@@ -771,6 +781,63 @@ public enum FocusRelayServer {
         return try decoder.decode(T.self, from: data)
     }
 
+    static func validateToolArguments(
+        toolName: String,
+        arguments: [String: Value],
+        schema: Value
+    ) throws {
+        try validateClosedProperties(
+            value: .object(arguments),
+            schema: schema,
+            path: toolName
+        )
+    }
+
+    private static func validateClosedProperties(
+        value: Value,
+        schema: Value,
+        path: String
+    ) throws {
+        guard case let .object(schemaObject) = schema else { return }
+
+        if case let .object(properties)? = schemaObject["properties"],
+           case let .object(arguments) = value {
+            if schemaObject["additionalProperties"] == .bool(false),
+               let unknownKey = arguments.keys
+                .filter({ properties[$0] == nil })
+                .sorted()
+                .first {
+                let argumentPath = "\(path).\(unknownKey)"
+                if path == "list_tasks", unknownKey == "search" {
+                    throw MutationValidationError(
+                        "\(argumentPath) is unsupported; use list_tasks.filter.search."
+                    )
+                }
+                throw MutationValidationError("\(argumentPath) is unsupported.")
+            }
+
+            for (key, argument) in arguments {
+                guard let propertySchema = properties[key] else { continue }
+                try validateClosedProperties(
+                    value: argument,
+                    schema: propertySchema,
+                    path: "\(path).\(key)"
+                )
+            }
+        }
+
+        if case let .array(items) = value,
+           let itemSchema = schemaObject["items"] {
+            for (index, item) in items.enumerated() {
+                try validateClosedProperties(
+                    value: item,
+                    schema: itemSchema,
+                    path: "\(path)[\(index)]"
+                )
+            }
+        }
+    }
+
     static func decodeTaskEditRequest(from args: [String: Value]?) throws -> MutationRequest {
         let operationName = try decodeArgument(String.self, from: args, key: "operation")
         guard let operationName else {
@@ -855,7 +922,7 @@ private func toolSchema(properties: [String: Value], required: [String] = []) ->
         schema["required"] = .array(required.map { .string($0) })
     }
 
-    return .object(schema)
+    return closingObjectSchemas(.object(schema))
 }
 
 func discriminatedToolSchema(
@@ -884,13 +951,30 @@ func discriminatedToolSchema(
         ])
     }
 
-    return .object([
+    return closingObjectSchemas(.object([
         "type": .string("object"),
         "properties": .object(properties),
         "required": .array([.string("operation"), .string("targetIDs")]),
         "additionalProperties": .bool(false),
         "oneOf": .array(alternatives)
-    ])
+    ]))
+}
+
+private func closingObjectSchemas(_ value: Value) -> Value {
+    switch value {
+    case .object(var object):
+        for (key, child) in object {
+            object[key] = closingObjectSchemas(child)
+        }
+        if object["type"] == .string("object"), object["properties"] != nil {
+            object["additionalProperties"] = .bool(false)
+        }
+        return .object(object)
+    case .array(let values):
+        return .array(values.map(closingObjectSchemas))
+    default:
+        return value
+    }
 }
 
 private func propertySchema(

@@ -238,6 +238,11 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
     let tools = try #require(result["tools"] as? [[String: Any]])
     #expect(tools.compactMap { $0["name"] as? String } == FocusRelayServer.publicToolNames)
 
+    for tool in tools {
+        let schema = try #require(tool["inputSchema"] as? [String: Any])
+        expectClosedObjectSchemas(schema)
+    }
+
     for name in FocusRelayServer.mutationToolNames {
         let tool = try #require(tools.first { $0["name"] as? String == name })
         let annotations = try #require(tool["annotations"] as? [String: Any])
@@ -250,6 +255,68 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
         #expect(schema["additionalProperties"] as? Bool == false)
         #expect((schema["oneOf"] as? [[String: Any]])?.isEmpty == false)
     }
+}
+
+@Test
+func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
+    let packageRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let executable = packageRoot.appendingPathComponent(".build/debug/focusrelay")
+
+    let process = Process()
+    let standardInput = Pipe()
+    let standardOutput = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+    process.arguments = ["-e", "alarm 10; exec @ARGV", executable.path, "serve"]
+    process.currentDirectoryURL = packageRoot
+    process.standardInput = standardInput
+    process.standardOutput = standardOutput
+    process.standardError = Pipe()
+    try process.run()
+    defer {
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+
+    let requests = [
+        #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"validation-test","version":"1"}}}"#,
+        #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
+        #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_tasks","arguments":{"search":"drop test"}}}"#,
+        #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_projects","arguments":{"search":"drop test","statusFilter":"all"}}}"#,
+        #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_tasks","arguments":{"filter":{"unexpected":true}}}}"#,
+        #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_tasks","arguments":{"page":{"offset":"50"}}}}"#,
+        #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"edit_tasks","arguments":{"operation":"set_completion","targetIDs":["real-task"],"completion":{"state":"completed","unexpected":true}}}}"#
+    ].joined(separator: "\n") + "\n"
+    try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
+
+    var responses: [Int: [String: Any]] = [:]
+    var buffered = Data()
+    while responses.count < 6 {
+        let chunk = standardOutput.fileHandleForReading.availableData
+        guard !chunk.isEmpty else {
+            Issue.record("MCP server exited before returning argument-validation responses")
+            break
+        }
+        buffered.append(chunk)
+        while let newline = buffered.firstIndex(of: 0x0A) {
+            let line = buffered[..<newline]
+            buffered.removeSubrange(...newline)
+            guard let object = try JSONSerialization.jsonObject(with: line) as? [String: Any],
+                  let id = object["id"] as? Int else {
+                continue
+            }
+            responses[id] = object
+        }
+    }
+
+    #expect(toolErrorText(responses[2]).contains("list_tasks.search is unsupported; use list_tasks.filter.search"))
+    #expect(toolErrorText(responses[3]).contains("list_projects.search is unsupported"))
+    #expect(toolErrorText(responses[4]).contains("list_tasks.filter.unexpected is unsupported"))
+    #expect(toolErrorText(responses[5]).contains("list_tasks.page.offset is unsupported"))
+    #expect(toolErrorText(responses[6]).contains("edit_tasks.completion.unexpected is unsupported"))
 }
 
 @Test
@@ -289,6 +356,32 @@ func editToolSchemasRequireExactlyOneMatchingPayload() throws {
             "move": "move"
         ]
     )
+}
+
+private func expectClosedObjectSchemas(_ schema: [String: Any]) {
+    if schema["type"] as? String == "object", schema["properties"] != nil {
+        #expect(schema["additionalProperties"] as? Bool == false)
+    }
+    if let properties = schema["properties"] as? [String: Any] {
+        for child in properties.values {
+            if let childSchema = child as? [String: Any] {
+                expectClosedObjectSchemas(childSchema)
+            }
+        }
+    }
+    if let items = schema["items"] as? [String: Any] {
+        expectClosedObjectSchemas(items)
+    }
+}
+
+private func toolErrorText(_ response: [String: Any]?) -> String {
+    guard let result = response?["result"] as? [String: Any],
+          result["isError"] as? Bool == true,
+          let content = result["content"] as? [[String: Any]],
+          let text = content.first?["text"] as? String else {
+        return ""
+    }
+    return text
 }
 
 @Test
