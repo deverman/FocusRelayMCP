@@ -317,6 +317,7 @@ This document captures real-world use cases and questions users ask AI about the
 ### Current Write Capabilities
 ✅ **Working Today**:
 - Update existing task fields with `edit_tasks` operation `update`
+- Drop or restore tasks with `edit_tasks` operation `set_status`
 - Complete or uncomplete tasks with `edit_tasks` operation `set_completion`
 - Move tasks with `edit_tasks` operation `move`
 - Update existing project fields with `edit_projects` operation `update`

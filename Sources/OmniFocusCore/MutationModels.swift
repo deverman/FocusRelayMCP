@@ -7,6 +7,7 @@ public enum MutationTargetType: String, Codable, Sendable {
 
 public enum MutationOperationKind: String, Codable, Sendable {
     case updateTasks = "update_tasks"
+    case setTasksStatus = "set_tasks_status"
     case setTasksCompletion = "set_tasks_completion"
     case moveTasks = "move_tasks"
     case updateProjects = "update_projects"
@@ -17,6 +18,7 @@ public enum MutationOperationKind: String, Codable, Sendable {
 
 public enum TaskEditOperation: String, Codable, Sendable {
     case update
+    case setStatus = "set_status"
     case setCompletion = "set_completion"
     case move
 }
@@ -31,6 +33,16 @@ public enum ProjectEditOperation: String, Codable, Sendable {
 public enum MutationCompletionState: String, Codable, Sendable {
     case active
     case completed
+}
+
+public enum MutationTaskStatus: String, Codable, Sendable {
+    case active
+    case dropped
+}
+
+public enum MutationRecurrenceScope: String, Codable, Sendable {
+    case occurrence
+    case series
 }
 
 public enum MutationProjectStatus: String, Codable, Sendable {
@@ -49,6 +61,7 @@ public enum MutationMoveDestinationKind: String, Codable, Sendable {
 public enum MutationItemStatus: String, Codable, Sendable {
     case previewed
     case mutated
+    case unchanged
     case failed
 }
 
@@ -378,6 +391,22 @@ public struct CompletionMutation: Codable, Sendable, Equatable {
     }
 }
 
+public struct TaskStatusMutation: Codable, Sendable, Equatable {
+    public let status: MutationTaskStatus
+    public let recurrenceScope: MutationRecurrenceScope?
+
+    public init(status: MutationTaskStatus, recurrenceScope: MutationRecurrenceScope? = nil) {
+        self.status = status
+        self.recurrenceScope = recurrenceScope
+    }
+
+    public func validate() throws {
+        if status == .active, recurrenceScope != nil {
+            throw MutationValidationError("recurrenceScope is only valid when dropping a repeating task.")
+        }
+    }
+}
+
 public struct ProjectStatusMutation: Codable, Sendable, Equatable {
     public let status: MutationProjectStatus
 
@@ -441,6 +470,7 @@ public struct MutationOperation: Codable, Sendable, Equatable {
     public let taskPatch: TaskPatchMutation?
     public let projectPatch: ProjectPatchMutation?
     public let completion: CompletionMutation?
+    public let taskStatus: TaskStatusMutation?
     public let projectStatus: ProjectStatusMutation?
     public let move: MoveMutation?
 
@@ -449,6 +479,7 @@ public struct MutationOperation: Codable, Sendable, Equatable {
         taskPatch: TaskPatchMutation? = nil,
         projectPatch: ProjectPatchMutation? = nil,
         completion: CompletionMutation? = nil,
+        taskStatus: TaskStatusMutation? = nil,
         projectStatus: ProjectStatusMutation? = nil,
         move: MoveMutation? = nil
     ) {
@@ -456,6 +487,7 @@ public struct MutationOperation: Codable, Sendable, Equatable {
         self.taskPatch = taskPatch
         self.projectPatch = projectPatch
         self.completion = completion
+        self.taskStatus = taskStatus
         self.projectStatus = projectStatus
         self.move = move
     }
@@ -489,31 +521,37 @@ public struct MutationRequest: Codable, Sendable, Equatable {
         targetIDs: [String],
         operation: TaskEditOperation,
         taskPatch: TaskPatchMutation? = nil,
+        taskStatus: TaskStatusMutation? = nil,
         completion: CompletionMutation? = nil,
         move: MoveMutation? = nil,
         previewOnly: Bool = false,
         verify: Bool = false,
         returnFields: [String]? = nil
     ) throws -> MutationRequest {
-        let payloads = [taskPatch != nil, completion != nil, move != nil].filter { $0 }.count
+        let payloads = [taskPatch != nil, taskStatus != nil, completion != nil, move != nil].filter { $0 }.count
         guard payloads == 1 else {
-            throw MutationValidationError("edit_tasks requires exactly one operation payload: taskPatch, completion, or move.")
+            throw MutationValidationError("edit_tasks requires exactly one operation payload: taskPatch, taskStatus, completion, or move.")
         }
 
         let mutationOperation: MutationOperation
         switch operation {
         case .update:
-            guard let taskPatch, completion == nil, move == nil else {
+            guard let taskPatch, taskStatus == nil, completion == nil, move == nil else {
                 throw MutationValidationError("edit_tasks operation update requires only taskPatch.")
             }
             mutationOperation = MutationOperation(kind: .updateTasks, taskPatch: taskPatch)
+        case .setStatus:
+            guard let taskStatus, taskPatch == nil, completion == nil, move == nil else {
+                throw MutationValidationError("edit_tasks operation set_status requires only taskStatus.")
+            }
+            mutationOperation = MutationOperation(kind: .setTasksStatus, taskStatus: taskStatus)
         case .setCompletion:
-            guard let completion, taskPatch == nil, move == nil else {
+            guard let completion, taskPatch == nil, taskStatus == nil, move == nil else {
                 throw MutationValidationError("edit_tasks operation set_completion requires only completion.")
             }
             mutationOperation = MutationOperation(kind: .setTasksCompletion, completion: completion)
         case .move:
-            guard let move, taskPatch == nil, completion == nil else {
+            guard let move, taskPatch == nil, taskStatus == nil, completion == nil else {
                 throw MutationValidationError("edit_tasks operation move requires only move.")
             }
             mutationOperation = MutationOperation(kind: .moveTasks, move: move)
@@ -600,6 +638,14 @@ public struct MutationRequest: Codable, Sendable, Equatable {
                 throw MutationValidationError("update_tasks requires a non-empty taskPatch.")
             }
             try taskPatch.validate()
+        case .setTasksStatus:
+            guard targetType == .task else {
+                throw MutationValidationError("set_tasks_status requires task targets.")
+            }
+            guard let taskStatus = operation.taskStatus else {
+                throw MutationValidationError("set_tasks_status requires a taskStatus payload.")
+            }
+            try taskStatus.validate()
         case .setTasksCompletion:
             guard targetType == .task else {
                 throw MutationValidationError("set_tasks_completion requires task targets.")
@@ -659,7 +705,7 @@ public struct MutationRequest: Codable, Sendable, Equatable {
     private static let allowedTaskReturnFields: Set<String> = [
         "id", "name", "note", "projectID", "projectName",
         "tagIDs", "tagNames", "dueDate", "plannedDate", "deferDate",
-        "completionDate", "completed", "flagged", "effectiveFlagged", "estimatedMinutes", "available"
+        "completionDate", "dropDate", "taskStatus", "completed", "flagged", "effectiveFlagged", "estimatedMinutes", "available"
     ]
 
     private static let allowedProjectReturnFields: Set<String> = [

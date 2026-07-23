@@ -16,14 +16,17 @@ and payload to every target ID.
 - Use `verify=true` when post-write readback matters.
 - Use compact `returnFields` for only the state needed next.
 - Do not combine field, lifecycle, status, or move payloads in one request.
-- Task dropping is not supported. Never translate drop, discard, abandon, or
-  cancel into task completion.
+- Use task `set_status` for drop/restore. Never translate drop, discard,
+  abandon, or cancel into task completion.
+- Repeating task drops require `recurrenceScope=occurrence` or `series`;
+  non-repeating drops reject that field as irrelevant.
 
 ## Operation Routing
 
 | Intent | Tool | Operation | Matching payload |
 | --- | --- | --- | --- |
 | Change task fields or tags | `edit_tasks` | `update` | `taskPatch` |
+| Drop or restore tasks | `edit_tasks` | `set_status` | `taskStatus` |
 | Complete or reopen tasks | `edit_tasks` | `set_completion` | `completion` |
 | Move tasks | `edit_tasks` | `move` | `move` |
 | Change project fields | `edit_projects` | `update` | `projectPatch` |
@@ -69,6 +72,9 @@ Equivalent MCP call:
 ```bash
 focusrelay edit-tasks task-1 task-2 --operation update --estimated-minutes 30 --verify --return-fields id,name,estimatedMinutes
 focusrelay edit-tasks task-1 --operation update --tag-add tag-1 --verify --return-fields id,name,tagIDs,tagNames
+focusrelay edit-tasks task-1 --operation set_status --status dropped --verify --return-fields id,name,taskStatus,dropDate,completionDate
+focusrelay edit-tasks repeating-task-1 --operation set_status --status dropped --recurrence-scope occurrence --verify --return-fields id,name,taskStatus,dropDate,completionDate
+focusrelay edit-tasks task-1 --operation set_status --status active --verify --return-fields id,name,taskStatus,dropDate,completionDate
 focusrelay edit-tasks task-1 --operation set_completion --state completed --verify --return-fields id,name,completed,completionDate
 focusrelay edit-tasks task-1 --operation set_completion --state active --verify --return-fields id,name,completed,completionDate
 focusrelay edit-tasks task-1 --operation move --destination-kind inbox --verify --return-fields id,name,projectID
@@ -88,6 +94,19 @@ focusrelay edit-projects project-1 --operation move --destination-kind folder --
 ```
 
 ## MCP Examples
+
+Drop a non-repeating task without recording completion:
+
+```json
+{
+  "operation": "set_status",
+  "targetIDs": ["task-1"],
+  "taskStatus": { "status": "dropped" },
+  "previewOnly": true,
+  "verify": true,
+  "returnFields": ["id", "name", "taskStatus", "dropDate", "completionDate"]
+}
+```
 
 Complete tasks:
 

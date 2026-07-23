@@ -97,6 +97,37 @@ func editTasksParsesAndBuildsCompletionRequest() throws {
 }
 
 @Test
+func editTasksParsesAndBuildsStatusRequest() throws {
+    let command = try EditTasks.parse([
+        "task-1",
+        "--operation", "set_status",
+        "--status", "dropped",
+        "--recurrence-scope", "occurrence",
+        "--verify",
+        "--return-fields", "id,name,taskStatus,dropDate,completionDate"
+    ])
+
+    let request = try command.makeRequest()
+    #expect(request.operation.kind == .setTasksStatus)
+    #expect(request.operation.taskStatus == TaskStatusMutation(status: .dropped, recurrenceScope: .occurrence))
+    #expect(command.verify)
+}
+
+@Test
+func editTasksRejectsRecurrenceScopeWithoutStatus() throws {
+    let command = try EditTasks.parse([
+        "task-1",
+        "--operation", "set_completion",
+        "--state", "completed",
+        "--recurrence-scope", "series"
+    ])
+
+    #expect(throws: Error.self) {
+        _ = try command.makeRequest()
+    }
+}
+
+@Test
 func editTasksParsesAndBuildsMoveRequest() throws {
     let command = try EditTasks.parse([
         "task-1",

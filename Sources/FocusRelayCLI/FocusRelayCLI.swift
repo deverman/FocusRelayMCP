@@ -232,20 +232,26 @@ struct ListFolders: AsyncParsableCommand {
 struct EditTasks: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "edit-tasks",
-        abstract: "Update, complete/reopen, or move existing tasks by ID.",
+        abstract: "Update, drop/restore, complete/reopen, or move existing tasks by ID.",
         aliases: ["edit_tasks"]
     )
 
     @Argument(help: "Task IDs to edit.")
     var ids: [String] = []
 
-    @Option(help: "Operation: update, set_completion, or move.")
+    @Option(help: "Operation: update, set_status, set_completion, or move.")
     var operation: TaskEditOperation
 
     @OptionGroup var patch: TaskPatchOptions
 
     @Option(help: "Completion state for set_completion: active or completed.")
     var state: MutationCompletionState?
+
+    @Option(help: "Task status for set_status: active or dropped.")
+    var status: MutationTaskStatus?
+
+    @Option(name: .customLong("recurrence-scope"), help: "Repeating drop scope: occurrence or series.")
+    var recurrenceScope: MutationRecurrenceScope?
 
     @Option(help: "Destination kind for move: inbox, project, or parent_task.")
     var destinationKind: MutationMoveDestinationKind?
@@ -267,6 +273,9 @@ struct EditTasks: AsyncParsableCommand {
 
     func makeRequest() throws -> MutationRequest {
         let taskPatch = try patch.makeTaskPatchMutation()
+        if recurrenceScope != nil, status == nil {
+            throw ValidationError("--recurrence-scope requires --status dropped.")
+        }
         let hasMovePayload = destinationKind != nil || destinationID != nil || position != nil
         let move: MoveMutation?
         if hasMovePayload {
@@ -282,6 +291,7 @@ struct EditTasks: AsyncParsableCommand {
             targetIDs: ids,
             operation: operation,
             taskPatch: taskPatch.isEmpty ? nil : taskPatch,
+            taskStatus: status.map { TaskStatusMutation(status: $0, recurrenceScope: recurrenceScope) },
             completion: state.map(CompletionMutation.init(state:)),
             move: move,
             previewOnly: previewOnly,
