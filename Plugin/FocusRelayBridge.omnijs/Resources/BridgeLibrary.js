@@ -604,6 +604,10 @@
       return { steps: steps, unit: unit };
     }
 
+    function reviewTimestampForNow(now) {
+      return Calendar.current.startOfDay(now);
+    }
+
     function preflightReviewedNow(ids, projectByID) {
       const failures = [];
       ids.forEach(id => {
@@ -1631,7 +1635,7 @@
               if (preflightError) {
                 response.data = failedMutationEnvelope(targetType, operation.kind, mutation, ids, preflightError);
               } else {
-                const reviewedAt = new Date();
+                const reviewedAt = reviewTimestampForNow(new Date());
                 const results = executeTargetMutation(ids, projectByID, mutation, {
                   saveMode: "batch",
                   previewMessage: () => "Validated eligible project for reviewedNow preview.",

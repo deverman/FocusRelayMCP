@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Active and on-hold projects can be marked reviewed through
+  `projectPatch.reviewedNow=true`; FocusRelay preflights the complete batch,
+  preserves review intervals, uses one local-day timestamp, and verifies the
+  OmniFocus-generated next review date.
+
 ### Changed
 
 - **Breaking:** Seven task and project mutation tools and CLI commands were

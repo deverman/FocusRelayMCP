@@ -165,15 +165,23 @@ func reviewedNowPreflightRejectsIneligibleAndMissingProjectsTogether() throws {
 func reviewedNowUsesOneTimestampAndPreservesIntervals() throws {
     let source = try String(contentsOf: bridgeLibraryURL, encoding: .utf8)
     let intervalSnapshot = try extractJavaScriptFunction(named: "reviewIntervalSnapshot", from: source)
+    let timestamp = try extractJavaScriptFunction(named: "reviewTimestampForNow", from: source)
     let apply = try extractJavaScriptFunction(named: "applyReviewedNow", from: source)
     let verify = try extractJavaScriptFunction(named: "verifyReviewedNow", from: source)
     let context = try #require(JSContext())
     let script = """
     const safe = fn => { try { return fn(); } catch (_) { return null; } };
+    const Calendar = {
+      current: {
+        startOfDay: date => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      }
+    };
     \(intervalSnapshot)
+    \(timestamp)
     \(apply)
     \(verify)
-    const reviewedAt = new Date("2026-07-23T01:02:03.456Z");
+    const now = new Date(2026, 6, 23, 9, 2, 3, 456);
+    const reviewedAt = reviewTimestampForNow(now);
     const first = { reviewInterval: { steps: 1, unit: "weeks" }, lastReviewDate: null, nextReviewDate: null };
     const second = { reviewInterval: { steps: 2, unit: "months" }, lastReviewDate: null, nextReviewDate: null };
     const firstContext = applyReviewedNow(first, reviewedAt);
@@ -182,6 +190,10 @@ func reviewedNowUsesOneTimestampAndPreservesIntervals() throws {
     second.nextReviewDate = new Date("2026-09-23T01:02:03.456Z");
     JSON.stringify({
       sameTimestamp: first.lastReviewDate.getTime() === second.lastReviewDate.getTime(),
+      localMidnight: first.lastReviewDate.getHours() === 0 &&
+        first.lastReviewDate.getMinutes() === 0 &&
+        first.lastReviewDate.getSeconds() === 0 &&
+        first.lastReviewDate.getMilliseconds() === 0,
       firstVerified: verifyReviewedNow(first, firstContext),
       secondVerified: verifyReviewedNow(second, secondContext),
       firstInterval: first.reviewInterval,
@@ -192,6 +204,7 @@ func reviewedNowUsesOneTimestampAndPreservesIntervals() throws {
     let json = try #require(context.evaluateScript(script)?.toString())
     let result = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
     #expect(result["sameTimestamp"] as? Bool == true)
+    #expect(result["localMidnight"] as? Bool == true)
     #expect(result["firstVerified"] is NSNull)
     #expect(result["secondVerified"] is NSNull)
     #expect((result["firstInterval"] as? [String: Any])?["steps"] as? Int == 1)

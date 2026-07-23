@@ -112,6 +112,8 @@ Relevant reference pages:
 - `project.status`
 - `project.markComplete(date)`
 - `project.markIncomplete()`
+- `project.lastReviewDate`, assigned to `Calendar.current.startOfDay(now)` for
+  active or on-hold projects after complete-batch eligibility preflight
 
 ### Project moves
 - `moveSections(sections, position)`
@@ -128,6 +130,9 @@ Relevant reference pages:
 - Use `task.markComplete(...)` and `task.markIncomplete()` rather than synthesizing completion by direct date assignment.
 - Use `project.markComplete(...)` and `project.markIncomplete()` rather than synthesizing completion by direct date assignment.
 - Use `project.status` for project active/on-hold/dropped transitions.
+- Mark projects reviewed by assigning one request-level local-day timestamp to
+  `project.lastReviewDate`; preserve `reviewInterval` and verify OmniFocus's
+  resulting `nextReviewDate` rather than calculating it independently.
 - Use `moveTasks(...)` and `moveSections(...)` for structural moves instead of delete/recreate flows.
 - Hide project root-task implementation details behind project-oriented public inputs and outputs.
 
@@ -139,7 +144,6 @@ Relevant reference pages:
 - Attachment or file-link mutation
 - Notification mutation
 - Repetition-rule mutation
-- Project review date direct mutation using undocumented surfaces
 - Tag reordering as part of the `update` operation
 - Placement controls beyond documented move destinations unless a later issue validates a concrete use case
 - `plannedDate` writes
@@ -154,6 +158,16 @@ Relevant reference pages:
 ### Project root-task details
 - Omni Automation documents that many “task-like” project properties are ultimately held on the project’s root task.
 - FocusRelay may use that documented implementation detail internally, but the public tool surface should remain project-shaped.
+
+### Project review semantics
+- `reviewedNow=true` is accepted only as the sole project patch field and only
+  for active or on-hold projects with a usable review interval.
+- Every target is preflighted before any write so mixed eligible/ineligible
+  batches fail without partial mutation.
+- Use `Calendar.current.startOfDay(new Date())`, matching OmniFocus's native
+  day-based Mark Reviewed behavior; do not persist an arbitrary clock time.
+- One request timestamp applies to the whole batch. Verification requires the
+  saved date, unchanged interval, and an OmniFocus-generated next review date.
 
 ### Planned date writes
 - The task docs currently describe `plannedDate` with mixed signals about setter support and migration requirements.

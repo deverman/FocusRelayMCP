@@ -27,6 +27,7 @@ and payload to every target ID.
 | Complete or reopen tasks | `edit_tasks` | `set_completion` | `completion` |
 | Move tasks | `edit_tasks` | `move` | `move` |
 | Change project fields | `edit_projects` | `update` | `projectPatch` |
+| Mark active or on-hold projects reviewed | `edit_projects` | `update` | `projectPatch.reviewedNow=true` |
 | Activate, hold, or drop projects | `edit_projects` | `set_status` | `projectStatus` |
 | Complete or reopen projects | `edit_projects` | `set_completion` | `completion` |
 | Move projects | `edit_projects` | `move` | `move` |
@@ -79,6 +80,8 @@ focusrelay edit-tasks task-1 --operation move --destination-kind project --desti
 
 ```bash
 focusrelay edit-projects project-1 --operation update --sequential true --verify --return-fields id,name
+focusrelay edit-projects project-1 --operation update --reviewed-now --preview-only --return-fields id,name,status,lastReviewDate,nextReviewDate,reviewInterval
+focusrelay edit-projects project-1 --operation update --reviewed-now --verify --return-fields id,name,status,lastReviewDate,nextReviewDate,reviewInterval
 focusrelay edit-projects project-1 --operation set_status --status on_hold --verify --return-fields id,name,status
 focusrelay edit-projects project-1 --operation set_status --status dropped --verify --return-fields id,name,status
 focusrelay edit-projects project-1 --operation set_completion --state completed --verify --return-fields id,name,status,completionDate
@@ -127,6 +130,22 @@ Put a project on hold:
   "returnFields": ["id", "name", "status"]
 }
 ```
+
+Mark an active or on-hold project reviewed:
+
+```json
+{
+  "operation": "update",
+  "targetIDs": ["project-1"],
+  "projectPatch": { "reviewedNow": true },
+  "verify": true,
+  "returnFields": ["id", "name", "status", "lastReviewDate", "nextReviewDate", "reviewInterval"]
+}
+```
+
+`reviewedNow` must be the only project patch field. FocusRelay preflights the
+whole batch, uses one local-day review timestamp, preserves each review
+interval, and lets OmniFocus calculate each next review date.
 
 Move a project to a folder:
 

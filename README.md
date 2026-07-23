@@ -39,6 +39,8 @@ The current source build can:
 - review projects, folders, tags, task counts, and stalled work;
 - update names, notes, flags, dates, estimates, tags, project settings, and
   review intervals;
+- mark active and on-hold projects reviewed using OmniFocus's native review-day
+  and next-review semantics;
 - complete, reactivate, and move existing tasks;
 - complete, reactivate, change status, and move existing projects;
 - preview a proposed change and verify the saved result.
