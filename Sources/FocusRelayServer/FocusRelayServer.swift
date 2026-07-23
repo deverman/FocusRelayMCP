@@ -246,7 +246,7 @@ public enum FocusRelayServer {
                                 "type": .string("object"),
                                 "properties": .object([
                                     "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": .object(["type": .string("string")])
+                                    "cursor": paginationCursorSchema()
                                 ])
                             ]),
                             "fields": .object([
@@ -287,7 +287,7 @@ public enum FocusRelayServer {
                                 "type": .string("object"),
                                 "properties": .object([
                                     "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": .object(["type": .string("string")])
+                                    "cursor": paginationCursorSchema()
                                 ])
                             ]),
                             "statusFilter": .object([
@@ -354,7 +354,7 @@ public enum FocusRelayServer {
                                 "type": .string("object"),
                                 "properties": .object([
                                     "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": .object(["type": .string("string")])
+                                    "cursor": paginationCursorSchema()
                                 ])
                             ]),
                             "statusFilter": .object([
@@ -381,7 +381,7 @@ public enum FocusRelayServer {
                                 "type": .string("object"),
                                 "properties": .object([
                                     "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": .object(["type": .string("string")])
+                                    "cursor": paginationCursorSchema()
                                 ])
                             ]),
                             "fields": .object([
@@ -995,6 +995,13 @@ private func propertySchema(
         schema["default"] = defaultValue
     }
     return .object(schema)
+}
+
+private func paginationCursorSchema() -> Value {
+    propertySchema(
+        type: "string",
+        description: "Opaque cursor for the identical query. If membership filters change, omit the cursor and restart from page one."
+    )
 }
 
 private func dateFilterSchema(_ description: String, example: Value) -> Value {

@@ -3,6 +3,7 @@ import Testing
 @testable import FocusRelayServer
 import FocusRelayVersion
 import MCP
+@testable import OmniFocusAutomation
 import OmniFocusCore
 
 @Test
@@ -281,6 +282,21 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         }
     }
 
+    let reviewQueryKey = try QueryBoundCursor.queryKey(
+        tool: "list_projects",
+        input: ProjectFilter(statusFilter: "active", reviewPerspective: true)
+    )
+    let reviewCursor = try #require(
+        QueryBoundCursor.publicPage(
+            from: Page<ProjectItem>(
+                items: [],
+                nextCursor: "100",
+                returnedCount: 100
+            ),
+            queryKey: reviewQueryKey
+        ).nextCursor
+    )
+
     let requests = [
         #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"validation-test","version":"1"}}}"#,
         #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
@@ -288,13 +304,15 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_projects","arguments":{"search":"drop test","statusFilter":"all"}}}"#,
         #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_tasks","arguments":{"filter":{"unexpected":true}}}}"#,
         #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_tasks","arguments":{"page":{"offset":"50"}}}}"#,
-        #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"edit_tasks","arguments":{"operation":"set_completion","targetIDs":["real-task"],"completion":{"state":"completed","unexpected":true}}}}"#
+        #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"edit_tasks","arguments":{"operation":"set_completion","targetIDs":["real-task"],"completion":{"state":"completed","unexpected":true}}}}"#,
+        #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"list_projects","arguments":{"statusFilter":"active","page":{"cursor":"100"}}}}"#,
+        #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"list_projects","arguments":{"statusFilter":"active","reviewPerspective":false,"page":{"cursor":"\#(reviewCursor)"}}}}"#
     ].joined(separator: "\n") + "\n"
     try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
 
     var responses: [Int: [String: Any]] = [:]
     var buffered = Data()
-    while responses.count < 6 {
+    while responses.count < 8 {
         let chunk = standardOutput.fileHandleForReading.availableData
         guard !chunk.isEmpty else {
             Issue.record("MCP server exited before returning argument-validation responses")
@@ -317,6 +335,8 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
     #expect(toolErrorText(responses[4]).contains("list_tasks.filter.unexpected is unsupported"))
     #expect(toolErrorText(responses[5]).contains("list_tasks.page.offset is unsupported"))
     #expect(toolErrorText(responses[6]).contains("edit_tasks.completion.unexpected is unsupported"))
+    #expect(toolErrorText(responses[7]).contains("Pagination cursor is malformed or unsupported"))
+    #expect(toolErrorText(responses[8]).contains("Pagination cursor is for a different query"))
 }
 
 @Test

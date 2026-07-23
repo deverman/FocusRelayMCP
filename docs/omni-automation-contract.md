@@ -106,6 +106,18 @@ compatibility; request `effectiveFlagged` for the visible OmniFocus flag state.
   and done projects are not reviewable.
 - Status and review-date filtering happen before total counts and pagination.
 
+## Pagination cursor contract
+
+- Cursors are opaque, versioned tokens bound to the originating list tool and
+  every input that affects membership or ordering.
+- Reusing a cursor after changing filters fails before Bridge dispatch and
+  directs the client to restart from page one.
+- Requested output fields may change between pages because they do not change
+  membership or ordering.
+- Cursor-only requests retain each list tool's documented default page limit.
+- This contract does not promise snapshot isolation when OmniFocus data changes
+  between requests.
+
 ## Banned undocumented core-query patterns
 Do not use these as the primary production query path unless the official docs explicitly document them in the future.
 

@@ -50,7 +50,7 @@ struct PageOptions: ParsableArguments {
     @Option(help: "Page size limit.")
     var limit: Int? = nil
 
-    @Option(help: "Cursor for pagination.")
+    @Option(help: "Opaque cursor for the identical query; restart from page one after changing filters.")
     var cursor: String? = nil
 
     func makePageRequest(defaultLimit: Int) -> PageRequest {
