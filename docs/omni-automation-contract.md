@@ -113,3 +113,12 @@ Before merging query-engine changes, verify:
 - `project.status` is the source of truth for project state.
 - Boundary semantics are covered by tests before benchmarking.
 - Benchmarks are not run unless parity and count-contract gates pass.
+## MCP Argument Boundary
+
+- Public MCP input schemas close every object with
+  `additionalProperties: false`.
+- Runtime validation uses those same schemas before query or mutation dispatch;
+  unknown top-level or nested properties fail with the full argument path.
+- A malformed query must never degrade into a plausible unfiltered query.
+- A malformed mutation must fail before target resolution, Bridge dispatch, or
+  any write.
