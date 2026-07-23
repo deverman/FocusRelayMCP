@@ -52,6 +52,8 @@ Relevant reference pages:
 
 ### Bulk behavior
 - All targets in one request receive the same operation.
+- The complete target set must resolve and pass operation-specific preflight
+  before any target is applied or saved.
 - v1 does not support mixed-operation batches such as “complete these, move those, patch those others.”
 - Single-item CLI and MCP commands should reuse the same bulk-capable internal models.
 
@@ -64,7 +66,9 @@ Relevant reference pages:
 ### Failure semantics
 - Validation failures should be reported before any mutation is attempted.
 - Errors must be structured and actionable.
-- v1 should prefer all-or-nothing behavior for one homogeneous request unless a later issue explicitly introduces partial success semantics.
+- v1 requires all-or-nothing behavior for target resolution and eligibility in
+  one homogeneous request unless a later issue explicitly introduces partial
+  success semantics.
 
 ## Allowed Documented Mutation Surfaces
 

@@ -77,7 +77,10 @@ Before merge, verify:
 
 For bulk writes:
 - require explicit user-facing confirmation behavior at the tool layer when the later implementation issue adds it
-- do not add partial-success semantics casually
+- preflight every target before apply/save so a missing or ineligible target
+  fails the complete request without changing valid targets
+- do not add partial-success semantics unless a later issue explicitly changes
+  the v1 all-or-nothing contract
 
 ## 5. Keep CLI And MCP On One Shared Core
 
