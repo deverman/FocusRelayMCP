@@ -566,6 +566,7 @@ func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
     #expect(description.contains("If all child tasks are dropped, treat it as a drop/review candidate"))
     #expect(description.contains("availableTasks=0 does not mean a project is stalled"))
     #expect(description.contains("default statusFilter='active' is ignored"))
+    #expect(description.contains("statusFilter remains active inside Review queries"))
     #expect(description.contains("inclusive"))
 }
 
@@ -702,4 +703,40 @@ func cursorOnlyPagesApplyDefaultsAtMCPWireBoundary() throws {
         #expect(page.limit == testCase.expectedLimit)
         #expect(page.cursor == testCase.cursor)
     }
+}
+
+@Test
+func reviewPerspectiveAndStatusFilterDecodeTogetherAtMCPWireBoundary() throws {
+    let data = Data(
+        #"""
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "tools/call",
+          "params": {
+            "name": "list_projects",
+            "arguments": {
+              "statusFilter": "onHold",
+              "reviewPerspective": true
+            }
+          }
+        }
+        """#.utf8
+    )
+    let request = try JSONDecoder().decode(Request<CallTool>.self, from: data)
+
+    #expect(
+        try FocusRelayServer.decodeArgument(
+            String.self,
+            from: request.params.arguments,
+            key: "statusFilter"
+        ) == "onHold"
+    )
+    #expect(
+        try FocusRelayServer.decodeArgument(
+            Bool.self,
+            from: request.params.arguments,
+            key: "reviewPerspective"
+        ) == true
+    )
 }

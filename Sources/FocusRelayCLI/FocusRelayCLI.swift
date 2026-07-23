@@ -122,7 +122,7 @@ struct ListProjects: AsyncParsableCommand {
     @Flag(name: .customLong("include-task-counts"), help: "Include task counts for each project.")
     var includeTaskCounts: Bool = false
 
-    @Flag(name: .customLong("review-perspective"), help: "Apply review perspective defaults.")
+    @Flag(name: .customLong("review-perspective"), help: "Apply Review due-date defaults while honoring --status (active, onHold, or all reviewable projects).")
     var reviewPerspective: Bool = false
 
     @Option(name: .customLong("review-due-before"), help: "ISO8601 datetime. Next review due before this time.")

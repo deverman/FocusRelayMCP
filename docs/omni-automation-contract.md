@@ -96,6 +96,16 @@ The `flagged` filter and aggregate flagged count use documented
 The returned `flagged` field remains the task's local writable flag for backward
 compatibility; request `effectiveFlagged` for the visible OmniFocus flag state.
 
+## Project Review query contract
+
+- `reviewPerspective=true` adds Review eligibility and due-date constraints; it
+  does not replace the caller's project status scope.
+- `statusFilter=active` and `statusFilter=onHold` return disjoint pending-review
+  groups.
+- `statusFilter=all` includes active and on-hold projects only because dropped
+  and done projects are not reviewable.
+- Status and review-date filtering happen before total counts and pagination.
+
 ## Banned undocumented core-query patterns
 Do not use these as the primary production query path unless the official docs explicitly document them in the future.
 
