@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed. See the
   [migration table](docs/mutation-workflows.md#breaking-migration).
 
+### Fixed
+
+- Bulk task and project mutations now preflight every target before applying or
+  saving, so one unknown target fails the whole request without changing valid
+  targets.
+
 ## [0.10.1-beta] - 2026-07-19
 
 ### Added

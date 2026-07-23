@@ -286,16 +286,21 @@
         return result;
       }
 
+      const missingIDs = ids.filter(id => !targetByID[id]);
+      if (missingIDs.length > 0) {
+        const missingIDSet = {};
+        missingIDs.forEach(id => { missingIDSet[id] = true; });
+        return ids.map(id => ({
+          id: id,
+          status: "failed",
+          message: missingIDSet[id]
+            ? "Target ID not found: " + id + ". No targets were changed."
+            : "Batch target preflight failed. No targets were changed."
+        }));
+      }
+
       ids.forEach(id => {
         const target = targetByID[id];
-        if (!target) {
-          results.push({
-            id: id,
-            status: "failed",
-            message: "Target ID not found."
-          });
-          return;
-        }
 
         if (mutation.previewOnly) {
           try {

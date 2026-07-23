@@ -2,6 +2,48 @@ import Foundation
 import JavaScriptCore
 import Testing
 
+@Test(arguments: ["batch", "perItem"])
+func missingTargetPreflightRejectsEntireMutationBeforeApplyOrSave(saveMode: String) throws {
+    let results = try evaluateMutationExecutor(
+        body: """
+        const target = { value: 0 };
+        let applyCount = 0;
+        let saveCount = 0;
+        globalThis.save = () => { saveCount += 1; };
+        const output = executeTargetMutation(
+          ["task-1", "missing"],
+          { "task-1": target },
+          mutation,
+          {
+            saveMode: "\(saveMode)",
+            apply: item => {
+              applyCount += 1;
+              item.value = 1;
+              return {};
+            },
+            verify: item => item.value === 1 ? null : "value mismatch",
+            returnedFields: item => ({ value: item.value }),
+            mutatedMessage: () => "Updated."
+          }
+        );
+        output.forEach(result => {
+          result.applyCount = applyCount;
+          result.saveCount = saveCount;
+          result.targetValue = target.value;
+        });
+        return output;
+        """
+    )
+
+    #expect(results.count == 2)
+    #expect(results.allSatisfy { $0["status"] as? String == "failed" })
+    #expect(results.allSatisfy { $0["applyCount"] as? Int == 0 })
+    #expect(results.allSatisfy { $0["saveCount"] as? Int == 0 })
+    #expect(results.allSatisfy { $0["targetValue"] as? Int == 0 })
+    #expect((results[0]["message"] as? String)?.contains("No targets were changed") == true)
+    #expect((results[1]["message"] as? String)?.contains("missing") == true)
+}
+
 @Test
 func perItemSaveFailureIsReportedAsFailure() throws {
     let results = try evaluateMutationExecutor(
