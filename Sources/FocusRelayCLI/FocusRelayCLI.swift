@@ -119,6 +119,9 @@ struct ListProjects: AsyncParsableCommand {
     @Option(name: .customLong("status"), help: "Project status filter: active, onHold, dropped, done, all.")
     var statusFilter: String = "active"
 
+    @Option(help: "Search project names by trimmed, case-insensitive literal substring.")
+    var search: String?
+
     @Flag(name: .customLong("include-task-counts"), help: "Include task counts for each project.")
     var includeTaskCounts: Bool = false
 
@@ -161,6 +164,7 @@ struct ListProjects: AsyncParsableCommand {
             page: pageRequest,
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
+            search: search,
             reviewDueBefore: reviewBeforeDate,
             reviewDueAfter: reviewAfterDate,
             reviewPerspective: reviewPerspective,

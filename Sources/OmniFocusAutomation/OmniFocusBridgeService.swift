@@ -31,6 +31,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
         page: PageRequest,
         statusFilter: String?,
         includeTaskCounts: Bool,
+        search: String? = nil,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,
@@ -39,9 +40,11 @@ public final class OmniFocusBridgeService: OmniFocusService {
         completedAfter: Date?,
         fields: [String]?
     ) async throws -> Page<ProjectItem> {
+        let normalizedSearch = try Self.normalizeProjectSearch(search)
         let projectFilter = ProjectFilter(
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
+            search: normalizedSearch,
             reviewDueBefore: reviewDueBefore,
             reviewDueAfter: reviewDueAfter,
             reviewPerspective: reviewPerspective,
@@ -60,7 +63,8 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 page: bridgePage,
                 fields: fields,
                 statusFilter: statusFilter,
-                includeTaskCounts: includeTaskCounts
+                includeTaskCounts: includeTaskCounts,
+                search: normalizedSearch
             )
             if let cached = await cache.getProjects(key: key) {
                 return try QueryBoundCursor.publicPage(from: cached, queryKey: queryKey)
@@ -70,6 +74,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                     page: bridgePage,
                     statusFilter: statusFilter,
                     includeTaskCounts: includeTaskCounts,
+                    search: normalizedSearch,
                     reviewDueBefore: reviewDueBefore,
                     reviewDueAfter: reviewDueAfter,
                     reviewPerspective: reviewPerspective,
@@ -88,6 +93,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 page: bridgePage,
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts,
+                search: normalizedSearch,
                 reviewDueBefore: reviewDueBefore,
                 reviewDueAfter: reviewDueAfter,
                 reviewPerspective: reviewPerspective,
@@ -98,6 +104,17 @@ public final class OmniFocusBridgeService: OmniFocusService {
             )
         }.value
         return try QueryBoundCursor.publicPage(from: pageResult, queryKey: queryKey)
+    }
+
+    static func normalizeProjectSearch(_ search: String?) throws -> String? {
+        guard let search else { return nil }
+        let normalized = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw AutomationError.executionFailed(
+                "Project search must contain at least one non-whitespace character."
+            )
+        }
+        return normalized
     }
 
     public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {

@@ -29,6 +29,19 @@ func fieldListParsesCommaSeparatedValues() {
 }
 
 @Test
+func listProjectsParsesProjectNameSearch() throws {
+    let command = try ListProjects.parse([
+        "--search", "drop test",
+        "--status", "all",
+        "--fields", "id,name,status"
+    ])
+
+    #expect(command.search == "drop test")
+    #expect(command.statusFilter == "all")
+    #expect(command.fields == "id,name,status")
+}
+
+@Test
 func iso8601DateParserAcceptsValidDates() throws {
     let date = try ISO8601DateParser.parse("2026-02-04T12:00:00Z", argumentName: "--due-before")
     #expect(date.timeIntervalSince1970 > 0)

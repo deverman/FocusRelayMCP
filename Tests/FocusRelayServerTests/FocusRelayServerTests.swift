@@ -301,7 +301,7 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"validation-test","version":"1"}}}"#,
         #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
         #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_tasks","arguments":{"search":"drop test"}}}"#,
-        #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_projects","arguments":{"search":"drop test","statusFilter":"all"}}}"#,
+        #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_projects","arguments":{"query":"drop test","statusFilter":"all"}}}"#,
         #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_tasks","arguments":{"filter":{"unexpected":true}}}}"#,
         #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_tasks","arguments":{"page":{"offset":"50"}}}}"#,
         #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"edit_tasks","arguments":{"operation":"set_completion","targetIDs":["real-task"],"completion":{"state":"completed","unexpected":true}}}}"#,
@@ -331,7 +331,7 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
     }
 
     #expect(toolErrorText(responses[2]).contains("list_tasks.search is unsupported; use list_tasks.filter.search"))
-    #expect(toolErrorText(responses[3]).contains("list_projects.search is unsupported"))
+    #expect(toolErrorText(responses[3]).contains("list_projects.query is unsupported"))
     #expect(toolErrorText(responses[4]).contains("list_tasks.filter.unexpected is unsupported"))
     #expect(toolErrorText(responses[5]).contains("list_tasks.page.offset is unsupported"))
     #expect(toolErrorText(responses[6]).contains("edit_tasks.completion.unexpected is unsupported"))
@@ -587,6 +587,8 @@ func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
     #expect(description.contains("availableTasks=0 does not mean a project is stalled"))
     #expect(description.contains("default statusFilter='active' is ignored"))
     #expect(description.contains("statusFilter remains active inside Review queries"))
+    #expect(description.contains("trimmed, literal, case-insensitive substring"))
+    #expect(description.contains("Follow nextCursor"))
     #expect(description.contains("inclusive"))
 }
 
@@ -758,5 +760,41 @@ func reviewPerspectiveAndStatusFilterDecodeTogetherAtMCPWireBoundary() throws {
             from: request.params.arguments,
             key: "reviewPerspective"
         ) == true
+    )
+}
+
+@Test
+func projectSearchDecodesAtMCPWireBoundary() throws {
+    let data = Data(
+        #"""
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "tools/call",
+          "params": {
+            "name": "list_projects",
+            "arguments": {
+              "search": "drop test",
+              "statusFilter": "all"
+            }
+          }
+        }
+        """#.utf8
+    )
+    let request = try JSONDecoder().decode(Request<CallTool>.self, from: data)
+
+    #expect(
+        try FocusRelayServer.decodeArgument(
+            String.self,
+            from: request.params.arguments,
+            key: "search"
+        ) == "drop test"
+    )
+    #expect(
+        try FocusRelayServer.decodeArgument(
+            String.self,
+            from: request.params.arguments,
+            key: "statusFilter"
+        ) == "all"
     )
 }

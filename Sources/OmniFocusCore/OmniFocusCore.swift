@@ -242,6 +242,7 @@ public struct TagFilter: Codable, Sendable {
 public struct ProjectFilter: Codable, Sendable {
     public var statusFilter: String?
     public var includeTaskCounts: Bool?
+    public var search: String?
     public var reviewDueBefore: Date?
     public var reviewDueAfter: Date?
     public var reviewPerspective: Bool?
@@ -252,6 +253,7 @@ public struct ProjectFilter: Codable, Sendable {
     public init(
         statusFilter: String? = nil,
         includeTaskCounts: Bool? = nil,
+        search: String? = nil,
         reviewDueBefore: Date? = nil,
         reviewDueAfter: Date? = nil,
         reviewPerspective: Bool? = nil,
@@ -261,6 +263,7 @@ public struct ProjectFilter: Codable, Sendable {
     ) {
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts
+        self.search = search
         self.reviewDueBefore = reviewDueBefore
         self.reviewDueAfter = reviewDueAfter
         self.reviewPerspective = reviewPerspective
@@ -354,6 +357,7 @@ public protocol OmniFocusService: Sendable {
         page: PageRequest,
         statusFilter: String?,
         includeTaskCounts: Bool,
+        search: String?,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,

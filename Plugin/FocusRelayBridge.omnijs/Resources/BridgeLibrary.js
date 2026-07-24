@@ -1612,6 +1612,18 @@
       }
       return true;
     }
+
+    function normalizedProjectNameSearch(search) {
+      if (typeof search !== "string") { return null; }
+      const normalized = search.trim().toLocaleLowerCase();
+      return normalized.length > 0 ? normalized : null;
+    }
+
+    function projectMatchesNameSearch(project, normalizedSearch) {
+      if (!normalizedSearch) { return true; }
+      const name = String(safe(() => project.name) || "").toLocaleLowerCase();
+      return name.indexOf(normalizedSearch) !== -1;
+    }
     // END PROJECT COMPLETION QUERY MODULE
 
     // Normalize OmniFocus collections to plain arrays.
@@ -2424,6 +2436,7 @@
           // Check both projectFilter and filter (Swift sends projectFilter)
           const filter = request.projectFilter || request.filter || {};
           const statusFilter = (typeof filter.statusFilter === "string") ? filter.statusFilter.toLowerCase() : "active";
+          const projectNameSearch = normalizedProjectNameSearch(filter.search);
           const includeTaskCounts = filter.includeTaskCounts === true;
           const reviewPerspective = filter.reviewPerspective === true;
 
@@ -2455,6 +2468,12 @@
               if (!status) return false;
               return projectMatchesListStatus(status, statusFilter);
             });
+          }
+
+          if (projectNameSearch) {
+            projects = projects.filter(project =>
+              projectMatchesNameSearch(project, projectNameSearch)
+            );
           }
 
           if (reviewCutoff || reviewDueAfter) {
