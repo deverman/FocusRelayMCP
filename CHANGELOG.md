@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0-beta] - 2026-07-24
+
 ### Added
 
 - Deterministic project-name search through `list_projects.search` and
