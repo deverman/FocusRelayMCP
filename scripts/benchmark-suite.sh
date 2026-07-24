@@ -241,4 +241,5 @@ cat > "${SUITE_DIR}/summary.md" <<EOF_SUMMARY
 - get_project_counts: ${PROJECT_COUNTS_DIR}/summary.md
 EOF_SUMMARY
 
+./scripts/check-benchmark-suite-results.sh "$SUITE_DIR"
 log "Suite complete: ${SUITE_DIR}"
