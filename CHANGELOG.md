@@ -9,40 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.11.0-beta] - 2026-07-24
 
-### Added
+### What’s new
 
-- Deterministic project-name search through `list_projects.search` and
-  `list-projects --search` for stable-ID discovery before project mutations.
-- Active and on-hold projects can be marked reviewed through
-  `projectPatch.reviewedNow=true`; FocusRelay preflights the complete batch,
-  preserves review intervals, uses one request-level timestamp, and verifies the
-  OmniFocus-generated next review date.
-- Task dropping and restoration through `edit_tasks` / `edit-tasks` operation
-  `set_status`, including explicit repeating occurrence/series scope, preview,
-  verified `taskStatus` and `dropDate` readback, and all-or-nothing preflight.
+- Clean up your task list without losing history by dropping and restoring
+  tasks instead of marking them completed.
+- Finish weekly reviews faster by letting FocusRelay mark active or on-hold
+  projects as reviewed using OmniFocus’s normal review schedule.
+- Find the right project by name before changing it, even when it is on hold,
+  completed, or dropped.
+- Make bulk changes with confidence: if any requested task or project cannot be
+  updated, nothing in that batch is changed.
+- Get more trustworthy results from searches, Review queries, and multi-page
+  lists—invalid requests now fail clearly instead of returning misleading data.
 
-### Changed
+### Before upgrading
 
-- **Breaking:** Seven task and project mutation tools and CLI commands were
-  consolidated into `edit_tasks` / `edit-tasks` and
-  `edit_projects` / `edit-projects`. Each request now selects an explicit
-  operation and supplies exactly one matching payload; legacy aliases were
-  removed. See the
+- Task and project editing is now handled through the two clearer
+  `edit_tasks` and `edit_projects` tools. If you have saved automations using
+  older editing tools, update them using the
   [migration table](docs/mutation-workflows.md#breaking-migration).
-
-### Fixed
-
-- Bulk task and project mutations now preflight every target before applying or
-  saving, so one unknown target fails the whole request without changing valid
-  targets.
-- MCP tool calls now reject unknown top-level and nested arguments before
-  dispatch instead of silently turning malformed filters into plausible
-  unfiltered queries.
-- Review perspective project queries now honor `statusFilter`, so active and
-  on-hold review batches are disjoint while `all` includes both reviewable
-  statuses and still excludes dropped/done projects.
-- List cursors are now opaque and bound to the originating query; malformed,
-  stale-version, or filter-mismatched cursors fail before Bridge dispatch.
 
 ## [0.10.1-beta] - 2026-07-19
 
