@@ -106,6 +106,16 @@ compatibility; request `effectiveFlagged` for the visible OmniFocus flag state.
   and done projects are not reviewable.
 - Status and review-date filtering happen before total counts and pagination.
 
+## Project name search contract
+
+- `list_projects.search` trims surrounding whitespace and performs a literal,
+  case-insensitive substring match against `project.name` only.
+- Empty or whitespace-only searches fail before Bridge dispatch.
+- Status, Review, completion, and name filters are all applied before total
+  counts and pagination.
+- Native project order is preserved; no fuzzy matching or relevance ranking is
+  introduced.
+
 ## Pagination cursor contract
 
 - Cursors are opaque, versioned tokens bound to the originating list tool and

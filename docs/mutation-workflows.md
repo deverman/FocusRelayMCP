@@ -49,7 +49,15 @@ already known. Omit `destinationID` to move a project to the root library.
 focusrelay list-tasks --search "intro call" --fields id,name,projectName --limit 5
 focusrelay edit-tasks task-1 --operation update --flagged true --preview-only --return-fields id,name,flagged
 focusrelay edit-tasks task-1 --operation update --flagged true --verify --return-fields id,name,flagged
+
+focusrelay list-projects --search "drop test" --status all --fields id,name,status --limit 5
+focusrelay edit-projects project-1 --operation set_status --status dropped --preview-only --return-fields id,name,status
+focusrelay edit-projects project-1 --operation set_status --status dropped --verify --return-fields id,name,status
 ```
+
+Project search matches a trimmed, case-insensitive literal substring against
+project names only. Follow `nextCursor` while it is present, disambiguate
+multiple matches, and pass only the resolved stable IDs to `edit_projects`.
 
 Equivalent MCP call:
 

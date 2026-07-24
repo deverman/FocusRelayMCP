@@ -97,6 +97,7 @@ final class BridgeClient: @unchecked Sendable {
         page: PageRequest,
         statusFilter: String?,
         includeTaskCounts: Bool,
+        search: String? = nil,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,
@@ -109,6 +110,7 @@ final class BridgeClient: @unchecked Sendable {
         let projectFilter = ProjectFilter(
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
+            search: search,
             reviewDueBefore: reviewDueBefore,
             reviewDueAfter: reviewDueAfter,
             reviewPerspective: reviewPerspective,

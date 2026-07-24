@@ -71,6 +71,11 @@ public enum FocusRelayServer {
     static let listProjectsToolDescription = """
     List OmniFocus projects with pagination and filtering. Projects have a status (active, onHold, dropped, done) and can optionally include child-task counts.
 
+    PROJECT NAME SEARCH:
+    - Use search for a trimmed, literal, case-insensitive substring match against project names only.
+    - Search is applied before pagination. Follow nextCursor while it is present before concluding that no additional filtered matches exist.
+    - Use statusFilter='all' when historical dropped/done projects may match.
+
     PROJECT MAINTENANCE AND HEALTH:
     - For completion, cleanup, or stalled-project recommendations, start with statusFilter='active'. Use 'all' only when historical done/dropped projects are relevant.
     - Always inspect project status before interpreting task counts. A project with remainingTasks=0 is not automatically a completion candidate.
@@ -295,6 +300,10 @@ public enum FocusRelayServer {
                                 "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'. Use 'active' for current-project maintenance. 'all' includes historical done/dropped projects, so inspect each returned status before making recommendations."),
                                 "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
                                 "default": .string("active")
+                            ]),
+                            "search": .object([
+                                "type": .string("string"),
+                                "description": .string("Trimmed, literal, case-insensitive substring match against project names only. Empty or whitespace-only values are rejected.")
                             ]),
                             "completed": .object([
                                 "type": .string("boolean"),
@@ -696,6 +705,7 @@ public enum FocusRelayServer {
                     let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
+                    let search = try decodeArgument(String.self, from: params.arguments, key: "search")
                     let reviewDueBefore = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueBefore")
                     let reviewDueAfter = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueAfter")
                     let reviewPerspective = try decodeArgument(Bool.self, from: params.arguments, key: "reviewPerspective") ?? false
@@ -712,6 +722,7 @@ public enum FocusRelayServer {
                         page: page,
                         statusFilter: statusFilter,
                         includeTaskCounts: includeTaskCounts,
+                        search: search,
                         reviewDueBefore: reviewDueBefore,
                         reviewDueAfter: reviewDueAfter,
                         reviewPerspective: reviewPerspective,

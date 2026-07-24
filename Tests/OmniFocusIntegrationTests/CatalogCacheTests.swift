@@ -42,6 +42,26 @@ func projectCacheKeySeparatesStatusFilter() {
 }
 
 @Test
+func projectCacheKeySeparatesNameSearch() {
+    let page = PageRequest(limit: 10)
+    let first = CacheKey.projects(
+        page: page,
+        fields: ["id", "name"],
+        statusFilter: "all",
+        includeTaskCounts: false,
+        search: "drop test"
+    )
+    let second = CacheKey.projects(
+        page: page,
+        fields: ["id", "name"],
+        statusFilter: "all",
+        includeTaskCounts: false,
+        search: "another"
+    )
+    #expect(first != second)
+}
+
+@Test
 func projectCacheKeySeparatesIncludeTaskCounts() {
     let page = PageRequest(limit: 10, cursor: "cursor")
     let withoutCounts = CacheKey.projects(
