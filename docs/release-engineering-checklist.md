@@ -83,11 +83,16 @@ If the tap appears stale, untap and retap it before trusting the result.
 If plugin JavaScript changed:
 
 ```bash
-./scripts/install-plugin.sh
+FOCUSRELAY_PLUGIN_SRC=/opt/homebrew/opt/focusrelay/share/focusrelay/Plugin/FocusRelayBridge.omnijs \
+  ./scripts/install-plugin.sh
 osascript -e 'tell application "OmniFocus" to quit'
 sleep 2
 open -a "OmniFocus"
 ```
+
+Omit `FOCUSRELAY_PLUGIN_SRC` only for development validation that intentionally
+installs the source-tree `0.0.0-dev` plugin. Release verification must install
+the version-embedded plugin from the package being tested.
 
 Then verify the README flow: install binary, install plugin, configure MCP,
 restart OmniFocus, approve the first query, and receive real data.

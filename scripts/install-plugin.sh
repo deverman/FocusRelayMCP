@@ -2,7 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN_SRC="$ROOT_DIR/Plugin/FocusRelayBridge.omnijs"
+PLUGIN_SRC="${FOCUSRELAY_PLUGIN_SRC:-$ROOT_DIR/Plugin/FocusRelayBridge.omnijs}"
+
+if [[ ! -d "$PLUGIN_SRC" ]]; then
+    echo "❌ Plugin source not found: $PLUGIN_SRC" >&2
+    exit 1
+fi
 
 echo "🔍 Detecting OmniFocus plugin directories..."
 
