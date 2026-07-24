@@ -24,10 +24,10 @@ records only current sequencing and cross-issue dependencies.
    [#69 — project name search](https://github.com/deverman/FocusRelayMCP/issues/69)
    - Make project discovery semantically scoped and pagination-safe before
      expanding the read-before-write lookup contract.
-6. [#94 — Discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
-   - Research daily focus, weekly review, inbox processing, and project
-     planning before fixing the public prompt set; implementation follows the
-     argument, Review, cursor, and project-lookup correctness work above.
+6. [#161 — reject unsupported output fields](https://github.com/deverman/FocusRelayMCP/issues/161), then
+   [#94 — Discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
+   - Fail closed when clients request unsupported fields before encoding daily
+     focus, weekly review, inbox processing, and project planning workflows.
 7. [#82 — Task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
    [#83 — project creation/conversion](https://github.com/deverman/FocusRelayMCP/issues/83)
    - Build on the consolidated edit surface, support safe project folder
