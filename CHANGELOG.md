@@ -13,14 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Clean up your task list without losing history by dropping and restoring
   tasks instead of marking them completed.
-- Finish weekly reviews faster by letting FocusRelay mark active or on-hold
-  projects as reviewed using OmniFocus’s normal review schedule.
+- Finish weekly reviews faster or declare review bankruptcy by letting
+  FocusRelay mark active or on-hold projects as reviewed using OmniFocus’s
+  normal review schedule.
 - Find the right project by name before changing it, even when it is on hold,
   completed, or dropped.
 - Make bulk changes with confidence: if any requested task or project cannot be
   updated, nothing in that batch is changed.
 - Get more trustworthy results from searches, Review queries, and multi-page
   lists—invalid requests now fail clearly instead of returning misleading data.
+- Leave more context for your actual work: seven editing tools are now combined
+  into two, reducing the full tool catalog from 14 tools to 9 and cutting
+  context usage by 7–13% in controlled model tests.
 
 ### Before upgrading
 

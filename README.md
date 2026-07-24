@@ -32,7 +32,7 @@ These workflows were tested with Kimi K2.7 Code and another MCP-capable model.
 Updates target stable OmniFocus IDs and can verify the saved result. If names
 are duplicated, ask to see the candidates before changing anything.
 
-The current source build can:
+The current release can:
 
 - find and count tasks using dates, flags, tags, projects, availability, inbox
   state, completion, estimates, and text search;
@@ -45,7 +45,7 @@ The current source build can:
 - complete, reactivate, change status, and move existing projects;
 - preview a proposed change and verify the saved result.
 
-The current source build updates existing tasks and projects. Creating or
+The current release updates existing tasks and projects. Creating or
 deleting items is not supported; creation is tracked in
 [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and
 [#83](https://github.com/deverman/FocusRelayMCP/issues/83).
@@ -54,10 +54,12 @@ deleting items is not supported; creation is tracked in
 
 ### Keep the assistant focused
 
-The current source build exposes nine model-facing tools: seven read tools plus
-`edit_tasks` and `edit_projects` for supported changes. Internal diagnostics
-stay in the CLI, count commands avoid returning long item lists, and field
-selection keeps responses compact.
+FocusRelay exposes nine model-facing tools: seven read tools plus `edit_tasks`
+and `edit_projects` for supported changes. Combining seven editing tools into
+two reduced the full catalog from 14 tools to 9 and cut context usage by
+7–13% in controlled model tests, leaving more room for the user's actual work.
+Internal diagnostics stay in the CLI, count commands avoid returning long item
+lists, and field selection keeps responses compact.
 
 ### Native Swift speed at real-library scale
 
@@ -204,10 +206,7 @@ MCP lets compatible assistants discover FocusRelay and choose the right action.
 The CLI is useful for scripts, debugging, and agents that already have shell
 access.
 
-The examples below target the current source build. The latest Homebrew release,
-`v0.10.1-beta`, predates the consolidated edit commands and still exposes the
-former 14-tool surface. Build from source to use `edit-tasks` and
-`edit-projects` before the next release updates Homebrew.
+The examples below target the current Homebrew release and source build.
 
 ```bash
 # Count without returning every matching task
@@ -243,7 +242,7 @@ and applies changes through documented OmniFocus APIs.
 | --- | --- | --- | --- | --- | --- |
 | Runtime | **Native Swift · Homebrew** | TypeScript · npx | TypeScript · npx | Native Rust · Homebrew; Python and TypeScript available | Python · uvx |
 | OmniFocus access | **Bridge plug-in inside Omni Automation; documented APIs** | JXA and Omni Automation through `osascript` | Omni Automation through `osascript` | Omni Automation through `osascript` | Internal SQLite read cache; OmniJS fallback |
-| Public MCP tools | **Current source: 9, with seven read tools plus `edit_tasks` and `edit_projects`; 11 after planned creation tools [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
+| Public MCP tools | **9, with seven read tools plus `edit_tasks` and `edit_projects`; 11 after planned creation tools [#82](https://github.com/deverman/FocusRelayMCP/issues/82) and [#83](https://github.com/deverman/FocusRelayMCP/issues/83)** | 12 | 18 | 45 | 11 |
 | Find, filter, and count tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Update existing projects | ✅ | ✅ | ✅ | ✅ | ◇ v1.5 roadmap |
