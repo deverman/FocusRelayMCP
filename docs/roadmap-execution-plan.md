@@ -1,6 +1,6 @@
 # FocusRelay Roadmap Execution Plan
 
-Last updated: 2026-07-23
+Last updated: 2026-07-24
 
 GitHub issues own requirements, discussion, and validation evidence. This file
 records only current sequencing and cross-issue dependencies.
@@ -76,7 +76,7 @@ records only current sequencing and cross-issue dependencies.
 
 ## Release Reference
 
-- Current release: [`v0.10.1-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.10.1-beta)
+- Current release: [`v0.11.0-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.11.0-beta)
 - Release engineering: [`release-engineering-checklist.md`](release-engineering-checklist.md)
 - Development validation: [`development-workflow.md`](development-workflow.md)
 - User-facing changes: [`../CHANGELOG.md`](../CHANGELOG.md)
