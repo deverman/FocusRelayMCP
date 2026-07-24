@@ -593,6 +593,19 @@ func projectToolDescriptionGuardsCompletionAndStalledRecommendations() {
 }
 
 @Test
+func taskToolDescriptionGuidesBoundedInboxProcessing() {
+    let description = FocusRelayServer.listTasksToolDescription
+    #expect(description.contains("inboxView='remaining'"))
+    #expect(description.contains("every unresolved capture"))
+    #expect(description.contains("inboxView='available'"))
+    #expect(description.contains("inboxView='everything' only"))
+    #expect(description.contains("includes completed and dropped records"))
+    #expect(description.contains("bounded page of 10-20 items"))
+    #expect(description.contains("use get_task_counts instead"))
+    #expect(description.contains("filter.includeTotalCount=true inside the filter object"))
+}
+
+@Test
 func sharedTaskFilterSchemaCoversCompleteModelSurface() {
     let expectedPropertyNames: Set<String> = [
         "completed",
@@ -634,6 +647,27 @@ func sharedTaskFilterSchemaCoversCompleteModelSurface() {
     }
     #expect(flaggedDescription.contains("effective flagged state"))
     #expect(flaggedDescription.contains("inherited"))
+
+    guard case let .object(inboxViewSchema)? = properties["inboxView"],
+          case let .string(inboxViewDescription)? = inboxViewSchema["description"],
+          case let .object(inboxOnlySchema)? = properties["inboxOnly"],
+          case let .string(inboxOnlyDescription)? = inboxOnlySchema["description"] else {
+        Issue.record("Expected inbox view and scope descriptions")
+        return
+    }
+    #expect(inboxViewSchema["default"] == .string("available"))
+    #expect(inboxViewDescription.contains("remaining for inbox processing"))
+    #expect(inboxViewDescription.contains("everything only for explicitly requested history"))
+    #expect(inboxViewDescription.contains("includes completed and dropped records"))
+    #expect(inboxOnlyDescription.contains("inboxView=remaining"))
+    guard case let .string(filterDescription)? = schema["description"],
+          case let .object(includeTotalCountSchema)? = properties["includeTotalCount"],
+          case let .string(includeTotalCountDescription)? = includeTotalCountSchema["description"] else {
+        Issue.record("Expected filter placement guidance")
+        return
+    }
+    #expect(filterDescription.contains("must be nested inside this filter object"))
+    #expect(includeTotalCountDescription.contains("not a top-level tool argument"))
 
     guard case let .object(maximumEstimate)? = properties["maxEstimatedMinutes"],
           case let .object(minimumEstimate)? = properties["minEstimatedMinutes"] else {

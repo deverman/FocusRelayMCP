@@ -44,6 +44,36 @@ public enum FocusRelayServer {
         openWorldHint: false
     )
 
+    static let listTasksToolDescription = """
+    Query OmniFocus tasks with filtering, compact fields, and pagination.
+
+    INBOX INTENT:
+    - inboxOnly=true scopes results to the inbox; inboxView selects which task statuses to include.
+    - For "process", "clean up", "triage", or "review my inbox", use inboxOnly=true with inboxView='remaining'. This includes every unresolved capture, even when it is deferred or otherwise unavailable.
+    - For "what can I do now?", use inboxView='available'.
+    - Use inboxView='everything' only when the user explicitly asks for inbox history, completed items, or an audit. It includes completed and dropped records; do not use it for ordinary inbox processing.
+    - Start inbox processing with a bounded page of 10-20 items and only the fields needed for the current decision. Add 'note' only when classification requires it, and follow nextCursor only when another page is needed.
+    - If the user asks only whether or how many inbox items exist, use get_task_counts instead of listing items.
+
+    FILTERING BY COMPLETION DATE (for "what did I complete today?" questions):
+    - Use completedAfter/completedBefore with ISO8601 dates: {"completedAfter": "2026-01-31T00:00:00Z", "completedBefore": "2026-02-01T00:00:00Z"}
+    - Always include 'completionDate' in fields to see when tasks were completed.
+    - Results are sorted by completionDate descending (most recent first) to match OmniFocus Completed.
+
+    FILTERING BY TAGS:
+    - Tagged project root tasks are included when they match, even if OmniFocus omits them from flattenedTasks because the project has child tasks.
+    - To include tagged project headers that are not currently actionable, set completed=false and availableOnly=false.
+
+    FILTERING BY AVAILABILITY (for "what should I do?" questions):
+    - Use availableOnly=true to see only actionable tasks.
+    - Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.).
+
+    COUNTS:
+    - Set filter.includeTotalCount=true inside the filter object only when the full filtered count is needed alongside listed items. It is not a top-level list_tasks argument.
+
+    Time formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields are only 'id' and 'name'.
+    """
+
     static func makeTaskEditSchema(properties: [String: Value]) -> Value {
         discriminatedToolSchema(
             properties: properties,
@@ -150,7 +180,8 @@ public enum FocusRelayServer {
             ),
             "inboxView": .object([
                 "type": .string("string"),
-                "description": .string("Task status view. This does not scope results to the inbox; set inboxOnly=true for that."),
+                "description": .string("Select task statuses, not scope. Use remaining for inbox processing, cleanup, triage, or review so every unresolved capture is included. Use available only for work actionable now. Use everything only for explicitly requested history/audits because it includes completed and dropped records. Omitted defaults to available; set inboxOnly=true separately to scope results to the inbox."),
+                "default": .string("available"),
                 "enum": .array([.string("available"), .string("remaining"), .string("everything")])
             ]),
             "project": propertySchema(
@@ -177,7 +208,7 @@ public enum FocusRelayServer {
             ),
             "inboxOnly": propertySchema(
                 type: "boolean",
-                description: "When true, scope the query to inbox tasks."
+                description: "When true, scope the query to inbox tasks. For ordinary inbox processing, pair with inboxView=remaining."
             ),
             "projectView": .object([
                 "type": .string("string"),
@@ -196,7 +227,7 @@ public enum FocusRelayServer {
             ]),
             "includeTotalCount": propertySchema(
                 type: "boolean",
-                description: "For list_tasks, include the full filtered count before pagination. get_task_counts always returns dedicated counts, so this value is unnecessary there.",
+                description: "Inside filter only: for list_tasks, include the full filtered count before pagination. This is not a top-level tool argument. get_task_counts always returns dedicated counts, so this value is unnecessary there.",
                 defaultValue: .bool(false)
             )
         ]
@@ -208,7 +239,7 @@ public enum FocusRelayServer {
 
         return .object([
             "type": .string("object"),
-            "description": .string("Shared task filter accepted by list_tasks and get_task_counts. Date bounds are inclusive ISO8601 timestamps."),
+            "description": .string("Shared task filter accepted by list_tasks and get_task_counts. Every filter property, including includeTotalCount, must be nested inside this filter object and never placed at the tool's top level. Date bounds are inclusive ISO8601 timestamps."),
             "properties": .object(properties)
         ])
     }
@@ -243,14 +274,18 @@ public enum FocusRelayServer {
             let tools = [
                 Tool(
                     name: "list_tasks",
-                    description: "Query OmniFocus tasks with powerful filtering including completion dates, due dates, planned dates, tags, and availability.\n\nFILTERING BY COMPLETION DATE (for 'what did I complete today?' questions):\n- Use completedAfter/completedBefore with ISO8601 dates: {\"completedAfter\": \"2026-01-31T00:00:00Z\", \"completedBefore\": \"2026-02-01T00:00:00Z\"}\n- IMPORTANT: Always include 'completionDate' in the fields parameter to see when tasks were completed\n- Results are automatically sorted by completionDate descending (most recent first) to match OmniFocus Completed perspective\n\nFILTERING BY TAGS:\n- Tagged project root tasks are included when they match, even if OmniFocus omits them from flattenedTasks because the project has child tasks.\n- If you want tagged project headers that are not currently actionable, set completed=false and availableOnly=false.\n\nFILTERING BY AVAILABILITY (for 'what should I do?' questions):\n- Use availableOnly=true to see only actionable tasks\n- Use deferAfter/deferBefore for time-of-day filtering (Morning=06:00-12:00, etc.)\n\nCOUNTS:\n- Use includeTotalCount=true to include totalCount for the full filtered result set (not just page size).\n\nTime formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields: only 'id' and 'name'.",
+                    description: listTasksToolDescription,
                     inputSchema: toolSchema(
                         properties: [
                             "filter": makeTaskFilterSchema(),
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
-                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
+                                    "limit": .object([
+                                        "type": .string("integer"),
+                                        "minimum": .int(1),
+                                        "description": .string("Maximum items in this page. For inbox processing, start with 10-20 rather than requesting the 50-item default.")
+                                    ]),
                                     "cursor": paginationCursorSchema()
                                 ])
                             ]),
