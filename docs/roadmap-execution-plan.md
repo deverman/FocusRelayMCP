@@ -1,6 +1,6 @@
 # FocusRelay Roadmap Execution Plan
 
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
 GitHub issues own requirements, discussion, and validation evidence. This file
 records only current sequencing and cross-issue dependencies.
@@ -25,9 +25,11 @@ records only current sequencing and cross-issue dependencies.
    - Make project discovery semantically scoped and pagination-safe before
      expanding the read-before-write lookup contract.
 6. [#161 — reject unsupported output fields](https://github.com/deverman/FocusRelayMCP/issues/161), then
+   [#163 — harden query-bound pagination](https://github.com/deverman/FocusRelayMCP/issues/163), then
+   [#70 — parent-aware tag discovery](https://github.com/deverman/FocusRelayMCP/issues/70), then
    [#94 — Discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
-   - Fail closed when clients request unsupported fields before encoding daily
-     focus, weekly review, inbox processing, and project planning workflows.
+   - Fail closed on unsupported fields, keep bounded continuation reliable, and
+     resolve tags compactly before encoding guided workflows.
 7. [#82 — Task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
    [#83 — project creation/conversion](https://github.com/deverman/FocusRelayMCP/issues/83)
    - Build on the consolidated edit surface, support safe project folder
@@ -35,11 +37,10 @@ records only current sequencing and cross-issue dependencies.
 8. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
    - After task creation and truthful drop behavior stabilize, establish complete
      schedule readback before adding create, edit, and lifecycle mutation slices.
-9. [#70 — parent-aware tag discovery](https://github.com/deverman/FocusRelayMCP/issues/70), then
-   [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
+9. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
    [#128 — create and assign missing tags](https://github.com/deverman/FocusRelayMCP/issues/128)
-   - Resolve root and nested tags safely, query direct project membership by
-     stable ID, then create missing tags during assignment.
+   - Build on #70's stable root and nested tag resolution, query direct project
+     membership, then create missing tags during assignment.
 10. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
    [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
    - Reduce context before expanding project-review workflows.
@@ -70,6 +71,9 @@ records only current sequencing and cross-issue dependencies.
 - Public tool count and serialized catalog size are directional optimization
   evidence; they must not override correctness, routing reliability, or real
   and perceived performance.
+- Interactive cleanup and review workflows count first, use 10–20 item decision
+  batches with compact fields, expand details only when needed, and never turn
+  pagination trouble into an oversized-page fallback.
 - #95 established the current development and release flow; #90 owns the
   remaining command/session latency investigation.
 - Raw benchmark artifacts are not roadmap content and belong under `.build`.
