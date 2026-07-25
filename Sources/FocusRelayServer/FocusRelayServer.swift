@@ -292,7 +292,7 @@ public enum FocusRelayServer {
                             "fields": .object([
                                 "type": .string("array"),
                                 "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether this task itself is flagged\n- 'effectiveFlagged' - visible OmniFocus flag state, including flags inherited from a parent task or project\n\nFor Flagged-perspective questions, filter with flagged=true and request 'effectiveFlagged' when returning flag state. ALWAYS include the fields you need to answer the user's question."),
-                                "items": .object(["type": .string("string")]),
+                                "items": outputFieldItemsSchema(for: "list_tasks"),
                                 "examples": .array([
                                     .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
                                     .array([.string("id"), .string("name"), .string("dueDate"), .string("plannedDate"), .string("deferDate"), .string("available")]),
@@ -311,7 +311,7 @@ public enum FocusRelayServer {
                             "id": .object(["type": .string("string")]),
                             "fields": .object([
                                 "type": .string("array"),
-                                "items": .object(["type": .string("string")])
+                                "items": outputFieldItemsSchema(for: "get_task")
                             ])
                         ],
                         required: ["id"]
@@ -378,7 +378,7 @@ public enum FocusRelayServer {
                             "fields": .object([
                                 "type": .string("array"),
                                 "description": .string("Specify which fields to return. Useful fields: 'id', 'name', 'note', 'status', 'flagged', 'completionDate', 'lastReviewDate', 'nextReviewDate', 'reviewInterval', 'hasChildren', 'nextTask', 'containsSingletonActions', and 'isStalled'. Always include 'status' when comparing projects across statuses. Task-count fields are included by includeTaskCounts."),
-                                "items": .object(["type": .string("string")]),
+                                "items": outputFieldItemsSchema(for: "list_projects"),
                                 "examples": .array([
                                     .array([.string("id"), .string("name"), .string("status"), .string("isStalled")]),
                                     .array([.string("id"), .string("name"), .string("status"), .string("completionDate")]),
@@ -431,7 +431,7 @@ public enum FocusRelayServer {
                             "fields": .object([
                                 "type": .string("array"),
                                 "description": .string("Specify folder fields to return: id, name, parentID, parentName, projectCount, childFolderCount."),
-                                "items": .object(["type": .string("string")])
+                                "items": outputFieldItemsSchema(for: "list_folders")
                             ])
                         ]
                     ),
@@ -719,6 +719,7 @@ public enum FocusRelayServer {
                     }
                     let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    try OutputFieldCatalog.validate(requestedFields, for: "list_tasks")
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listTasks(filter: filter, page: page, fields: fields)
                     let fieldSet = Set(fields)
@@ -731,6 +732,7 @@ public enum FocusRelayServer {
                         return .init(content: [.text(text: "Missing id", annotations: nil, _meta: nil)], isError: true)
                     }
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    try OutputFieldCatalog.validate(requestedFields, for: "get_task")
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.getTask(id: id, fields: fields)
                     let fieldSet = Set(fields)
@@ -748,6 +750,7 @@ public enum FocusRelayServer {
                     let completedBefore = try decodeArgument(Date.self, from: params.arguments, key: "completedBefore")
                     let completedAfter = try decodeArgument(Date.self, from: params.arguments, key: "completedAfter")
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    try OutputFieldCatalog.validate(requestedFields, for: "list_projects")
                     let fields = resolvedProjectFields(
                         requestedFields: requestedFields,
                         statusFilter: statusFilter,
@@ -782,6 +785,7 @@ public enum FocusRelayServer {
                 case "list_folders":
                     let page = try decodePageRequest(from: params)
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    try OutputFieldCatalog.validate(requestedFields, for: "list_folders")
                     let fields = requestedFields.isEmpty ? ["id", "name"] : requestedFields
                     let result = try await service.listFolders(page: page, fields: fields)
                     let fieldSet = Set(fields)
@@ -1048,6 +1052,14 @@ private func paginationCursorSchema() -> Value {
         type: "string",
         description: "Opaque cursor for the identical query. If membership filters change, omit the cursor and restart from page one."
     )
+}
+
+private func outputFieldItemsSchema(for toolName: String) -> Value {
+    let fields = OutputFieldCatalog.fields(for: toolName) ?? []
+    return .object([
+        "type": .string("string"),
+        "enum": .array(fields.map(Value.string))
+    ])
 }
 
 private func dateFilterSchema(_ description: String, example: Value) -> Value {

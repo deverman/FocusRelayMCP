@@ -72,7 +72,7 @@ struct ListTasks: AsyncParsableCommand {
         let service = OmniFocusBridgeService()
         let taskFilter = try filter.makeTaskFilter()
         let pageRequest = page.makePageRequest(defaultLimit: 50)
-        let fieldList = FieldList.parse(fields)
+        let fieldList = try FieldList.parseOutputFields(fields, for: "list_tasks")
         let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
 
         let result = try await service.listTasks(filter: taskFilter, page: pageRequest, fields: selectedFields)
@@ -98,7 +98,7 @@ struct GetTask: AsyncParsableCommand {
 
     func run() async throws {
         let service = OmniFocusBridgeService()
-        let fieldList = FieldList.parse(fields)
+        let fieldList = try FieldList.parseOutputFields(fields, for: "get_task")
         let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
 
         let result = try await service.getTask(id: id, fields: selectedFields)
@@ -149,7 +149,7 @@ struct ListProjects: AsyncParsableCommand {
     func run() async throws {
         let service = OmniFocusBridgeService()
         let pageRequest = page.makePageRequest(defaultLimit: 150)
-        let fieldList = FieldList.parse(fields)
+        let fieldList = try FieldList.parseOutputFields(fields, for: "list_projects")
         let selectedFields = FocusRelayServer.resolvedProjectFields(
             requestedFields: fieldList,
             statusFilter: statusFilter,
@@ -222,7 +222,7 @@ struct ListFolders: AsyncParsableCommand {
     func run() async throws {
         let service = OmniFocusBridgeService()
         let pageRequest = page.makePageRequest(defaultLimit: 150)
-        let fieldList = FieldList.parse(fields)
+        let fieldList = try FieldList.parseOutputFields(fields, for: "list_folders")
         let selectedFields = fieldList.isEmpty ? ["id", "name"] : fieldList
 
         let result = try await service.listFolders(page: pageRequest, fields: selectedFields)

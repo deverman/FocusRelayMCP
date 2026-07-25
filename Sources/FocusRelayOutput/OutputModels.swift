@@ -1,6 +1,68 @@
 import Foundation
 import OmniFocusCore
 
+public enum OutputFieldCatalog {
+    public static let task = [
+        "id", "name", "note", "projectID", "projectName", "tagIDs", "tagNames",
+        "dueDate", "plannedDate", "deferDate", "completionDate", "completed",
+        "flagged", "effectiveFlagged", "estimatedMinutes", "available"
+    ]
+
+    public static let project = [
+        "id", "name", "note", "status", "flagged", "lastReviewDate",
+        "nextReviewDate", "reviewInterval", "hasChildren", "nextTask",
+        "containsSingletonActions", "isStalled", "completionDate"
+    ]
+
+    public static let folder = [
+        "id", "name", "parentID", "parentName", "projectCount", "childFolderCount"
+    ]
+
+    public static func fields(for toolName: String) -> [String]? {
+        switch toolName {
+        case "list_tasks", "get_task":
+            task
+        case "list_projects":
+            project
+        case "list_folders":
+            folder
+        default:
+            nil
+        }
+    }
+
+    public static func validate(_ requestedFields: [String], for toolName: String) throws {
+        guard let supportedFields = fields(for: toolName) else {
+            throw OutputFieldValidationError("\(toolName) does not accept output fields.")
+        }
+
+        let supported = Set(supportedFields)
+        var seen: Set<String> = []
+        let unsupported = requestedFields.filter {
+            !supported.contains($0) && seen.insert($0).inserted
+        }
+        guard !unsupported.isEmpty else { return }
+
+        throw OutputFieldValidationError(
+            "\(toolName).fields contains unsupported field(s): "
+                + unsupported.joined(separator: ", ")
+                + ". Supported fields: "
+                + supportedFields.joined(separator: ", ")
+                + "."
+        )
+    }
+}
+
+public struct OutputFieldValidationError: Error, LocalizedError, Sendable {
+    public let message: String
+
+    public init(_ message: String) {
+        self.message = message
+    }
+
+    public var errorDescription: String? { message }
+}
+
 public struct TaskOutput: Encodable {
     public let id: String?
     public let name: String?
