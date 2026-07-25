@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import FocusRelayOutput
 import OmniFocusCore
 
 extension MutationCompletionState: ExpressibleByArgument {}
@@ -17,6 +18,12 @@ enum FieldList {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    static func parseOutputFields(_ raw: String?, for toolName: String) throws -> [String] {
+        let fields = parse(raw)
+        try OutputFieldCatalog.validate(fields, for: toolName)
+        return fields
     }
 }
 

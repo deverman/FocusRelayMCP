@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import FocusRelayServer
+import FocusRelayOutput
 import FocusRelayVersion
 import MCP
 @testable import OmniFocusAutomation
@@ -167,6 +168,34 @@ func publicMCPToolSurfaceExcludesInternalDiagnostics() {
 }
 
 @Test
+func outputFieldCatalogAcceptsEverySupportedReadField() throws {
+    for toolName in ["list_tasks", "get_task", "list_projects", "list_folders"] {
+        let fields = try #require(OutputFieldCatalog.fields(for: toolName))
+        try OutputFieldCatalog.validate(fields, for: toolName)
+    }
+}
+
+@Test
+func outputFieldCatalogRejectsUnknownAndMixedFieldsDeterministically() {
+    #expect(throws: OutputFieldValidationError.self) {
+        try OutputFieldCatalog.validate(["id", "notAField"], for: "list_tasks")
+    }
+
+    do {
+        try OutputFieldCatalog.validate(
+            ["id", "unknownSecond", "unknownFirst", "unknownSecond"],
+            for: "list_projects"
+        )
+        Issue.record("Expected unsupported project fields to fail")
+    } catch {
+        #expect(
+            error.localizedDescription
+                .contains("list_projects.fields contains unsupported field(s): unknownSecond, unknownFirst")
+        )
+    }
+}
+
+@Test
 func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
     #expect(FocusRelayServer.mutationToolNames == [
         "edit_tasks",
@@ -242,6 +271,14 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
     for tool in tools {
         let schema = try #require(tool["inputSchema"] as? [String: Any])
         expectClosedObjectSchemas(schema)
+
+        if let name = tool["name"] as? String,
+           let expectedFields = OutputFieldCatalog.fields(for: name) {
+            let properties = try #require(schema["properties"] as? [String: Any])
+            let fields = try #require(properties["fields"] as? [String: Any])
+            let items = try #require(fields["items"] as? [String: Any])
+            #expect(items["enum"] as? [String] == expectedFields)
+        }
     }
 
     for name in FocusRelayServer.mutationToolNames {
@@ -306,13 +343,18 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"list_tasks","arguments":{"page":{"offset":"50"}}}}"#,
         #"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"edit_tasks","arguments":{"operation":"set_completion","targetIDs":["real-task"],"completion":{"state":"completed","unexpected":true}}}}"#,
         #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"list_projects","arguments":{"statusFilter":"active","page":{"cursor":"100"}}}}"#,
-        #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"list_projects","arguments":{"statusFilter":"active","reviewPerspective":false,"page":{"cursor":"\#(reviewCursor)"}}}}"#
+        #"{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"list_projects","arguments":{"statusFilter":"active","reviewPerspective":false,"page":{"cursor":"\#(reviewCursor)"}}}}"#,
+        #"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"list_tasks","arguments":{"fields":["id","notAField"]}}}"#,
+        #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"get_task","arguments":{"id":"unused","fields":["unknownTaskField"]}}}"#,
+        #"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"list_projects","arguments":{"fields":["status","unknownProjectField"]}}}"#,
+        #"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"list_folders","arguments":{"fields":["id","unknownFolderField"]}}}"#,
+        #"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"list_tags","arguments":{"fields":["id"]}}}"#
     ].joined(separator: "\n") + "\n"
     try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
 
     var responses: [Int: [String: Any]] = [:]
     var buffered = Data()
-    while responses.count < 8 {
+    while responses.count < 13 {
         let chunk = standardOutput.fileHandleForReading.availableData
         guard !chunk.isEmpty else {
             Issue.record("MCP server exited before returning argument-validation responses")
@@ -337,6 +379,11 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
     #expect(toolErrorText(responses[6]).contains("edit_tasks.completion.unexpected is unsupported"))
     #expect(toolErrorText(responses[7]).contains("Pagination cursor is malformed or unsupported"))
     #expect(toolErrorText(responses[8]).contains("Pagination cursor is for a different query"))
+    #expect(toolErrorText(responses[9]).contains("list_tasks.fields contains unsupported field(s): notAField"))
+    #expect(toolErrorText(responses[10]).contains("get_task.fields contains unsupported field(s): unknownTaskField"))
+    #expect(toolErrorText(responses[11]).contains("list_projects.fields contains unsupported field(s): unknownProjectField"))
+    #expect(toolErrorText(responses[12]).contains("list_folders.fields contains unsupported field(s): unknownFolderField"))
+    #expect(toolErrorText(responses[13]).contains("list_tags.fields is unsupported"))
 }
 
 @Test

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import FocusRelayCLI
+import FocusRelayOutput
 import FocusRelayVersion
 import OmniFocusCore
 
@@ -433,4 +434,16 @@ func listBenchmarkArtifactKeepsHistoricalKeys() throws {
         "ok", "timeout", "returnedCount", "totalCount", "firstItemID", "lastItemID"
     ])
     #expect(object["transport"] as? String == "plugin")
+}
+
+@Test
+func outputFieldCLIParsingUsesTheSharedCatalog() throws {
+    #expect(
+        try FieldList.parseOutputFields("id, name, completionDate", for: "list_tasks")
+            == ["id", "name", "completionDate"]
+    )
+
+    #expect(throws: OutputFieldValidationError.self) {
+        try FieldList.parseOutputFields("id,notAField", for: "list_tasks")
+    }
 }
