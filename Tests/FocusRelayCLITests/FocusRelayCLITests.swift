@@ -43,6 +43,19 @@ func listProjectsParsesProjectNameSearch() throws {
 }
 
 @Test
+func listTagsParsesSearchAndHierarchyFields() throws {
+    let command = try ListTags.parse([
+        "--search", "contact",
+        "--status", "all",
+        "--fields", "id,name,parentID,path"
+    ])
+
+    #expect(command.search == "contact")
+    #expect(command.statusFilter == "all")
+    #expect(command.fields == "id,name,parentID,path")
+}
+
+@Test
 func iso8601DateParserAcceptsValidDates() throws {
     let date = try ISO8601DateParser.parse("2026-02-04T12:00:00Z", argumentName: "--due-before")
     #expect(date.timeIntervalSince1970 > 0)

@@ -166,9 +166,19 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed(message)
     }
 
-    func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) throws -> Page<TagItem> {
+    func listTags(
+        page: PageRequest,
+        statusFilter: String?,
+        includeTaskCounts: Bool,
+        search: String? = nil,
+        fields: [String]? = nil
+    ) throws -> Page<TagItem> {
         let requestId = UUID().uuidString
-        let tagFilter = TagFilter(statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
+        let tagFilter = TagFilter(
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts,
+            search: search
+        )
         let request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
@@ -180,7 +190,7 @@ final class BridgeClient: @unchecked Sendable {
             tagFilter: tagFilter,
             projectFilter: nil,
             mutation: nil,
-            fields: nil,
+            fields: fields,
             page: page
         )
 
@@ -193,7 +203,11 @@ final class BridgeClient: @unchecked Sendable {
                     status: payload.status,
                     availableTasks: payload.availableTasks,
                     remainingTasks: payload.remainingTasks,
-                    totalTasks: payload.totalTasks
+                    totalTasks: payload.totalTasks,
+                    parentID: payload.parentID,
+                    parentName: payload.parentName,
+                    path: payload.path,
+                    childrenAreMutuallyExclusive: payload.childrenAreMutuallyExclusive
                 )
             }
             return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)

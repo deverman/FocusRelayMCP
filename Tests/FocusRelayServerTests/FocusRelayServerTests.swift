@@ -348,13 +348,14 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"get_task","arguments":{"id":"unused","fields":["unknownTaskField"]}}}"#,
         #"{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"list_projects","arguments":{"fields":["status","unknownProjectField"]}}}"#,
         #"{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"list_folders","arguments":{"fields":["id","unknownFolderField"]}}}"#,
-        #"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"list_tags","arguments":{"fields":["id"]}}}"#
+        #"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"list_tags","arguments":{"fields":["id","unknownTagField"]}}}"#,
+        #"{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"list_tags","arguments":{"search":"   ","fields":["id","name","path"]}}}"#
     ].joined(separator: "\n") + "\n"
     try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
 
     var responses: [Int: [String: Any]] = [:]
     var buffered = Data()
-    while responses.count < 13 {
+    while responses.count < 14 {
         let chunk = standardOutput.fileHandleForReading.availableData
         guard !chunk.isEmpty else {
             Issue.record("MCP server exited before returning argument-validation responses")
@@ -383,7 +384,8 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
     #expect(toolErrorText(responses[10]).contains("get_task.fields contains unsupported field(s): unknownTaskField"))
     #expect(toolErrorText(responses[11]).contains("list_projects.fields contains unsupported field(s): unknownProjectField"))
     #expect(toolErrorText(responses[12]).contains("list_folders.fields contains unsupported field(s): unknownFolderField"))
-    #expect(toolErrorText(responses[13]).contains("list_tags.fields is unsupported"))
+    #expect(toolErrorText(responses[13]).contains("list_tags.fields contains unsupported field(s): unknownTagField"))
+    #expect(toolErrorText(responses[14]).contains("Tag search must contain at least one non-whitespace character"))
 }
 
 @Test
@@ -622,6 +624,33 @@ func projectDefaultsIncludeStatusWhenCountsOrHistoricalStatusesNeedInterpretatio
         statusFilter: "all",
         includeTaskCounts: true
     ) == ["id", "name", "completionDate"])
+}
+
+@Test
+func tagDefaultsPreserveExistingShapeAndExplicitFieldsStayCompact() {
+    #expect(FocusRelayServer.resolvedTagFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: false
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedTagFields(
+        requestedFields: [],
+        statusFilter: "all",
+        includeTaskCounts: false
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedTagFields(
+        requestedFields: [],
+        statusFilter: "active",
+        includeTaskCounts: true
+    ) == ["id", "name", "status"])
+
+    #expect(FocusRelayServer.resolvedTagFields(
+        requestedFields: ["id", "path"],
+        statusFilter: "all",
+        includeTaskCounts: true
+    ) == ["id", "path"])
 }
 
 @Test

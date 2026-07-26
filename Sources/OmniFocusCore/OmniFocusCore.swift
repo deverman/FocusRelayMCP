@@ -136,6 +136,16 @@ public struct ProjectItem: Codable, Sendable {
     }
 }
 
+public struct TagPathElement: Codable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
 public struct TagItem: Codable, Sendable {
     public let id: String
     public let name: String
@@ -143,6 +153,10 @@ public struct TagItem: Codable, Sendable {
     public let availableTasks: Int?
     public let remainingTasks: Int?
     public let totalTasks: Int?
+    public let parentID: String?
+    public let parentName: String?
+    public let path: [TagPathElement]?
+    public let childrenAreMutuallyExclusive: Bool?
 
     public init(
         id: String,
@@ -150,7 +164,11 @@ public struct TagItem: Codable, Sendable {
         status: String? = nil,
         availableTasks: Int? = nil,
         remainingTasks: Int? = nil,
-        totalTasks: Int? = nil
+        totalTasks: Int? = nil,
+        parentID: String? = nil,
+        parentName: String? = nil,
+        path: [TagPathElement]? = nil,
+        childrenAreMutuallyExclusive: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -158,6 +176,10 @@ public struct TagItem: Codable, Sendable {
         self.availableTasks = availableTasks
         self.remainingTasks = remainingTasks
         self.totalTasks = totalTasks
+        self.parentID = parentID
+        self.parentName = parentName
+        self.path = path
+        self.childrenAreMutuallyExclusive = childrenAreMutuallyExclusive
     }
 }
 
@@ -229,13 +251,16 @@ public struct Page<T: Codable & Sendable>: Codable, Sendable {
 public struct TagFilter: Codable, Sendable {
     public var statusFilter: String?
     public var includeTaskCounts: Bool?
+    public var search: String?
 
     public init(
         statusFilter: String? = nil,
-        includeTaskCounts: Bool? = nil
+        includeTaskCounts: Bool? = nil,
+        search: String? = nil
     ) {
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts
+        self.search = search
     }
 }
 
@@ -366,7 +391,13 @@ public protocol OmniFocusService: Sendable {
         completedAfter: Date?,
         fields: [String]?
     ) async throws -> Page<ProjectItem>
-    func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem>
+    func listTags(
+        page: PageRequest,
+        statusFilter: String?,
+        includeTaskCounts: Bool,
+        search: String?,
+        fields: [String]?
+    ) async throws -> Page<TagItem>
     func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem>
     func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts
     func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts

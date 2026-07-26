@@ -1,4 +1,5 @@
 import Foundation
+import OmniFocusCore
 
 struct TaskItemPayload: Codable {
     let id: String?
@@ -57,6 +58,10 @@ struct TagItemPayload: Codable {
     let availableTasks: Int?
     let remainingTasks: Int?
     let totalTasks: Int?
+    let parentID: String?
+    let parentName: String?
+    let path: [TagPathElement]?
+    let childrenAreMutuallyExclusive: Bool?
 }
 
 struct FolderItemPayload: Codable {

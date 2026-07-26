@@ -115,6 +115,35 @@ func tagCacheKeySeparatesIncludeTaskCounts() {
 }
 
 @Test
+func tagCacheKeySeparatesSearchAndHierarchyFields() {
+    let page = PageRequest(limit: 10, cursor: "cursor")
+    let compact = CacheKey.tags(
+        page: page,
+        fields: ["id", "name"],
+        statusFilter: "active",
+        includeTaskCounts: false,
+        search: "contact"
+    )
+    let hierarchy = CacheKey.tags(
+        page: page,
+        fields: ["id", "name", "path"],
+        statusFilter: "active",
+        includeTaskCounts: false,
+        search: "contact"
+    )
+    let differentSearch = CacheKey.tags(
+        page: page,
+        fields: ["id", "name"],
+        statusFilter: "active",
+        includeTaskCounts: false,
+        search: "context"
+    )
+
+    #expect(compact != hierarchy)
+    #expect(compact != differentSearch)
+}
+
+@Test
 func catalogCacheSeparatesProjectEntriesByKey() async {
     let cache = CatalogCache()
     let page = PageRequest(limit: 10)
