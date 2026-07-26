@@ -195,12 +195,34 @@ struct ListTags: AsyncParsableCommand {
     @Flag(name: .customLong("include-task-counts"), help: "Include task counts for each tag.")
     var includeTaskCounts: Bool = false
 
+    @Option(help: "Case-insensitive substring to match against tag names.")
+    var search: String?
+
+    @Option(help: "Comma-separated field names to return.")
+    var fields: String?
+
     func run() async throws {
         let service = OmniFocusBridgeService()
         let pageRequest = page.makePageRequest(defaultLimit: 150)
+        let requestedFields = fields?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        try OutputFieldCatalog.validate(requestedFields, for: "list_tags")
+        let resolvedFields = FocusRelayServer.resolvedTagFields(
+            requestedFields: requestedFields,
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts
+        )
 
-        let result = try await service.listTags(page: pageRequest, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
-        let fieldSet: Set<String> = ["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"]
+        let result = try await service.listTags(
+            page: pageRequest,
+            statusFilter: statusFilter,
+            includeTaskCounts: includeTaskCounts,
+            search: search,
+            fields: resolvedFields
+        )
+        let fieldSet = Set(resolvedFields)
         let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
         let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
         print(try encodeJSON(output))

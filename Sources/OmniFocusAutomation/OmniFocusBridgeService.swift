@@ -117,17 +117,27 @@ public final class OmniFocusBridgeService: OmniFocusService {
         return normalized
     }
 
-    public func listTags(page: PageRequest, statusFilter: String?, includeTaskCounts: Bool) async throws -> Page<TagItem> {
+    public func listTags(
+        page: PageRequest,
+        statusFilter: String?,
+        includeTaskCounts: Bool,
+        search: String?,
+        fields: [String]?
+    ) async throws -> Page<TagItem> {
+        let normalizedSearch = try Self.normalizeTagSearch(search)
         let filter = TagFilter(
             statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts
+            includeTaskCounts: includeTaskCounts,
+            search: normalizedSearch
         )
         let identity = try QueryBoundCursor.queryIdentity(tool: "list_tags", input: filter)
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
         let key = CacheKey.tags(
             page: bridgePage,
+            fields: fields,
             statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts
+            includeTaskCounts: includeTaskCounts,
+            search: normalizedSearch
         )
         if let cached = await cache.getTags(key: key) {
             return try QueryBoundCursor.publicPage(from: cached, identity: identity)
@@ -136,11 +146,24 @@ public final class OmniFocusBridgeService: OmniFocusService {
             try self.client.listTags(
                 page: bridgePage,
                 statusFilter: statusFilter,
-                includeTaskCounts: includeTaskCounts
+                includeTaskCounts: includeTaskCounts,
+                search: normalizedSearch,
+                fields: fields
             )
         }.value
         await cache.setTags(pageResult, key: key, ttl: cacheTTL)
         return try QueryBoundCursor.publicPage(from: pageResult, identity: identity)
+    }
+
+    static func normalizeTagSearch(_ search: String?) throws -> String? {
+        guard let search else { return nil }
+        let normalized = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            throw AutomationError.executionFailed(
+                "Tag search must contain at least one non-whitespace character."
+            )
+        }
+        return normalized
     }
 
     public func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {

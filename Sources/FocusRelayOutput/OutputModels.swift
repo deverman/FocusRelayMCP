@@ -18,12 +18,19 @@ public enum OutputFieldCatalog {
         "id", "name", "parentID", "parentName", "projectCount", "childFolderCount"
     ]
 
+    public static let tag = [
+        "id", "name", "status", "availableTasks", "remainingTasks", "totalTasks",
+        "parentID", "parentName", "path", "childrenAreMutuallyExclusive"
+    ]
+
     public static func fields(for toolName: String) -> [String]? {
         switch toolName {
         case "list_tasks", "get_task":
             task
         case "list_projects":
             project
+        case "list_tags":
+            tag
         case "list_folders":
             folder
         default:
@@ -196,20 +203,28 @@ public struct ProjectOutput: Encodable {
 }
 
 public struct TagOutput: Encodable {
-    public let id: String
-    public let name: String
+    public let id: String?
+    public let name: String?
     public let status: String?
     public let availableTasks: Int?
     public let remainingTasks: Int?
     public let totalTasks: Int?
+    public let parentID: String?
+    public let parentName: String?
+    public let path: [TagPathElement]?
+    public let childrenAreMutuallyExclusive: Bool?
 
     public init(
-        id: String,
-        name: String,
+        id: String?,
+        name: String?,
         status: String?,
         availableTasks: Int?,
         remainingTasks: Int?,
-        totalTasks: Int?
+        totalTasks: Int?,
+        parentID: String?,
+        parentName: String?,
+        path: [TagPathElement]?,
+        childrenAreMutuallyExclusive: Bool?
     ) {
         self.id = id
         self.name = name
@@ -217,6 +232,10 @@ public struct TagOutput: Encodable {
         self.availableTasks = availableTasks
         self.remainingTasks = remainingTasks
         self.totalTasks = totalTasks
+        self.parentID = parentID
+        self.parentName = parentName
+        self.path = path
+        self.childrenAreMutuallyExclusive = childrenAreMutuallyExclusive
     }
 }
 
@@ -291,12 +310,18 @@ public func makeProjectOutput(from project: ProjectItem, fields: Set<String>, in
 
 public func makeTagOutput(from tag: TagItem, fields: Set<String>, includeTaskCounts: Bool) -> TagOutput {
     TagOutput(
-        id: tag.id,
-        name: tag.name,
+        id: fields.contains("id") ? tag.id : nil,
+        name: fields.contains("name") ? tag.name : nil,
         status: fields.contains("status") ? tag.status : nil,
         availableTasks: includeTaskCounts ? tag.availableTasks : nil,
         remainingTasks: includeTaskCounts ? tag.remainingTasks : nil,
-        totalTasks: includeTaskCounts ? tag.totalTasks : nil
+        totalTasks: includeTaskCounts ? tag.totalTasks : nil,
+        parentID: fields.contains("parentID") ? tag.parentID : nil,
+        parentName: fields.contains("parentName") ? tag.parentName : nil,
+        path: fields.contains("path") ? tag.path : nil,
+        childrenAreMutuallyExclusive: fields.contains("childrenAreMutuallyExclusive")
+            ? tag.childrenAreMutuallyExclusive
+            : nil
     )
 }
 

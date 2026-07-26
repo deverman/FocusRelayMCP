@@ -1626,6 +1626,42 @@
     }
     // END PROJECT COMPLETION QUERY MODULE
 
+    // TAG QUERY MODULE - list_tags search and hierarchy
+    function normalizedTagNameSearch(search) {
+      if (typeof search !== "string") return null;
+      const normalized = search.trim();
+      return normalized.length > 0 ? normalized.toLocaleLowerCase() : null;
+    }
+
+    function tagMatchesNameSearch(tag, searchQuery) {
+      if (!searchQuery) return true;
+      const name = String(safe(() => tag.name) || "");
+      return name.toLocaleLowerCase().includes(searchQuery);
+    }
+
+    function tagHierarchyPayload(tag) {
+      const parent = safe(() => tag.parent);
+      const reversedPath = [];
+      const visited = {};
+      let current = tag;
+      while (current) {
+        const id = String(safe(() => current.id.primaryKey) || "");
+        if (visited[id]) break;
+        visited[id] = true;
+        reversedPath.push({
+          id: id,
+          name: String(safe(() => current.name) || "")
+        });
+        current = safe(() => current.parent);
+      }
+      return {
+        parentID: parent ? String(safe(() => parent.id.primaryKey) || "") : null,
+        parentName: parent ? String(safe(() => parent.name) || "") : null,
+        path: reversedPath.reverse()
+      };
+    }
+    // END TAG QUERY MODULE
+
     // Normalize OmniFocus collections to plain arrays.
     function toTaskArray(collection) {
       if (!collection) { return []; }
@@ -2616,6 +2652,9 @@
           const filter = request.tagFilter || request.filter || {};
           const statusFilter = (typeof filter.statusFilter === "string") ? filter.statusFilter.toLowerCase() : "active";
           const includeTaskCounts = filter.includeTaskCounts === true;
+          const searchQuery = normalizedTagNameSearch(filter.search);
+          const fields = request.fields || [];
+          const hasField = field => fields.indexOf(field) >= 0;
           
           let tags = flattenedTags;
           
@@ -2634,6 +2673,10 @@
               }
               return true;
             });
+          }
+
+          if (searchQuery) {
+            tags = tags.filter(tag => tagMatchesNameSearch(tag, searchQuery));
           }
           
           const limit = request.page && request.page.limit ? Math.max(1, request.page.limit) : 150;
@@ -2665,6 +2708,24 @@
               name: String(safe(() => tag.name) || ""),
               status: getTagStatusString(tag)
             };
+
+            const hierarchy = (hasField("parentID") || hasField("parentName") || hasField("path"))
+              ? tagHierarchyPayload(tag)
+              : null;
+            if (hasField("parentID")) {
+              item.parentID = hierarchy.parentID;
+            }
+            if (hasField("parentName")) {
+              item.parentName = hierarchy.parentName;
+            }
+            if (hasField("path")) {
+              item.path = hierarchy.path;
+            }
+            if (hasField("childrenAreMutuallyExclusive")) {
+              item.childrenAreMutuallyExclusive = Boolean(
+                safe(() => tag.childrenAreMutuallyExclusive)
+              );
+            }
 
             // Get task counts using OmniFocus built-in properties only when requested.
             // Note: Per documentation, cleanUp() should be called for accurate counts

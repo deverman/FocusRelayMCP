@@ -44,16 +44,18 @@ struct CacheKey: Hashable {
 
     static func tags(
         page: PageRequest,
+        fields: [String]? = nil,
         statusFilter: String?,
-        includeTaskCounts: Bool
+        includeTaskCounts: Bool,
+        search: String? = nil
     ) -> CacheKey {
         CacheKey(
             limit: page.limit,
             cursor: page.cursor,
-            fieldsKey: "",
+            fieldsKey: (fields ?? []).joined(separator: ","),
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
-            search: nil
+            search: search
         )
     }
 }

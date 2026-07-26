@@ -63,6 +63,29 @@ func pageWarningsRoundTripAndAbsenceTolerance() throws {
 }
 
 @Test
+func tagHierarchyRoundTrip() throws {
+    let tag = TagItem(
+        id: "contact",
+        name: "Contact",
+        status: "active",
+        parentID: "people",
+        parentName: "People",
+        path: [
+            TagPathElement(id: "people", name: "People"),
+            TagPathElement(id: "contact", name: "Contact")
+        ],
+        childrenAreMutuallyExclusive: true
+    )
+
+    let data = try JSONEncoder().encode(tag)
+    let decoded = try JSONDecoder().decode(TagItem.self, from: data)
+    #expect(decoded.parentID == "people")
+    #expect(decoded.parentName == "People")
+    #expect(decoded.path == tag.path)
+    #expect(decoded.childrenAreMutuallyExclusive == true)
+}
+
+@Test
 func projectItemReviewRoundTrip() throws {
     let interval = ReviewInterval(steps: 2, unit: "weeks")
     let project = ProjectItem(

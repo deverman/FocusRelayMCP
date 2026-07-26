@@ -391,7 +391,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "list_tags",
-                    description: "List OmniFocus tags with pagination and filtering. Tags have a status (active, onHold, dropped) and can optionally include task counts. Use statusFilter to show only tags with a specific status, and includeTaskCounts to get the number of tasks associated with each tag.",
+                    description: "Find OmniFocus tags by partial name with pagination and status filtering. Request parentID, parentName, or path to distinguish duplicate names without loading the full tag catalog. Search is a trimmed, literal, case-insensitive substring and is applied before pagination.",
                     inputSchema: toolSchema(
                         properties: [
                             "page": .object([
@@ -411,6 +411,15 @@ public enum FocusRelayServer {
                                 "type": .string("boolean"),
                                 "description": .string("Include task counts for each tag (available, remaining, total)"),
                                 "default": .bool(false)
+                            ]),
+                            "search": .object([
+                                "type": .string("string"),
+                                "description": .string("Trimmed, literal, case-insensitive substring match against tag names")
+                            ]),
+                            "fields": .object([
+                                "type": .string("array"),
+                                "description": .string("Fields to return. Defaults to the existing id, name, and status shape. Request path to disambiguate duplicate tag names."),
+                                "items": outputFieldItemsSchema(for: "list_tags")
                             ])
                         ]
                     ),
@@ -777,8 +786,22 @@ public enum FocusRelayServer {
                     let page = try decodePageRequest(from: params)
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
-                    let result = try await service.listTags(page: page, statusFilter: statusFilter, includeTaskCounts: includeTaskCounts)
-                    let fieldSet = Set(["id", "name", "status", "availableTasks", "remainingTasks", "totalTasks"])
+                    let search = try decodeArgument(String.self, from: params.arguments, key: "search")
+                    let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                    try OutputFieldCatalog.validate(requestedFields, for: "list_tags")
+                    let fields = Self.resolvedTagFields(
+                        requestedFields: requestedFields,
+                        statusFilter: statusFilter,
+                        includeTaskCounts: includeTaskCounts
+                    )
+                    let result = try await service.listTags(
+                        page: page,
+                        statusFilter: statusFilter,
+                        includeTaskCounts: includeTaskCounts,
+                        search: search,
+                        fields: fields
+                    )
+                    let fieldSet = Set(fields)
                     let items = result.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: includeTaskCounts) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
                     return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
@@ -960,6 +983,15 @@ public enum FocusRelayServer {
             throw MutationValidationError("Tool \(params.name) does not accept page arguments.")
         }
         return try decodePageRequest(from: params.arguments, defaultLimit: defaultLimit)
+    }
+
+    public static func resolvedTagFields(
+        requestedFields: [String],
+        statusFilter: String,
+        includeTaskCounts: Bool
+    ) -> [String] {
+        guard requestedFields.isEmpty else { return requestedFields }
+        return ["id", "name", "status"]
     }
 }
 
