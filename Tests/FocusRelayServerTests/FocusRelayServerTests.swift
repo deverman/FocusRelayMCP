@@ -212,6 +212,131 @@ func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
 }
 
 @Test
+func processInboxPromptContractIsStableAndInstructionFirst() throws {
+    let prompt = FocusRelayServer.processInboxPrompt
+    #expect(prompt.name == "process_inbox")
+    #expect(prompt.title == "Process OmniFocus Inbox")
+    #expect(prompt.arguments == nil)
+
+    let result = try FocusRelayServer.prompt(named: prompt.name)
+    #expect(result.description == FocusRelayServer.processInboxPromptDescription)
+    #expect(result.messages.count == 1)
+    #expect(result.messages[0].role == .user)
+
+    guard case .text(let text) = result.messages[0].content else {
+        Issue.record("process_inbox must return one instruction-only text message")
+        return
+    }
+    #expect(text == FocusRelayServer.processInboxPromptText)
+    #expect(text.contains("filter.inboxOnly=true"))
+    #expect(text.contains(#"filter.inboxView="remaining""#))
+    #expect(text.contains("10–20 item decision batch"))
+    #expect(text.contains("Initially request only id and name"))
+    #expect(text.contains("before following nextCursor"))
+    #expect(text.contains("obtain explicit approval"))
+    #expect(text.contains("verify the result, and recount"))
+    #expect(text.contains("cannot yet create tasks, subtasks, or projects"))
+    #expect(!text.contains("taskID"))
+    #expect(!text.contains("projectID"))
+
+    #expect(throws: MCPError.self) {
+        try FocusRelayServer.prompt(named: "unknown_prompt")
+    }
+}
+
+@Test
+func promptProtocolAdvertisesListsAndRetrievesWithoutChangingTools() throws {
+    let packageRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let executable = packageRoot.appendingPathComponent(".build/debug/focusrelay")
+    #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+
+    let process = Process()
+    let standardInput = Pipe()
+    let standardOutput = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+    process.arguments = ["-e", "alarm 10; exec @ARGV", executable.path, "serve"]
+    process.currentDirectoryURL = packageRoot
+    process.standardInput = standardInput
+    process.standardOutput = standardOutput
+    process.standardError = Pipe()
+    try process.run()
+    defer {
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+
+    let requests = [
+        #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"prompt-test","version":"1"}}}"#,
+        #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#,
+        #"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#,
+        #"{"jsonrpc":"2.0","id":3,"method":"prompts/list"}"#,
+        #"{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}"#,
+        #"{"jsonrpc":"2.0","id":5,"method":"prompts/get","params":{"name":"process_inbox"}}"#,
+        #"{"jsonrpc":"2.0","id":6,"method":"prompts/get","params":{"name":"unknown_prompt"}}"#,
+        #"{"jsonrpc":"2.0","id":7,"method":"tools/list","params":{}}"#
+    ].joined(separator: "\n") + "\n"
+    try standardInput.fileHandleForWriting.write(contentsOf: Data(requests.utf8))
+
+    var responses: [Int: [String: Any]] = [:]
+    var buffered = Data()
+    while responses.count < 7 {
+        let chunk = standardOutput.fileHandleForReading.availableData
+        guard !chunk.isEmpty else {
+            Issue.record("MCP server exited before returning prompt protocol responses")
+            break
+        }
+        buffered.append(chunk)
+        while let newline = buffered.firstIndex(of: 0x0A) {
+            let line = buffered[..<newline]
+            buffered.removeSubrange(...newline)
+            guard let object = try JSONSerialization.jsonObject(with: line) as? [String: Any],
+                  let id = object["id"] as? Int else {
+                continue
+            }
+            responses[id] = object
+        }
+    }
+
+    let initialize = try #require(responses[1]?["result"] as? [String: Any])
+    let capabilities = try #require(initialize["capabilities"] as? [String: Any])
+    let promptsCapability = try #require(capabilities["prompts"] as? [String: Any])
+    #expect(promptsCapability["listChanged"] as? Bool == false)
+
+    let omittedList = try #require(responses[3]?["result"] as? [String: Any])
+    let emptyList = try #require(responses[4]?["result"] as? [String: Any])
+    #expect(NSDictionary(dictionary: omittedList).isEqual(to: emptyList))
+    let prompts = try #require(omittedList["prompts"] as? [[String: Any]])
+    #expect(prompts.count == 1)
+    #expect(prompts[0]["name"] as? String == "process_inbox")
+    #expect(prompts[0]["arguments"] == nil)
+    #expect(omittedList["nextCursor"] == nil)
+
+    let getResult = try #require(responses[5]?["result"] as? [String: Any])
+    let messages = try #require(getResult["messages"] as? [[String: Any]])
+    #expect(messages.count == 1)
+    #expect(messages[0]["role"] as? String == "user")
+    let content = try #require(messages[0]["content"] as? [String: Any])
+    #expect(content["type"] as? String == "text")
+    #expect(content["text"] as? String == FocusRelayServer.processInboxPromptText)
+
+    let unknownError = try #require(responses[6]?["error"] as? [String: Any])
+    #expect((unknownError["message"] as? String)?.contains("Unknown prompt: unknown_prompt") == true)
+
+    let toolsBefore = try #require(
+        (responses[2]?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
+    )
+    let toolsAfter = try #require(
+        (responses[7]?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
+    )
+    #expect(toolsBefore.compactMap { $0["name"] as? String } == FocusRelayServer.publicToolNames)
+    #expect(NSArray(array: toolsBefore).isEqual(to: toolsAfter))
+}
+
+@Test
 func productionToolsListMatchesGoldenPublicCatalog() throws {
     let packageRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()

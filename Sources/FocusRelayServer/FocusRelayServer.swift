@@ -44,6 +44,40 @@ public enum FocusRelayServer {
         openWorldHint: false
     )
 
+    static let processInboxPrompt = Prompt(
+        name: "process_inbox",
+        title: "Process OmniFocus Inbox",
+        description: "Review a small batch of unresolved inbox captures, recommend what to do, and apply only approved changes."
+    )
+
+    static let processInboxPromptDescription =
+        "Safely process a bounded batch of unresolved OmniFocus inbox items."
+
+    static let processInboxPromptText = """
+    Help the user process their OmniFocus inbox safely and incrementally.
+
+    1. Establish scope first. Use get_task_counts when only a count is needed.
+    2. Read unresolved inbox captures with list_tasks using filter.inboxOnly=true and filter.inboxView="remaining".
+    3. Work in one 10–20 item decision batch. Initially request only id and name.
+    4. Fetch note or other verbose fields only for selected captures whose meaning is ambiguous.
+    5. Finish recommending actions for the current page before following nextCursor. Never respond to trouble by requesting an unbounded or substantially larger page, loading a full catalog, or writing a local script to classify ordinary output.
+    6. Present a bounded proposal before changing OmniFocus. Separate recommendations from writes and obtain explicit approval for the exact batch.
+    7. Resolve project and tag destinations to stable IDs before writing. If multiple matching paths remain, ask the user to choose.
+    8. Preview supported broad or risky changes, apply only the approved batch, verify the result, and recount before continuing.
+    9. Do not delegate broad classification or mutation unless the user approved that exact scope.
+    10. FocusRelay cannot yet create tasks, subtasks, or projects. Do not promise creation or conversion; explain that limit and use only currently supported edits, moves, status changes, and completion changes.
+    """
+
+    static func prompt(named name: String) throws -> GetPrompt.Result {
+        guard name == processInboxPrompt.name else {
+            throw MCPError.invalidRequest("Unknown prompt: \(name)")
+        }
+        return GetPrompt.Result(
+            description: processInboxPromptDescription,
+            messages: [.user(.text(text: processInboxPromptText))]
+        )
+    }
+
     static let listTasksToolDescription = """
     Query OmniFocus tasks with filtering, compact fields, and pagination.
 
@@ -261,7 +295,10 @@ public enum FocusRelayServer {
         let server = Server(
             name: "FocusRelayMCP",
             version: version,
-            capabilities: .init(tools: .init(listChanged: true))
+            capabilities: .init(
+                prompts: .init(listChanged: false),
+                tools: .init(listChanged: true)
+            )
         )
 
         let bridgeService = OmniFocusBridgeService()
@@ -696,6 +733,14 @@ public enum FocusRelayServer {
         let tools = makeTools()
         await server.withMethodHandler(ListTools.self) { _ in
             .init(tools: tools)
+        }
+
+        await server.withMethodHandler(ListPrompts.self) { _ in
+            .init(prompts: [processInboxPrompt])
+        }
+
+        await server.withMethodHandler(GetPrompt.self) { params in
+            try prompt(named: params.name)
         }
 
         await server.withMethodHandler(CallTool.self) { params in
