@@ -319,7 +319,7 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
         }
     }
 
-    let reviewQueryKey = try QueryBoundCursor.queryKey(
+    let reviewIdentity = try QueryBoundCursor.queryIdentity(
         tool: "list_projects",
         input: ProjectFilter(statusFilter: "active", reviewPerspective: true)
     )
@@ -330,7 +330,7 @@ func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
                 nextCursor: "100",
                 returnedCount: 100
             ),
-            queryKey: reviewQueryKey
+            identity: reviewIdentity
         ).nextCursor
     )
 
@@ -806,6 +806,98 @@ func cursorOnlyPagesApplyDefaultsAtMCPWireBoundary() throws {
         #expect(page.limit == testCase.expectedLimit)
         #expect(page.cursor == testCase.cursor)
     }
+}
+
+@Test
+func compoundTaskPaginationSurvivesSeparateMCPArgumentDecoding() throws {
+    let firstData = Data(
+        #"""
+        {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "tools/call",
+          "params": {
+            "name": "list_tasks",
+            "arguments": {
+              "filter": {
+                "project": "project-fixture",
+                "completed": false,
+                "availableOnly": false,
+                "includeTotalCount": true
+              },
+              "fields": ["id", "name", "note"],
+              "page": {"limit": 50}
+            }
+          }
+        }
+        """#.utf8
+    )
+    let firstRequest = try JSONDecoder().decode(Request<CallTool>.self, from: firstData)
+    let decodedFirstFilter = try FocusRelayServer.decodeArgument(
+        TaskFilter.self,
+        from: firstRequest.params.arguments,
+        key: "filter"
+    )
+    let firstFilter = try #require(decodedFirstFilter)
+    let firstIdentity = try QueryBoundCursor.taskIdentity(for: firstFilter)
+    let cursor = try #require(
+        QueryBoundCursor.publicPage(
+            from: Page<TaskItem>(
+                items: [],
+                nextCursor: "50",
+                returnedCount: 50,
+                totalCount: 69
+            ),
+            identity: firstIdentity
+        ).nextCursor
+    )
+
+    let continuationData = Data(
+        #"""
+        {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "tools/call",
+          "params": {
+            "name": "list_tasks",
+            "arguments": {
+              "page": {"cursor": "\#(cursor)", "limit": 20},
+              "fields": ["note", "name", "id"],
+              "filter": {
+                "includeTotalCount": true,
+                "availableOnly": false,
+                "completed": false,
+                "project": "project-fixture"
+              }
+            }
+          }
+        }
+        """#.utf8
+    )
+    let continuationRequest = try JSONDecoder().decode(
+        Request<CallTool>.self,
+        from: continuationData
+    )
+    let decodedContinuationFilter = try FocusRelayServer.decodeArgument(
+        TaskFilter.self,
+        from: continuationRequest.params.arguments,
+        key: "filter"
+    )
+    let continuationFilter = try #require(decodedContinuationFilter)
+    let continuationIdentity = try QueryBoundCursor.taskIdentity(
+        for: continuationFilter
+    )
+    let continuationPage = try FocusRelayServer.decodePageRequest(
+        from: continuationRequest.params
+    )
+    let bridgePage = try QueryBoundCursor.bridgePage(
+        from: continuationPage,
+        identity: continuationIdentity
+    )
+
+    #expect(firstIdentity == continuationIdentity)
+    #expect(bridgePage.limit == 20)
+    #expect(bridgePage.cursor == "50")
 }
 
 @Test
