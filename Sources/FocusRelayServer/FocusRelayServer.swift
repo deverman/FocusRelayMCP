@@ -63,9 +63,11 @@ public enum FocusRelayServer {
     5. Finish recommending actions for the current page before following nextCursor. Never respond to trouble by requesting an unbounded or substantially larger page, loading a full catalog, or writing a local script to classify ordinary output.
     6. Present a bounded proposal before changing OmniFocus. Separate recommendations from writes and obtain explicit approval for the exact batch.
     7. Resolve project and tag destinations to stable IDs before writing. If multiple matching paths remain, ask the user to choose.
-    8. Preview supported broad or risky changes, apply only the approved batch, verify the result, and recount before continuing.
-    9. Do not delegate broad classification or mutation unless the user approved that exact scope.
-    10. FocusRelay cannot yet create tasks, subtasks, or projects. Do not promise creation or conversion; explain that limit and use only currently supported edits, moves, status changes, and completion changes.
+    8. Group targets that share one operation, patch, state, or destination into the fewest supported calls. Never run mutation calls concurrently. Preview, apply, and verify one mutation group before starting the next.
+    9. Keep lookups bounded. Do not launch a large parallel fan-out of project, tag, or task-detail requests; resolve a small set at a time.
+    10. Recount after the approved mutation groups finish, then continue only if the user wants another batch.
+    11. Do not delegate broad classification or mutation unless the user approved that exact scope.
+    12. FocusRelay cannot yet create tasks, subtasks, or projects. Do not promise creation or conversion; explain that limit and use only currently supported edits, moves, status changes, and completion changes.
     """
 
     static func prompt(named name: String) throws -> GetPrompt.Result {
