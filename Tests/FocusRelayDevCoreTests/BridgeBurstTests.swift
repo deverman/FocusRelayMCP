@@ -17,6 +17,26 @@ func bridgeBurstProfilesAreExplicitAndBounded() {
 }
 
 @Test
+func bridgeBurstResponseDeadlineDefaultsToFifteenSecondsAndAcceptsSixty() throws {
+    let defaultDeadline = try BridgeBurstResponseDeadline()
+    let coordinatorDeadline = try BridgeBurstResponseDeadline(seconds: 60)
+
+    #expect(defaultDeadline.milliseconds == 15_000)
+    #expect(defaultDeadline.duration == .seconds(15))
+    #expect(coordinatorDeadline.milliseconds == 60_000)
+    #expect(coordinatorDeadline.duration == .seconds(60))
+}
+
+@Test
+func bridgeBurstResponseDeadlineRejectsInvalidValues() {
+    for seconds in [0, -1, 120.1, .infinity, -.infinity, .nan] {
+        #expect(throws: BridgeBurstConfigurationError.self) {
+            try BridgeBurstResponseDeadline(seconds: seconds)
+        }
+    }
+}
+
+@Test
 func completionBurstRequiresFixtureAndRemainsPreviewOnly() throws {
     #expect(throws: BridgeBurstConfigurationError.self) {
         try BridgeBurstScenario.completionPreview.arguments(fixtureTaskID: nil)
@@ -157,6 +177,26 @@ func canaryRunnerInitializesBeforeUniqueConcurrentCalls() async throws {
     #expect(report.sequential.requestCount == 12)
     #expect(report.bursts.map(\.concurrency) == [2, 4, 7, 12])
     #expect(report.bursts.map(\.summary.requestCount) == [2, 4, 7, 12])
+    #expect(report.responseTimeoutMilliseconds == 1_000)
+}
+
+@Test
+func runnerPassesSelectedSixtySecondDeadlineToEveryMCPCall() async throws {
+    let transport = FakeBurstTransport()
+    let runner = BridgeBurstRunner(
+        transport: transport,
+        responseTimeout: .seconds(60)
+    )
+    let report = try await runner.run(
+        profile: .canary,
+        scenario: .taskCounts,
+        fixtureTaskID: nil
+    )
+
+    let state = await transport.state()
+    #expect(report.responseTimeoutMilliseconds == 60_000)
+    #expect(state.callTimeouts.count == 38)
+    #expect(state.callTimeouts.allSatisfy { $0 == .seconds(60) })
 }
 
 @Test
@@ -180,6 +220,7 @@ func artifactContainsOnlySanitizedAggregateFields() throws {
     let report = BridgeBurstReport(
         profile: .canary,
         scenario: .completionPreview,
+        responseTimeoutMilliseconds: 60_000,
         elapsedSeconds: 1,
         sequential: BridgeBurstSummary(samples: [
             BridgeBurstSample(classification: .success, elapsedMilliseconds: 1)
@@ -193,7 +234,13 @@ func artifactContainsOnlySanitizedAggregateFields() throws {
         serverBinarySHA256: "hash",
         report: report
     )
-    let text = String(decoding: try JSONEncoder().encode(artifact), as: UTF8.self)
+    let data = try JSONEncoder().encode(artifact)
+    let decoded = try JSONDecoder().decode(BridgeBurstArtifact.self, from: data)
+    let text = String(decoding: data, as: UTF8.self)
+    #expect(artifact.schemaVersion == 2)
+    #expect(decoded == artifact)
+    #expect(decoded.report.responseTimeoutMilliseconds == 60_000)
+    #expect(text.contains(#""responseTimeoutMilliseconds":60000"#))
     #expect(!text.contains("private-fixture"))
     #expect(!text.contains("/Users/"))
     #expect(!text.contains("targetIDs"))
@@ -224,6 +271,7 @@ private actor FakeBurstTransport: BridgeBurstTransport {
         let didInitialize: Bool
         let didStop: Bool
         let callIDs: [Int]
+        let callTimeouts: [Duration]
         let maxActiveCalls: Int
     }
 
@@ -231,6 +279,7 @@ private actor FakeBurstTransport: BridgeBurstTransport {
     private var didInitialize = false
     private var didStop = false
     private var callIDs: [Int] = []
+    private var callTimeouts: [Duration] = []
     private var activeCalls = 0
     private var maxActiveCalls = 0
 
@@ -245,10 +294,11 @@ private actor FakeBurstTransport: BridgeBurstTransport {
 
     func call(
         _ request: BridgeBurstRequest,
-        timeout _: Duration
+        timeout: Duration
     ) async throws -> BridgeBurstClassification {
         guard didInitialize else { throw BridgeBurstTransportError.protocolError }
         callIDs.append(request.id)
+        callTimeouts.append(timeout)
         activeCalls += 1
         maxActiveCalls = max(maxActiveCalls, activeCalls)
         await Task.yield()
@@ -266,6 +316,7 @@ private actor FakeBurstTransport: BridgeBurstTransport {
             didInitialize: didInitialize,
             didStop: didStop,
             callIDs: callIDs,
+            callTimeouts: callTimeouts,
             maxActiveCalls: maxActiveCalls
         )
     }
