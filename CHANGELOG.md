@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- FocusRelay now requires macOS 26 or later so local builds, CI, release
+  packages, and Homebrew installation share one supported platform baseline.
+
 ## [0.11.0-beta] - 2026-07-24
 
 ### What’s new

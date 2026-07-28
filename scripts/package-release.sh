@@ -24,6 +24,7 @@ test -x "$BINARY_PATH"
 test -f "$ROOT_DIR/Plugin/FocusRelayBridge.omnijs/manifest.json"
 test -f "$ROOT_DIR/Plugin/FocusRelayBridge.omnijs/Resources/BridgeLibrary.js"
 test -f "$ROOT_DIR/README.md"
+"$ROOT_DIR/scripts/check-minimum-macos.sh" "$BINARY_PATH"
 
 REPORTED_VERSION="$($BINARY_PATH --version)"
 if [ "$REPORTED_VERSION" != "$VERSION" ]; then
