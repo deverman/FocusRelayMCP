@@ -77,6 +77,21 @@ The harness always covers concurrency 2, 4, 7, and 12. The
 never writes. Its artifacts contain aggregate timings and classifications only;
 raw MCP arguments and responses are not persisted.
 
+The per-request response deadline defaults to 15 seconds for timeout diagnosis.
+When validating an intentionally queued client budget, select it explicitly and
+keep it within the supported 1-to-120-second range:
+
+```bash
+swift run focusrelay-dev bridge-burst \
+  --profile canary \
+  --scenario completion-preview \
+  --response-timeout-seconds 60 \
+  --fixture-task-id "$DISPOSABLE_FIXTURE_ID" \
+  --server-path .build/release/focusrelay
+```
+
+The sanitized artifact records the selected deadline in milliseconds.
+
 ## 4. Release Flow
 
 1. Merge independently validated vertical PRs.

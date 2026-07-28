@@ -122,7 +122,16 @@ private struct BridgeBurst: AsyncParsableCommand {
     @Option(name: .customLong("fixture-task-id"), help: "Disposable task ID required only for completion-preview.")
     var fixtureTaskID: String?
 
+    @Option(
+        name: .customLong("response-timeout-seconds"),
+        help: "Per-request MCP response deadline from 1 through 120 seconds."
+    )
+    var responseTimeoutSeconds = BridgeBurstResponseDeadline.defaultSeconds
+
     func run() async throws {
+        let responseDeadline = try BridgeBurstResponseDeadline(
+            seconds: responseTimeoutSeconds
+        )
         let fileManager = FileManager.default
         let workingDirectory = fileManager.currentDirectoryPath
         let serverURL = URL(
@@ -138,12 +147,18 @@ private struct BridgeBurst: AsyncParsableCommand {
             serverPath: serverURL.path,
             currentDirectory: workingDirectory
         )
-        let runner = BridgeBurstRunner(transport: transport)
+        let runner = BridgeBurstRunner(
+            transport: transport,
+            responseTimeout: responseDeadline.duration
+        )
         let heartbeat = CommandHeartbeat(message: "[running] bridge-burst")
         heartbeat.start()
         defer { heartbeat.cancel() }
 
-        emit("[start] bridge-burst profile=\(profile.rawValue) scenario=\(scenario.rawValue)")
+        emit(
+            "[start] bridge-burst profile=\(profile.rawValue) scenario=\(scenario.rawValue) "
+                + "responseTimeoutMilliseconds=\(responseDeadline.milliseconds)"
+        )
         let report = try await runner.run(
             profile: profile,
             scenario: scenario,
