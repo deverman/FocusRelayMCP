@@ -412,6 +412,14 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
 
     for name in FocusRelayServer.mutationToolNames {
         let tool = try #require(tools.first { $0["name"] as? String == name })
+        let description = try #require(tool["description"] as? String)
+        #expect(description.contains("Run edit_tasks and edit_projects calls sequentially"))
+        #expect(description.contains("wait for each mutation response"))
+        #expect(description.contains("bridge_busy or bridge_queue_timeout"))
+        #expect(description.contains("wait at least retryAfterMilliseconds"))
+        #expect(description.contains("retrying only that request"))
+        #expect(description.contains("Do not automatically retry any other mutation failure"))
+
         let annotations = try #require(tool["annotations"] as? [String: Any])
         #expect(annotations["readOnlyHint"] as? Bool == false)
         #expect(annotations["destructiveHint"] as? Bool == true)

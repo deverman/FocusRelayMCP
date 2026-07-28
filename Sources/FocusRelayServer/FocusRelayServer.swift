@@ -44,6 +44,9 @@ public enum FocusRelayServer {
         openWorldHint: false
     )
 
+    static let mutationToolSequencingGuidance =
+        "\n\nRun edit_tasks and edit_projects calls sequentially: wait for each mutation response before starting another mutation. A structured bridge_busy or bridge_queue_timeout response means that rejected request was not dispatched; wait at least retryAfterMilliseconds before retrying only that request. Do not automatically retry any other mutation failure."
+
     static let processInboxPrompt = Prompt(
         name: "process_inbox",
         title: "Process OmniFocus Inbox",
@@ -497,7 +500,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "edit_tasks",
-                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_status with taskStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_status for dropping/restoring, set_completion only for complete/reopen, and move for inbox/project/parent changes. Never translate drop, discard, abandon, or cancel into completion. Repeating drops require an explicit occurrence or series scope. No plannedDate writes.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task.",
+                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_status with taskStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_status for dropping/restoring, set_completion only for complete/reopen, and move for inbox/project/parent changes. Never translate drop, discard, abandon, or cancel into completion. Repeating drops require an explicit occurrence or series scope. No plannedDate writes.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task." + mutationToolSequencingGuidance,
                     inputSchema: makeTaskEditSchema(
                         properties: [
                             "operation": .object([
@@ -592,7 +595,7 @@ public enum FocusRelayServer {
                 ),
                 Tool(
                     name: "edit_projects",
-                    description: "Edit existing OmniFocus projects by ID. Choose exactly one operation and include only its matching payload: update with projectPatch, set_status with projectStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse set_status for active/on-hold/dropped and set_completion for complete/reopen. Use list_folders before a folder move when its ID is unknown; omit destinationID for the root library. Project tags and containsSingletonActions writes are not supported.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original project.",
+                    description: "Edit existing OmniFocus projects by ID. Choose exactly one operation and include only its matching payload: update with projectPatch, set_status with projectStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse set_status for active/on-hold/dropped and set_completion for complete/reopen. Use list_folders before a folder move when its ID is unknown; omit destinationID for the root library. Project tags and containsSingletonActions writes are not supported.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original project." + mutationToolSequencingGuidance,
                     inputSchema: makeProjectEditSchema(
                         properties: [
                             "operation": .object([
