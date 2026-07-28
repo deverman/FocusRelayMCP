@@ -3,11 +3,20 @@ import Foundation
 import FocusRelayDevCore
 
 @main
-struct FocusRelayDevCLI: ParsableCommand {
+struct FocusRelayDevCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "focusrelay-dev",
         abstract: "Developer-only validation and release orchestration.",
-        subcommands: [Classify.self, Validate.self, CheckMarkdownLinks.self, Benchmark.self, ReleasePlan.self, ReleaseVerify.self, WorkspaceReport.self]
+        subcommands: [
+            Classify.self,
+            Validate.self,
+            CheckMarkdownLinks.self,
+            Benchmark.self,
+            BridgeBurst.self,
+            ReleasePlan.self,
+            ReleaseVerify.self,
+            WorkspaceReport.self
+        ]
     )
 }
 
@@ -92,6 +101,110 @@ private struct Benchmark: ParsableCommand {
         case .stress:
             try CommandRunner.run("Diagnostic stress suite", "./scripts/benchmark-suite.sh", ["--profile", "stress"], timeoutSeconds: 14_400)
         }
+    }
+}
+
+private struct BridgeBurst: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "bridge-burst",
+        abstract: "Measure direct MCP Bridge-backed request bursts without persisting response content."
+    )
+
+    @Option(help: "Required profile: canary, smoke, release, or stress.")
+    var profile: BridgeBurstProfile
+
+    @Option(help: "Required scenario: task-counts or completion-preview.")
+    var scenario: BridgeBurstScenario
+
+    @Option(name: .customLong("server-path"), help: "FocusRelay server binary to launch.")
+    var serverPath = ".build/release/focusrelay"
+
+    @Option(name: .customLong("fixture-task-id"), help: "Disposable task ID required only for completion-preview.")
+    var fixtureTaskID: String?
+
+    func run() async throws {
+        let fileManager = FileManager.default
+        let workingDirectory = fileManager.currentDirectoryPath
+        let serverURL = URL(
+            fileURLWithPath: serverPath,
+            relativeTo: URL(fileURLWithPath: workingDirectory, isDirectory: true)
+        ).standardizedFileURL
+        guard fileManager.isExecutableFile(atPath: serverURL.path) else {
+            throw BridgeBurstConfigurationError.invalidServerBinary
+        }
+
+        _ = try scenario.arguments(fixtureTaskID: fixtureTaskID)
+        let transport = StdioMCPBurstTransport(
+            serverPath: serverURL.path,
+            currentDirectory: workingDirectory
+        )
+        let runner = BridgeBurstRunner(transport: transport)
+        let heartbeat = CommandHeartbeat(message: "[running] bridge-burst")
+        heartbeat.start()
+        defer { heartbeat.cancel() }
+
+        emit("[start] bridge-burst profile=\(profile.rawValue) scenario=\(scenario.rawValue)")
+        let report = try await runner.run(
+            profile: profile,
+            scenario: scenario,
+            fixtureTaskID: fixtureTaskID
+        ) { message in
+            emit("[progress] \(message)")
+        }
+
+        let commit = try CommandRunner.capture("git", ["rev-parse", "HEAD"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fingerprint = try productionFingerprint()
+        let binaryHash = try required(
+            CommandRunner.capture("shasum", ["-a", "256", serverURL.path])
+                .split(whereSeparator: \.isWhitespace)
+                .first
+                .map(String.init),
+            "Could not calculate the server binary hash."
+        )
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let generatedAt = formatter.string(from: Date())
+        let artifact = BridgeBurstArtifact(
+            generatedAt: generatedAt,
+            gitCommit: commit,
+            productionFingerprint: fingerprint,
+            serverBinarySHA256: binaryHash,
+            report: report
+        )
+
+        let artifactDirectory = URL(fileURLWithPath: workingDirectory)
+            .appendingPathComponent(".build/benchmarks", isDirectory: true)
+        try fileManager.createDirectory(at: artifactDirectory, withIntermediateDirectories: true)
+        let timestamp = generatedAt
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+        let artifactURL = artifactDirectory.appendingPathComponent(
+            "bridge-burst-\(timestamp)-\(profile.rawValue)-\(scenario.rawValue).json"
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(artifact).write(to: artifactURL, options: .atomic)
+
+        printSummary(report)
+        let relativeArtifact = ".build/benchmarks/\(artifactURL.lastPathComponent)"
+        emit("[end] bridge-burst elapsed=\(String(format: "%.2f", report.elapsedSeconds))s")
+        print("artifact: \(relativeArtifact)")
+    }
+
+    private func printSummary(_ report: BridgeBurstReport) {
+        print(summaryLine(label: "sequential", summary: report.sequential))
+        for level in report.bursts {
+            print(summaryLine(label: "burst-\(level.concurrency)", summary: level.summary))
+        }
+    }
+
+    private func summaryLine(label: String, summary: BridgeBurstSummary) -> String {
+        let p95 = summary.successfulRequestP95Milliseconds
+            .map { String(format: "%.2fms", $0) } ?? "n/a"
+        return "\(label): requests=\(summary.requestCount) success=\(summary.successCount) "
+            + "toolError=\(summary.toolErrorCount) protocolError=\(summary.protocolErrorCount) "
+            + "processExit=\(summary.processExitCount) timeout=\(summary.timeoutCount) p95=\(p95)"
     }
 }
 
@@ -232,6 +345,28 @@ private final class RunState: @unchecked Sendable {
     var timedOut: Bool { lock.withLock { didTimeOut } }
 }
 
+private final class CommandHeartbeat: @unchecked Sendable {
+    private let timer: DispatchSourceTimer
+
+    init(message: String) {
+        timer = DispatchSource.makeTimerSource(
+            queue: DispatchQueue(label: "focusrelay-dev.heartbeat")
+        )
+        timer.schedule(deadline: .now() + 25, repeating: 25)
+        timer.setEventHandler {
+            emit(message)
+        }
+    }
+
+    func start() {
+        timer.resume()
+    }
+
+    func cancel() {
+        timer.cancel()
+    }
+}
+
 private func emit(_ message: String) {
     FileHandle.standardOutput.write(Data("\(message)\n".utf8))
 }
@@ -263,3 +398,5 @@ private func writeReport(kind: String, values: [String: String]) throws {
 }
 
 extension ValidationImpact: ExpressibleByArgument {}
+extension BridgeBurstProfile: ExpressibleByArgument {}
+extension BridgeBurstScenario: ExpressibleByArgument {}

@@ -59,8 +59,23 @@ persistence verification, and restoration—not only a CLI write.
 - `stress`: run three hours only when an issue names the diagnostic question.
 
 Any production query/transport change after a release certificate invalidates
-the certificate. Documentation-only changes do not. Raw output is written to
-`.build/benchmarks`.
+the certificate. Documentation-only changes do not. Existing semantic-suite raw
+output is written to `.build/benchmarks`.
+
+Use the direct MCP burst harness when the question is concurrent Bridge
+admission rather than query semantics:
+
+```bash
+swift run focusrelay-dev bridge-burst \
+  --profile canary \
+  --scenario task-counts \
+  --server-path .build/release/focusrelay
+```
+
+The harness always covers concurrency 2, 4, 7, and 12. The
+`completion-preview` scenario additionally requires `--fixture-task-id` and
+never writes. Its artifacts contain aggregate timings and classifications only;
+raw MCP arguments and responses are not persisted.
 
 ## 4. Release Flow
 
