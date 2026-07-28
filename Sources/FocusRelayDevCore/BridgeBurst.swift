@@ -65,6 +65,7 @@ public enum BridgeBurstScenario: String, Codable, CaseIterable, Sendable {
 public enum BridgeBurstConfigurationError: Error, LocalizedError, Sendable {
     case missingFixtureTaskID
     case invalidServerBinary
+    case invalidResponseTimeoutSeconds
 
     public var errorDescription: String? {
         switch self {
@@ -72,7 +73,25 @@ public enum BridgeBurstConfigurationError: Error, LocalizedError, Sendable {
             "completion-preview requires --fixture-task-id."
         case .invalidServerBinary:
             "The server binary is missing or is not executable."
+        case .invalidResponseTimeoutSeconds:
+            "Response timeout must be a finite value from 1 through 120 seconds."
         }
+    }
+}
+
+public struct BridgeBurstResponseDeadline: Equatable, Sendable {
+    public static let defaultSeconds = 15.0
+    public let milliseconds: Int
+
+    public init(seconds: Double = defaultSeconds) throws {
+        guard seconds.isFinite, (1...120).contains(seconds) else {
+            throw BridgeBurstConfigurationError.invalidResponseTimeoutSeconds
+        }
+        milliseconds = Int((seconds * 1_000).rounded())
+    }
+
+    public var duration: Duration {
+        .milliseconds(milliseconds)
     }
 }
 
@@ -242,6 +261,7 @@ public struct BridgeBurstLevelReport: Codable, Equatable, Sendable {
 public struct BridgeBurstReport: Codable, Equatable, Sendable {
     public let profile: BridgeBurstProfile
     public let scenario: BridgeBurstScenario
+    public let responseTimeoutMilliseconds: Int
     public let elapsedSeconds: Double
     public let sequential: BridgeBurstSummary
     public let bursts: [BridgeBurstLevelReport]
@@ -249,12 +269,14 @@ public struct BridgeBurstReport: Codable, Equatable, Sendable {
     public init(
         profile: BridgeBurstProfile,
         scenario: BridgeBurstScenario,
+        responseTimeoutMilliseconds: Int,
         elapsedSeconds: Double,
         sequential: BridgeBurstSummary,
         bursts: [BridgeBurstLevelReport]
     ) {
         self.profile = profile
         self.scenario = scenario
+        self.responseTimeoutMilliseconds = responseTimeoutMilliseconds
         self.elapsedSeconds = elapsedSeconds
         self.sequential = sequential
         self.bursts = bursts
@@ -270,7 +292,7 @@ public struct BridgeBurstArtifact: Codable, Equatable, Sendable {
     public let report: BridgeBurstReport
 
     public init(
-        schemaVersion: Int = 1,
+        schemaVersion: Int = 2,
         generatedAt: String,
         gitCommit: String,
         productionFingerprint: String,
@@ -418,6 +440,7 @@ public struct BridgeBurstRunner: Sendable {
             let report = BridgeBurstReport(
                 profile: profile,
                 scenario: scenario,
+                responseTimeoutMilliseconds: Int(responseTimeout.milliseconds.rounded()),
                 elapsedSeconds: runStarted.duration(to: runClock.now).seconds,
                 sequential: BridgeBurstSummary(samples: sequentialSamples),
                 bursts: profile.burstSizes.map { burstSize in
