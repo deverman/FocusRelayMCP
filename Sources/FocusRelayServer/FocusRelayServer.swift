@@ -294,6 +294,22 @@ public enum FocusRelayServer {
         }
 
         let logger = Logger(label: "focus.relay.mcp")
+        let bridgeService = OmniFocusBridgeService()
+        bridgeService.setWarningsHandler { warnings, op in
+            logger.warning("Bridge warnings for \(op): \(warnings.joined(separator: " | "))")
+        }
+        let server = await configuredServer(service: bridgeService, logger: logger)
+        let transport = StdioTransport(logger: logger)
+        try await server.start(transport: transport)
+        while true {
+            try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
+        }
+    }
+
+    static func configuredServer(
+        service: any OmniFocusService,
+        logger: Logger
+    ) async -> Server {
         let server = Server(
             name: "FocusRelayMCP",
             version: version,
@@ -302,12 +318,6 @@ public enum FocusRelayServer {
                 tools: .init(listChanged: true)
             )
         )
-
-        let bridgeService = OmniFocusBridgeService()
-        bridgeService.setWarningsHandler { warnings, op in
-            logger.warning("Bridge warnings for \(op): \(warnings.joined(separator: " | "))")
-        }
-        let service: OmniFocusService = bridgeService
 
         func makeTools() -> [Tool] {
             let tools = [
@@ -890,11 +900,7 @@ public enum FocusRelayServer {
             }
         }
 
-        let transport = StdioTransport(logger: logger)
-        try await server.start(transport: transport)
-        while true {
-            try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
-        }
+        return server
     }
 
     static func bridgeAdmissionErrorResult(_ error: BridgeAdmissionError) -> CallTool.Result {
