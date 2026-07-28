@@ -74,7 +74,7 @@ jobs:
   build-and-test:
     needs: classify
     if: needs.classify.outputs.code_changed == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       SWIFTLY_VERSION: "1.1.3"
     steps:
@@ -107,6 +107,9 @@ jobs:
 
       - name: Build release product
         run: swift build -c release --product focusrelay
+
+      - name: Check minimum macOS
+        run: ./scripts/check-minimum-macos.sh .build/release/focusrelay
 
       - name: Check release surface
         run: ./scripts/check-bridge-only-architecture.sh .build/debug/focusrelay .build/release/focusrelay

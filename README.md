@@ -102,7 +102,7 @@ sensitive data.
 
 Requirements:
 
-- macOS on Apple silicon;
+- macOS 26 or later on Apple silicon;
 - OmniFocus 4;
 - Homebrew;
 - an MCP-compatible assistant or a shell-capable AI agent.
@@ -187,7 +187,8 @@ Then ask:
 
 Download the latest binary and `FocusRelayBridge.omnijs` from
 [GitHub Releases](https://github.com/deverman/FocusRelayMCP/releases), or build
-with the Swift 6.3.3 toolchain selected by the checked-in `.swift-version`:
+on macOS 26 or later with the Swift 6.3.3 toolchain selected by the checked-in
+`.swift-version`:
 
 ```bash
 git clone https://github.com/deverman/FocusRelayMCP.git

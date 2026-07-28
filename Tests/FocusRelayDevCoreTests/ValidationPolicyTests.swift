@@ -17,6 +17,13 @@ import Testing
     #expect(steps.map(\.name) == ["Run Swift tests", "Build release binary"])
 }
 
+@Test func packageChecksBuiltMinimumMacOS() {
+    let steps = ValidationPlanner.steps(for: .package)
+    #expect(steps.map(\.name) == ["Run Swift tests", "Build release binary", "Check minimum macOS"])
+    #expect(steps.last?.executable == "./scripts/check-minimum-macos.sh")
+    #expect(steps.last?.arguments == [".build/release/focusrelay"])
+}
+
 @Test func queryAddsSemanticGate() {
     let steps = ValidationPlanner.steps(for: .query)
     #expect(steps.last?.arguments.contains("benchmark-gate-check") == true)

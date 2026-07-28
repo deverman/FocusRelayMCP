@@ -14,7 +14,7 @@ Thanks for helping make OmniFocus work better with AI assistants.
 
 Requirements:
 
-- macOS with OmniFocus 4 for live integration tests;
+- macOS 26 or later, with OmniFocus 4 for live integration tests;
 - Swift 6.3.3 selected through Swiftly and the checked-in `.swift-version`;
 - the Swift Testing framework included with the Swift toolchain.
 

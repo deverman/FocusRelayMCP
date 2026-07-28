@@ -142,7 +142,8 @@ private struct ReleaseVerify: ParsableCommand {
         let binary = try required(binaries.first, "Packaged focusrelay binary is missing.")
         let embedded = try CommandRunner.capture(binary.path, ["--version"])
         guard embedded.contains(expectedVersion) else { throw ValidationError("Embedded version does not match \(expectedVersion): \(embedded)") }
-        print("Release \(tag) verified: checksum and embedded version match.")
+        try CommandRunner.run("Verify minimum macOS", "./scripts/check-minimum-macos.sh", [binary.path])
+        print("Release \(tag) verified: checksum, embedded version, and minimum macOS match.")
     }
 }
 

@@ -98,6 +98,9 @@ public enum ValidationPlanner {
         if impact == .package || impact == .serverWire || impact == .mutation {
             steps.append(ValidationStep("Build release binary", "swift", ["build"] + sandboxArguments + ["-c", "release", "--product", "focusrelay"]))
         }
+        if impact == .package {
+            steps.append(ValidationStep("Check minimum macOS", "./scripts/check-minimum-macos.sh", [".build/release/focusrelay"]))
+        }
         if impact >= .query {
             steps.append(ValidationStep("Run semantic gates", "swift", ["run"] + sandboxArguments + ["focusrelay", "benchmark-gate-check", "--tool", "all"]))
         }
