@@ -241,6 +241,7 @@ actor BridgeRequestCoordinator {
                 let workerStartedAt = Date()
                 do {
                     let value = try await operation()
+                    await self.jobFinished(id: id)
                     state.finish(.success(value))
                     let finishedAt = Date()
                     let workerMilliseconds = finishedAt.timeIntervalSince(workerStartedAt) * 1_000
@@ -249,6 +250,7 @@ actor BridgeRequestCoordinator {
                         "event=bridge_finished operation=\(category.rawValue, privacy: .public) result=success workerMilliseconds=\(workerMilliseconds, privacy: .public) totalMilliseconds=\(totalMilliseconds, privacy: .public)"
                     )
                 } catch {
+                    await self.jobFinished(id: id)
                     state.finish(.failure(error))
                     let finishedAt = Date()
                     let workerMilliseconds = finishedAt.timeIntervalSince(workerStartedAt) * 1_000
@@ -337,9 +339,8 @@ actor BridgeRequestCoordinator {
             logger?.info(
                 "event=bridge_dispatch_committed operation=\(job.category.rawValue, privacy: .public) queueWaitMilliseconds=\(queueWaitMilliseconds, privacy: .public) remainingQueueDepth=\(self.queue.count, privacy: .public)"
             )
-            Task { @concurrent [job, weak self] in
+            Task { @concurrent [job] in
                 await job.run()
-                await self?.jobFinished(id: job.id)
             }
             return
         }
