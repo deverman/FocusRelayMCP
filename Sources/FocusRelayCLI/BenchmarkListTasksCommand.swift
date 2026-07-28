@@ -208,7 +208,7 @@ private func listTaskBenchCall(
             try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
         }
         if timeout {
-            let diagnostic = captureBenchmarkTimeoutDiagnostic(
+            let diagnostic = await captureBenchmarkTimeoutDiagnostic(
                 scenario: scenario.name,
                 phase: phase,
                 callIndex: callIndex,

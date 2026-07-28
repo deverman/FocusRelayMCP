@@ -450,7 +450,7 @@ struct BridgeHealthCheck: AsyncParsableCommand {
 
     func run() async throws {
         let service = OmniFocusBridgeService()
-        let result = try service.healthCheck()
+        let result = try await service.healthCheck()
         print(try encodeJSON(result))
     }
 }

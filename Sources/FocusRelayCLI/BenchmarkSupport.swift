@@ -135,7 +135,7 @@ func runCountBenchmarkCall<Counts: Codable>(
             try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
         }
         if timeout {
-            let diagnostic = captureBenchmarkTimeoutDiagnostic(
+            let diagnostic = await captureBenchmarkTimeoutDiagnostic(
                 scenario: scenario,
                 phase: phase,
                 callIndex: callIndex,
@@ -246,7 +246,7 @@ func runBenchmarkTimeoutRecoveryGate() async {
     if recoveryMS > 0 {
         try? await Task.sleep(nanoseconds: UInt64(recoveryMS) * 1_000_000)
     }
-    _ = try? OmniFocusBridgeService().healthCheck()
+    _ = try? await OmniFocusBridgeService().healthCheck()
 }
 
 func enforceBenchmarkInterval(started: Date, intervalMS: Int) async throws {
@@ -379,7 +379,7 @@ func captureBenchmarkTimeoutDiagnostic(
     callIndex: Int,
     latencyMs: Double,
     errorMessage: String
-) -> BenchmarkTimeoutDiagnostic {
+) async -> BenchmarkTimeoutDiagnostic {
     let requestID = extractBenchmarkRequestID(from: errorMessage)
     let baseURL = defaultBenchmarkIPCBaseURL()
     let requestsURL = baseURL.appendingPathComponent("requests", isDirectory: true)
@@ -388,7 +388,7 @@ func captureBenchmarkTimeoutDiagnostic(
     let omniPID = currentOmniFocusPID()
     let benchmarkPID = ProcessInfo.processInfo.processIdentifier
     let bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot
-    if let result = try? OmniFocusBridgeService().healthCheck() {
+    if let result = try? await OmniFocusBridgeService().healthCheck() {
         bridgeHealth = BenchmarkTimeoutBridgeHealthSnapshot(
             ok: result.ok,
             detail: "plugin=\(result.plugin ?? "unknown") version=\(result.version ?? "unknown")"

@@ -764,8 +764,6 @@ public enum FocusRelayServer {
 
                 switch params.name {
                 case "list_tasks":
-                    // Debug: Log raw arguments
-                    logger.info("list_tasks called with arguments: \(String(describing: params.arguments))")
                     let filter: TaskFilter
                     do {
                         filter = try decodeArgument(TaskFilter.self, from: params.arguments, key: "filter") ?? TaskFilter()
@@ -881,6 +879,11 @@ public enum FocusRelayServer {
                 default:
                     return .init(content: [.text(text: "Unknown tool: \(params.name)", annotations: nil, _meta: nil)], isError: true)
                 }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as BridgeAdmissionError {
+                logger.notice("Tool call rejected by Bridge admission: \(error.code)")
+                return bridgeAdmissionErrorResult(error)
             } catch {
                 logger.error("Tool call failed: \(error.localizedDescription)")
                 return .init(content: [.text(text: "Error: \(error.localizedDescription)", annotations: nil, _meta: nil)], isError: true)
@@ -892,6 +895,24 @@ public enum FocusRelayServer {
         while true {
             try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
         }
+    }
+
+    static func bridgeAdmissionErrorResult(_ error: BridgeAdmissionError) -> CallTool.Result {
+        .init(
+            content: [
+                .text(
+                    text: error.localizedDescription,
+                    annotations: nil,
+                    _meta: nil
+                )
+            ],
+            structuredContent: .object([
+                "code": .string(error.code),
+                "retryable": .bool(true),
+                "retryAfterMilliseconds": .int(error.retryAfterMilliseconds)
+            ]),
+            isError: true
+        )
     }
 
     static func decodeArgument<T: Decodable>(_ type: T.Type, from args: [String: Value]?, key: String) throws -> T? {
