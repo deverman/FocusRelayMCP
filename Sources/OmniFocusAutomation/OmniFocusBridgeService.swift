@@ -3,11 +3,20 @@ import OmniFocusCore
 
 public final class OmniFocusBridgeService: OmniFocusService {
     private let client: BridgeClient
-    private let cache = CatalogCache()
+    private let cache: CatalogCache
+    private let runtime: BridgeRuntime
     private let cacheTTL: TimeInterval = 300
 
     public init() {
         self.client = BridgeClient()
+        self.cache = CatalogCache()
+        self.runtime = .shared
+    }
+
+    init(client: BridgeClient, cache: CatalogCache, runtime: BridgeRuntime) {
+        self.client = client
+        self.cache = cache
+        self.runtime = runtime
     }
 
     public func setWarningsHandler(_ handler: (@Sendable (_ warnings: [String], _ op: String) -> Void)?) {
@@ -17,14 +26,16 @@ public final class OmniFocusBridgeService: OmniFocusService {
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
         let identity = try QueryBoundCursor.taskIdentity(for: filter)
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
-        let result = try await Task.detached {
+        let result = try await runtime.submit(category: .taskQuery) {
             try self.client.listTasks(filter: filter, page: bridgePage, fields: fields)
-        }.value
+        }
         return try QueryBoundCursor.publicPage(from: result, identity: identity)
     }
 
     public func getTask(id: String, fields: [String]?) async throws -> TaskItem {
-        return try await Task.detached { try self.client.getTask(id: id, fields: fields) }.value
+        try await runtime.submit(category: .taskQuery) {
+            try self.client.getTask(id: id, fields: fields)
+        }
     }
 
     public func listProjects(
@@ -69,26 +80,32 @@ public final class OmniFocusBridgeService: OmniFocusService {
             if let cached = await cache.getProjects(key: key) {
                 return try QueryBoundCursor.publicPage(from: cached, identity: identity)
             }
-            let pageResult = try await Task.detached {
-                try self.client.listProjects(
-                    page: bridgePage,
-                    statusFilter: statusFilter,
-                    includeTaskCounts: includeTaskCounts,
-                    search: normalizedSearch,
-                    reviewDueBefore: reviewDueBefore,
-                    reviewDueAfter: reviewDueAfter,
-                    reviewPerspective: reviewPerspective,
-                    completed: completed,
-                    completedBefore: completedBefore,
-                    completedAfter: completedAfter,
-                    fields: fields
-                )
-            }.value
-            await cache.setProjects(pageResult, key: key, ttl: cacheTTL)
+            let pageResult = try await runtime.submit(
+                category: .projectQuery,
+                bridge: {
+                    try self.client.listProjects(
+                        page: bridgePage,
+                        statusFilter: statusFilter,
+                        includeTaskCounts: includeTaskCounts,
+                        search: normalizedSearch,
+                        reviewDueBefore: reviewDueBefore,
+                        reviewDueAfter: reviewDueAfter,
+                        reviewPerspective: reviewPerspective,
+                        completed: completed,
+                        completedBefore: completedBefore,
+                        completedAfter: completedAfter,
+                        fields: fields
+                    )
+                },
+                finalize: { pageResult in
+                    await self.cache.setProjects(pageResult, key: key, ttl: self.cacheTTL)
+                    return pageResult
+                }
+            )
             return try QueryBoundCursor.publicPage(from: pageResult, identity: identity)
         }
 
-        let pageResult = try await Task.detached {
+        let pageResult = try await runtime.submit(category: .projectQuery) {
             try self.client.listProjects(
                 page: bridgePage,
                 statusFilter: statusFilter,
@@ -102,7 +119,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 completedAfter: completedAfter,
                 fields: fields
             )
-        }.value
+        }
         return try QueryBoundCursor.publicPage(from: pageResult, identity: identity)
     }
 
@@ -142,16 +159,22 @@ public final class OmniFocusBridgeService: OmniFocusService {
         if let cached = await cache.getTags(key: key) {
             return try QueryBoundCursor.publicPage(from: cached, identity: identity)
         }
-        let pageResult = try await Task.detached {
-            try self.client.listTags(
-                page: bridgePage,
-                statusFilter: statusFilter,
-                includeTaskCounts: includeTaskCounts,
-                search: normalizedSearch,
-                fields: fields
-            )
-        }.value
-        await cache.setTags(pageResult, key: key, ttl: cacheTTL)
+        let pageResult = try await runtime.submit(
+            category: .tagQuery,
+            bridge: {
+                try self.client.listTags(
+                    page: bridgePage,
+                    statusFilter: statusFilter,
+                    includeTaskCounts: includeTaskCounts,
+                    search: normalizedSearch,
+                    fields: fields
+                )
+            },
+            finalize: { pageResult in
+                await self.cache.setTags(pageResult, key: key, ttl: self.cacheTTL)
+                return pageResult
+            }
+        )
         return try QueryBoundCursor.publicPage(from: pageResult, identity: identity)
     }
 
@@ -172,36 +195,50 @@ public final class OmniFocusBridgeService: OmniFocusService {
             input: "stable-folder-order-v1"
         )
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
-        let result = try await Task.detached {
+        let result = try await runtime.submit(category: .folderQuery) {
             try self.client.listFolders(page: bridgePage, fields: fields)
-        }.value
+        }
         return try QueryBoundCursor.publicPage(from: result, identity: identity)
     }
 
     public func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts {
-        return try await Task.detached { try self.client.getTaskCounts(filter: filter) }.value
+        try await runtime.submit(category: .countsQuery) {
+            try self.client.getTaskCounts(filter: filter)
+        }
     }
 
     public func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts {
-        return try await Task.detached { try self.client.getProjectCounts(filter: filter) }.value
+        try await runtime.submit(category: .countsQuery) {
+            try self.client.getProjectCounts(filter: filter)
+        }
     }
 
     public func performMutation(_ request: MutationRequest) async throws -> MutationResponse {
-        let response = try await Task.detached { try self.client.performMutation(request) }.value
-        if !request.previewOnly && response.successCount > 0 {
-            await cache.invalidateAll()
-        }
-        return response
+        let category: BridgeOperationCategory = request.previewOnly ? .mutationPreview : .mutationApply
+        return try await runtime.submit(
+            category: category,
+            bridge: {
+                try self.client.performMutation(request)
+            },
+            finalize: { response in
+                if !request.previewOnly && response.successCount > 0 {
+                    await self.cache.invalidateAll()
+                }
+                return response
+            }
+        )
     }
 
-    public func healthCheck() throws -> BridgeHealthResult {
-        let response = try client.ping()
-        return BridgeHealthResult(
-            ok: response.ok,
-            plugin: response.data?.plugin,
-            version: response.data?.version,
-            error: response.error?.message
-        )
+    public func healthCheck() async throws -> BridgeHealthResult {
+        try await runtime.submit(category: .health) {
+            let response = try self.client.ping()
+            return BridgeHealthResult(
+                ok: response.ok,
+                plugin: response.data?.plugin,
+                version: response.data?.version,
+                error: response.error?.message
+            )
+        }
     }
 }
 

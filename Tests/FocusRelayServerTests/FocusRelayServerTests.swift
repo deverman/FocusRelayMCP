@@ -583,6 +583,42 @@ private func toolErrorText(_ response: [String: Any]?) -> String {
 }
 
 @Test
+func bridgeAdmissionErrorsEncodeAsStructuredMCPToolFailures() throws {
+    let cases: [(BridgeAdmissionError, String)] = [
+        (.busy(retryAfterMilliseconds: 6_750), "bridge_busy"),
+        (.queueTimeout(retryAfterMilliseconds: 6_750), "bridge_queue_timeout")
+    ]
+
+    for (error, expectedCode) in cases {
+        let result = FocusRelayServer.bridgeAdmissionErrorResult(error)
+        #expect(result.isError == true)
+
+        guard case .object(let structured) = result.structuredContent else {
+            Issue.record("Expected structured Bridge admission content")
+            continue
+        }
+        #expect(structured["code"] == .string(expectedCode))
+        #expect(structured["retryable"] == .bool(true))
+        #expect(structured["retryAfterMilliseconds"] == .int(6_750))
+
+        let encoded = try JSONEncoder().encode(result)
+        let wire = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        #expect(wire["isError"] as? Bool == true)
+        let wireStructured = try #require(wire["structuredContent"] as? [String: Any])
+        #expect(wireStructured["code"] as? String == expectedCode)
+        #expect(wireStructured["retryable"] as? Bool == true)
+        #expect(wireStructured["retryAfterMilliseconds"] as? Int == 6_750)
+
+        let wireText = String(decoding: encoded, as: UTF8.self)
+        #expect(!wireText.contains("targetIDs"))
+        #expect(!wireText.contains("arguments"))
+        #expect(!wireText.contains("/Users/"))
+    }
+}
+
+@Test
 func taskEditWireArgumentsDispatchEveryOperation() throws {
     let update = try FocusRelayServer.decodeTaskEditRequest(from: [
         "operation": .string("update"),
