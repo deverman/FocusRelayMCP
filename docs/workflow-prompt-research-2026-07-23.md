@@ -71,7 +71,7 @@ This gives the implementation spike three exact regression assertions:
 | Client | Current documented evidence | Research conclusion |
 | --- | --- | --- |
 | Claude Code | Anthropic documents dynamically discovered MCP prompts as `/mcp__servername__promptname`, including positional arguments. | Suitable for the first discovery UAT, but invocation still needs a live FocusRelay test. |
-| OpenCode | Current public MCP docs describe local/remote MCP tools and automatic tool availability. They do not document `prompts/list`, `prompts/get`, or MCP prompt discovery. | Unsupported until a versioned live protocol/UI test proves otherwise. Do not describe OpenCode slash-command support. |
+| OpenCode | Public MCP docs do not describe prompt discovery, but a versioned OpenCode 1.18.7 live test exposed `process_inbox` as `/process_inbox`, inserted the server prompt, and completed its instructed bounded count/list workflow. | Supported for the argument-free `process_inbox` prompt in OpenCode 1.18.7; do not generalize this result to prompt arguments or other versions without another live test. |
 | Codex | Current official Codex material documents configuring MCP servers and consuming MCP tools. It does not document MCP prompt discovery or invocation. | Unsupported until a versioned live test proves otherwise. Codex custom prompts/skills are not evidence of MCP server-prompt support. |
 
 Primary sources:
@@ -154,8 +154,8 @@ research summary. Record only library-size bands and aggregate measures.
 
 ## Research Status
 
-Gate 1 remains open: no new participant sessions were conducted for this
-research branch. Protocol feasibility, SDK feasibility, the current server
-baseline, the first prototype contract, and the measurement plan are complete.
-Client UI compatibility beyond Claude Code's documented behavior remains a
-live-test question.
+Gate 1 remains open: the participant threshold has not been reached. Protocol
+feasibility, SDK feasibility, the server implementation, and a versioned
+OpenCode 1.18.7 live test of the argument-free `process_inbox` workflow are
+complete. Broader client compatibility, prompt arguments, and reuse preference
+remain research questions.

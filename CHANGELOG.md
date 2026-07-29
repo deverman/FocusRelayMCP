@@ -7,10 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### What’s new
 
-- FocusRelay now requires macOS 26 or later so local builds, CI, release
-  packages, and Homebrew installation share one supported platform baseline.
+- Process your inbox in manageable batches with a guided workflow that starts
+  with unresolved captures, asks before changing anything, and verifies
+  approved updates.
+- Keep ordinary inbox cleanup focused on unfinished captures instead of
+  unexpectedly mixing in completed or dropped history.
+- Resolve nested tags more confidently by seeing the parent path for matching
+  tags.
+- Trust compact and multi-page results: unsupported fields and mismatched page
+  cursors now fail clearly instead of returning misleading data.
+- Keep OmniFocus updates reliable during busy conversations and client
+  restarts—work is handled in order, overload is reported clearly, and
+  disconnected FocusRelay processes exit cleanly.
+
+### Before upgrading
+
+- FocusRelay now requires macOS 26 or later.
+- Reinstall the packaged OmniFocus plugin and restart OmniFocus so the plugin
+  and FocusRelay binary stay in sync.
 
 ## [0.11.0-beta] - 2026-07-24
 
