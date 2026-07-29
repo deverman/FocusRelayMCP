@@ -18,7 +18,7 @@ without losing control of what changes.
   restarts—work is handled in order, overload is reported clearly, and
   disconnected FocusRelay processes exit cleanly.
 
-In OpenCode, run `/process_inbox` to start the guided workflow.
+In OpenCode, run `/focusrelay:process_inbox` to start the guided workflow.
 
 ## Before upgrading
 

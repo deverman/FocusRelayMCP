@@ -30,7 +30,7 @@ Try prompts like:
   change.”
 
 In clients that expose MCP server prompts, select `process_inbox`. In OpenCode,
-run `/process_inbox` to start the guided workflow.
+run `/focusrelay:process_inbox` to start the guided workflow.
 
 These workflows were tested with multiple MCP-capable models in OpenCode.
 Updates target stable OmniFocus IDs and can verify the saved result. If names
