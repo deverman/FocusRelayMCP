@@ -71,7 +71,7 @@ This gives the implementation spike three exact regression assertions:
 | Client | Current documented evidence | Research conclusion |
 | --- | --- | --- |
 | Claude Code | Anthropic documents dynamically discovered MCP prompts as `/mcp__servername__promptname`, including positional arguments. | Suitable for the first discovery UAT, but invocation still needs a live FocusRelay test. |
-| OpenCode | Public MCP docs do not describe prompt discovery, but a versioned OpenCode 1.18.7 live test exposed `process_inbox` as `/process_inbox`, inserted the server prompt, and completed its instructed bounded count/list workflow. | Supported for the argument-free `process_inbox` prompt in OpenCode 1.18.7; do not generalize this result to prompt arguments or other versions without another live test. |
+| OpenCode | Public MCP docs do not describe prompt discovery, but a versioned OpenCode 1.18.7 live test exposed `process_inbox` as `/focusrelay:process_inbox`, inserted the server prompt, and completed its instructed bounded count/list workflow. | Supported for the argument-free `process_inbox` prompt in OpenCode 1.18.7; do not generalize this result to prompt arguments or other versions without another live test. |
 | Codex | Current official Codex material documents configuring MCP servers and consuming MCP tools. It does not document MCP prompt discovery or invocation. | Unsupported until a versioned live test proves otherwise. Codex custom prompts/skills are not evidence of MCP server-prompt support. |
 
 Primary sources:
