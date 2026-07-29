@@ -304,8 +304,23 @@ public enum FocusRelayServer {
         let server = await configuredServer(service: bridgeService, logger: logger)
         let transport = StdioTransport(logger: logger)
         try await server.start(transport: transport)
-        while true {
-            try await Task.sleep(nanoseconds: 60 * 60 * 24 * 1_000_000_000)
+        try await waitUntilTransportCompletes(server)
+    }
+
+    static func waitUntilTransportCompletes(_ server: Server) async throws {
+        do {
+            try await withTaskCancellationHandler {
+                await server.waitUntilCompleted()
+                try Task.checkCancellation()
+            } onCancel: {
+                Task {
+                    await server.stop()
+                }
+            }
+            await server.stop()
+        } catch {
+            await server.stop()
+            throw error
         }
     }
 

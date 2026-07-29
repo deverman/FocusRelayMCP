@@ -433,6 +433,75 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
 }
 
 @Test
+func stdioServerExitsAfterInitializedClientClosesInput() throws {
+    let packageRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let executable = packageRoot.appendingPathComponent(".build/debug/focusrelay")
+    #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+
+    for _ in 0..<3 {
+        let process = Process()
+        let standardInput = Pipe()
+        let standardOutput = Pipe()
+        process.executableURL = executable
+        process.arguments = ["serve"]
+        process.currentDirectoryURL = packageRoot
+        process.standardInput = standardInput
+        process.standardOutput = standardOutput
+        process.standardError = Pipe()
+        try process.run()
+        defer {
+            if process.isRunning {
+                process.terminate()
+                process.waitUntilExit()
+            }
+        }
+
+        let initialize =
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stdio-lifecycle-test","version":"1"}}}"#
+            + "\n"
+        try standardInput.fileHandleForWriting.write(contentsOf: Data(initialize.utf8))
+
+        var buffered = Data()
+        var initialized = false
+        while !initialized {
+            let chunk = standardOutput.fileHandleForReading.availableData
+            guard !chunk.isEmpty else {
+                Issue.record("MCP server exited before returning initialize")
+                break
+            }
+            buffered.append(chunk)
+            while let newline = buffered.firstIndex(of: 0x0A) {
+                let line = buffered[..<newline]
+                buffered.removeSubrange(...newline)
+                guard let object = try JSONSerialization.jsonObject(with: line) as? [String: Any],
+                      object["id"] as? Int == 1 else {
+                    continue
+                }
+                initialized = object["result"] != nil
+                break
+            }
+        }
+        try #require(initialized)
+
+        try standardInput.fileHandleForWriting.close()
+
+        let deadline = Date().addingTimeInterval(2)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+
+        #expect(!process.isRunning, "FocusRelay must exit when its initialized stdio client closes input")
+        if !process.isRunning {
+            #expect(process.terminationReason == .exit)
+            #expect(process.terminationStatus == 0)
+        }
+    }
+}
+
+@Test
 func mcpWireRejectsUnknownTopLevelAndNestedArgumentsBeforeDispatch() throws {
     let packageRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
