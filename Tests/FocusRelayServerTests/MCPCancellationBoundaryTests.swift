@@ -220,6 +220,29 @@ private func withCancellationBoundary(
 }
 
 @Test
+func mcpServerLifecycleCancellationStopsTheTransport() async throws {
+    let logger = Logger(label: "focus.relay.mcp.lifecycle-cancellation-test")
+    let (_, serverTransport) = await InMemoryTransport.createConnectedPair(logger: logger)
+    let service = CancellationBoundaryService()
+    let server = await FocusRelayServer.configuredServer(service: service, logger: logger)
+    try await server.start(transport: serverTransport)
+
+    let lifecycle = Task {
+        try await FocusRelayServer.waitUntilTransportCompletes(server)
+    }
+    lifecycle.cancel()
+
+    do {
+        try await lifecycle.value
+        Issue.record("Expected lifecycle cancellation")
+    } catch is CancellationError {
+        // Expected.
+    } catch {
+        Issue.record("Expected CancellationError, received \(error)")
+    }
+}
+
+@Test
 func mcpCancellationRemovesQueuedBridgeRequestBeforeInvocation() async throws {
     try await withCancellationBoundary { client, service, logStore in
         let running: RequestContext<CallTool.Result> = try await client.callTool(
