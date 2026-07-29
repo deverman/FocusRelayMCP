@@ -22,18 +22,23 @@ assistant does not need your entire OmniFocus database for routine requests.
 
 Try prompts like:
 
+- “Help me process my OmniFocus inbox in a small batch.”
 - “How many flagged items do I have?”
 - “Show me the first three available tasks in my inbox.”
 - “Find my task called [task name], flag it, and verify the change.”
 - “Set [task name] due tomorrow at 5 PM in my local timezone and verify the
   change.”
 
-These workflows were tested with Kimi K2.7 Code and another MCP-capable model.
+In clients that expose MCP server prompts, select `process_inbox`. In OpenCode,
+run `/process_inbox` to start the guided workflow.
+
+These workflows were tested with multiple MCP-capable models in OpenCode.
 Updates target stable OmniFocus IDs and can verify the saved result. If names
 are duplicated, ask to see the candidates before changing anything.
 
 The current release can:
 
+- guide supported MCP clients through a bounded, approval-first inbox workflow;
 - find and count tasks using dates, flags, tags, projects, availability, inbox
   state, completion, estimates, and text search;
 - review projects, folders, tags, task counts, and stalled work;
@@ -82,10 +87,13 @@ Edit tools target stable IDs and support previews, per-item results, compact
 return fields, and optional verification. A failed save, update, or verification
 is reported as a failure—not success.
 
-Validation covered thousands of tasks and thousands of measured calls without
-errors or timeouts in the final benchmark runs. See the
-[0.10.0-beta release notes](docs/release-notes-v0.10.0-beta.md) for evidence and
-limits.
+FocusRelay handles OmniFocus work in order, tells assistants to wait for each
+update, and reports overload clearly instead of letting requests collide.
+When an MCP client disconnects, its FocusRelay process exits cleanly rather
+than remaining in the background.
+
+See the [latest release notes](docs/release-notes-v0.12.0-beta.md) for the
+user-facing changes and upgrade requirements.
 
 ## Privacy and security
 

@@ -10,56 +10,53 @@ records only current sequencing and cross-issue dependencies.
 [`v0.12.0-beta`](https://github.com/deverman/FocusRelayMCP/milestone/1)
 packages the merged reliable-inbox workflow and bounded Bridge architecture.
 [#188](https://github.com/deverman/FocusRelayMCP/issues/188) owns its release
-gates. [#187](https://github.com/deverman/FocusRelayMCP/issues/187) is the only
-remaining production blocker; after it passes client-restart UAT, freeze the
-candidate and run the release validation once.
+gates. The final production blocker and client-restart UAT are complete; freeze
+the candidate and run the release validation once.
 
 ## Delivery Order
 
-1. [#187 — exit on MCP stdio disconnect](https://github.com/deverman/FocusRelayMCP/issues/187)
-   - Prevent client restarts from leaving orphaned FocusRelay processes.
-2. [#188 — release v0.12.0-beta](https://github.com/deverman/FocusRelayMCP/issues/188)
+1. [#188 — release v0.12.0-beta](https://github.com/deverman/FocusRelayMCP/issues/188)
    - Complete headline UAT, freeze one production fingerprint, and run the
      fail-closed release gates before tagging.
-3. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
+2. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
    - Replace repeated one-task calls with one stable-ID query that returns only
      the details needed for a workflow decision.
-4. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
+3. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
    - Resolve a bounded set of requested names through the existing catalog cache
      instead of repeating full catalog queries.
-5. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
+4. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
    - Design the larger approved-workflow batch only after #172 and #171 reduce
      its read-before-write query cost.
-6. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
+5. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
    - Continue measured client research after the shipped `process_inbox`
      vertical; add another prompt only when UAT demonstrates a reliable benefit.
-7. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
+6. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
    [#83 — project creation/conversion](https://github.com/deverman/FocusRelayMCP/issues/83)
    - Build on the consolidated edit surface, support safe project folder
      destinations, and retain duplicate/write safety.
-8. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
+7. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
    - After task creation and truthful drop behavior stabilize, establish complete
      schedule readback before adding create, edit, and lifecycle mutation slices.
-9. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
+8. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
    [#128 — create and assign missing tags](https://github.com/deverman/FocusRelayMCP/issues/128)
    - Query direct project membership by stable ID before creating missing root
      or nested tags during assignment.
-10. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
+9. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
    [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
    - Reduce context before expanding project-review workflows.
-11. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
+10. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
    [#125 — Forecast-based attention](https://github.com/deverman/FocusRelayMCP/issues/125), then
    [#126 — broader ranked task search](https://github.com/deverman/FocusRelayMCP/issues/126)
    - Reuse one documented task-only Forecast classifier for attention ranking.
    - Keep search independent, broad, relevance-ranked, and lightweight.
-12. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
+11. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
     - Reduce installation friction after the next product capabilities settle.
-13. Measured transport and command experiments:
+12. Measured transport and command experiments:
     [#90](https://github.com/deverman/FocusRelayMCP/issues/90) and
     [#73](https://github.com/deverman/FocusRelayMCP/issues/73).
-14. Small independent query improvements: #11, #22, #18, #59, #62, #65,
+13. Small independent query improvements: #11, #22, #18, #59, #62, #65,
     #66, #67, and #68.
-15. Feasibility work for #10 custom perspectives and #16 planned-date writes.
+14. Feasibility work for #10 custom perspectives and #16 planned-date writes.
 
 ## Standing Decisions
 
