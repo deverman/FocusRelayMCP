@@ -61,15 +61,17 @@ jobs:
       - name: Package Release
         id: package
         run: |
+          set -euo pipefail
+          ./scripts/test-release-package-outputs.sh
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
             VERSION="${{ inputs.version }}"
           fi
 
-          PACKAGE_OUTPUT="$(./scripts/package-release.sh "$VERSION" "$PWD")"
-          printf '%s\n' "$PACKAGE_OUTPUT"
-          printf '%s\n' "$PACKAGE_OUTPUT" >> "$GITHUB_OUTPUT"
+          PACKAGE_OUTPUT_FILE="$RUNNER_TEMP/focusrelay-package-output.txt"
+          ./scripts/package-release.sh "$VERSION" "$PWD" | tee "$PACKAGE_OUTPUT_FILE"
+          ./scripts/write-github-package-outputs.sh "$PACKAGE_OUTPUT_FILE" "$GITHUB_OUTPUT"
           
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -81,44 +83,7 @@ jobs:
             focusrelay-*.tar.gz
             focusrelay-*.sha256
           fail_on_unmatched_files: true
-          body: |
-            ## Installation
-
-            ### Homebrew (Recommended)
-            ```bash
-            brew tap deverman/focus-relay
-            brew install focusrelay
-            ```
-
-            ### Manual Installation
-            1. Download `focusrelay-X.X.X.tar.gz` from this release
-            2. Extract: `tar -xzf focusrelay-X.X.X.tar.gz`
-            3. Install the MCP server binary:
-               ```bash
-               sudo cp focusrelay-X.X.X/focusrelay /usr/local/bin/
-               ```
-            4. Install the OmniFocus plugin:
-                - Open OmniFocus
-                - Go to Automation > Plug-Ins > Show Plug-In Folder in Finder
-                - Copy the plugin to that folder:
-                  ```bash
-                  cp -r focusrelay-X.X.X/FocusRelayBridge.omnijs ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application\ Support/Plug-Ins/
-                  ```
-                - Or if using iCloud: `~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins/`
-            5. **Restart OmniFocus completely** (Cmd+Q, then reopen)
-            6. Configure your MCP client (see README.md in the package)
-
-            ### First Time Setup
-            ⚠️ When you run your first query, OmniFocus will show a security dialog.
-            You **MUST** click "Run Script" to allow the automation to work.
-
-            ## SHA256 Checksum
-            ```
-            ${{ steps.package.outputs.sha256 }}
-            ```
-
-            ## Changes
-            See [CHANGELOG.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ steps.package.outputs.tag_name }}/CHANGELOG.md) for details.
+          body_path: docs/release-notes-v0.12.0-beta.md
           draft: false
           prerelease: ${{ contains(steps.package.outputs.version, '-') || contains(steps.package.outputs.version, 'alpha') || contains(steps.package.outputs.version, 'beta') || contains(steps.package.outputs.version, 'rc') }}
         env:
