@@ -132,14 +132,28 @@ future formula in the tap. See Homebrew’s
 
 ### 2. Install the OmniFocus plugin
 
+OmniFocus reads plug-ins from more than one folder, and **if you have OmniFocus
+plug-in sync turned on it prefers the iCloud folder**. Install into every folder
+that exists on your Mac, so OmniFocus cannot load a stale copy:
+
 ```bash
-mkdir -p "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
-cp -R "$(brew --prefix focusrelay)/share/focusrelay/Plugin/FocusRelayBridge.omnijs" \
-  "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins/"
+SRC="$(brew --prefix focusrelay)/share/focusrelay/Plugin/FocusRelayBridge.omnijs"
+
+# Sandbox container (always present)
+DEST="$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
+mkdir -p "$DEST" && cp -R "$SRC" "$DEST/"
+
+# iCloud plug-in folder (only when plug-in sync is enabled)
+ICLOUD="$HOME/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins"
+[ -d "$ICLOUD" ] && cp -R "$SRC" "$ICLOUD/" && echo "also installed to iCloud"
 ```
 
-The plugin and binary must stay on the same version. Repeat this copy step after
-upgrading FocusRelay.
+The plugin and binary must stay on the same version. Repeat this step after
+upgrading FocusRelay — a skipped reinstall leaves OmniFocus running the old
+plug-in with no visible error.
+
+Building from source? Use `./scripts/install-plugin.sh` instead; it detects and
+updates every plug-in folder for you, including custom ones.
 
 ### 3. Restart OmniFocus
 
@@ -337,25 +351,35 @@ queries are always fresh.
 
 ### The plugin and binary versions do not match
 
-Upgrading the Homebrew formula replaces the binary but leaves the copy of the
-plugin already inside OmniFocus untouched, so a skipped step 2 can strand the
-plugin many releases behind. Compare the two versions:
+Upgrading the Homebrew formula replaces the binary but leaves the copies of the
+plugin already installed for OmniFocus untouched, so a skipped step 2 can
+strand the plugin many releases behind.
+
+Ask the bridge what it is actually running, and compare it against the binary:
 
 ```bash
 focusrelay --version
-grep -o '"version": "[^"]*"' \
-  "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins/FocusRelayBridge.omnijs/manifest.json"
-```
-
-If they differ, repeat step 2 and step 3, then confirm the bridge reports the
-new version:
-
-```bash
 focusrelay bridge-health-check
 ```
 
 A healthy bridge returns `"ok":true` with the same version as
-`focusrelay --version`.
+`focusrelay --version`. If the versions differ, repeat step 2 and step 3.
+
+**If the reported version still does not change**, OmniFocus is loading a
+different copy of the plug-in than the one you updated. List every copy on your
+Mac and check each one:
+
+```bash
+find ~/Library -name "FocusRelayBridge.omnijs" -maxdepth 8 2>/dev/null | while read -r p; do
+  printf '%s\n    %s\n' "$p" "$(grep -m1 -o 'FOCUSRELAY_VERSION = "[^"]*"' "$p/Resources/BridgeLibrary.js")"
+done
+```
+
+Every copy must report the same version as the binary. The iCloud folder
+(`~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins`)
+takes priority when OmniFocus plug-in sync is enabled, so a current copy in the
+sandbox container is not enough on its own. Update the stale copies, then quit
+and reopen OmniFocus completely.
 
 ### A time-based result looks wrong after travel
 
