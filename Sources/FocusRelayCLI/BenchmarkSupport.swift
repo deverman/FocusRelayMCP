@@ -70,7 +70,7 @@ struct BenchmarkTimeoutDiagnostic: Codable {
     let latencyMs: Double
     let error: String
     let requestId: String?
-    let queue: BenchmarkTimeoutQueueSnapshot
+    let queue: BenchmarkTimeoutQueueSnapshot?
     let omniFocus: BenchmarkTimeoutProcessSnapshot
     let focusrelay: BenchmarkTimeoutProcessSnapshot
     let bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot?
@@ -381,7 +381,29 @@ func captureBenchmarkTimeoutDiagnostic(
     errorMessage: String
 ) async -> BenchmarkTimeoutDiagnostic {
     let requestID = extractBenchmarkRequestID(from: errorMessage)
-    let baseURL = defaultBenchmarkIPCBaseURL()
+    guard let baseURL = try? IPCEnvironment.defaultBaseURL() else {
+        return BenchmarkTimeoutDiagnostic(
+            timestamp: benchmarkISO8601Now(),
+            transport: benchmarkTransport,
+            scenario: scenario,
+            phase: phase,
+            callIndex: callIndex,
+            latencyMs: latencyMs,
+            error: errorMessage,
+            requestId: requestID,
+            queue: nil,
+            omniFocus: BenchmarkTimeoutProcessSnapshot(process: "OmniFocus", pid: nil, rssKB: nil),
+            focusrelay: BenchmarkTimeoutProcessSnapshot(
+                process: "focusrelay",
+                pid: ProcessInfo.processInfo.processIdentifier,
+                rssKB: nil
+            ),
+            bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot(
+                ok: false,
+                detail: "OmniFocus 4 container not found; IPC diagnostics unavailable"
+            )
+        )
+    }
     let requestsURL = baseURL.appendingPathComponent("requests", isDirectory: true)
     let locksURL = baseURL.appendingPathComponent("locks", isDirectory: true)
     let responsesURL = baseURL.appendingPathComponent("responses", isDirectory: true)
@@ -453,24 +475,6 @@ private func benchmarkDirectoryEntryCount(_ url: URL) -> Int {
 private func benchmarkDirectoryEntrySamples(_ url: URL, limit: Int = 5) -> [String] {
     guard let contents = try? FileManager.default.contentsOfDirectory(atPath: url.path) else { return [] }
     return Array(contents.sorted().prefix(limit))
-}
-
-private func defaultBenchmarkIPCBaseURL() -> URL {
-    let home = FileManager.default.homeDirectoryForCurrentUser
-    let container = home
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Containers", isDirectory: true)
-        .appendingPathComponent("com.omnigroup.OmniFocus4", isDirectory: true)
-        .appendingPathComponent("Data", isDirectory: true)
-        .appendingPathComponent("Documents", isDirectory: true)
-        .appendingPathComponent("FocusRelayIPC", isDirectory: true)
-    if FileManager.default.fileExists(atPath: container.deletingLastPathComponent().path) {
-        return container
-    }
-    return home
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Caches", isDirectory: true)
-        .appendingPathComponent("focusrelay", isDirectory: true)
 }
 
 func renderCountBenchmarkSummary(

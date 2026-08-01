@@ -1740,7 +1740,6 @@
         ensureDir(basePath + "/requests");
         ensureDir(basePath + "/responses");
         ensureDir(basePath + "/locks");
-        ensureDir(basePath + "/logs");
       if (fileExists(responsePath)) { return; }
       writeLock(lockPath);
       const request = readJSON(requestPath);
@@ -2017,13 +2016,10 @@
           }
         } else if (request.op === "list_inbox" || request.op === "list_tasks") {
           const filter = request.filter || {};
-          const debugListTasks = filter.search === "__debug_list_tasks__";
-          const searchQuery = debugListTasks ? null : normalizeTaskSearchQuery(filter.search);
-          const listTasksDebug = debugListTasks ? {
-            requestId: requestId,
-            op: request.op,
-            marks: []
-          } : null;
+          const searchQuery = normalizeTaskSearchQuery(filter.search);
+          // File-based debug logging was removed: diagnostics return as
+          // response data, never as files (see IPC-SPEC.md Security).
+          const listTasksDebug = null;
           const markListTasks = (label, extra) => {
             if (!listTasksDebug) { return; }
             const entry = Object.assign({ label: label, ms: Date.now() - start }, extra || {});
@@ -2226,8 +2222,7 @@
             filterState.maxEstimatedMinutes !== undefined ||
             filterState.minEstimatedMinutes !== undefined ||
             Boolean(filterState.tags) ||
-            Boolean(filterState.searchQuery) ||
-            debugListTasks;
+            Boolean(filterState.searchQuery);
           const useStreamedSimplePath =
             !requiresCompletionSort &&
             filterState.availableOnly &&
@@ -2316,12 +2311,6 @@
             if (includeTotalCount) {
               response.data.totalCount = totalCount;
             }
-            if (listTasksDebug) {
-              listTasksDebug.totalTimingMs = Date.now() - start;
-              try {
-                writeJSON(basePath + "/logs/list_tasks_debug_" + requestId + ".json", listTasksDebug);
-              } catch (debugError) {}
-            }
           } else if (useCompletionTopKPath) {
             const completionPathStart = Date.now();
             const windowSize = Math.max(limit + 1, safeOffset + limit + 1);
@@ -2399,12 +2388,6 @@
             if (includeTotalCount) {
               response.data.totalCount = totalCount;
             }
-            if (listTasksDebug) {
-              listTasksDebug.totalTimingMs = Date.now() - start;
-              try {
-                writeJSON(basePath + "/logs/list_tasks_debug_" + requestId + ".json", listTasksDebug);
-              } catch (debugError) {}
-            }
           } else {
 
             // Filter first, then apply pagination. Cursor semantics are based on the
@@ -2458,12 +2441,6 @@
             response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount };
             if (includeTotalCount) {
               response.data.totalCount = totalCount;
-            }
-            if (listTasksDebug) {
-              listTasksDebug.totalTimingMs = Date.now() - start;
-              try {
-                writeJSON(basePath + "/logs/list_tasks_debug_" + requestId + ".json", listTasksDebug);
-              } catch (debugError) {}
             }
           }
         } else if (request.op === "list_projects") {
@@ -2777,13 +2754,9 @@
           }
         } else if (request.op === "get_task_counts") {
           const filter = request.filter || {};
-          const debugTaskCounts = filter.search === "__debug_task_counts__";
-          const searchQuery = debugTaskCounts ? null : normalizeTaskSearchQuery(filter.search);
-          const taskCountsDebug = debugTaskCounts ? {
-            requestId: requestId,
-            op: request.op,
-            marks: []
-          } : null;
+          const searchQuery = normalizeTaskSearchQuery(filter.search);
+          // File-based debug logging was removed (see IPC-SPEC.md Security).
+          const taskCountsDebug = null;
           const markTaskCounts = (label, extra) => {
             if (!taskCountsDebug) { return; }
             const entry = Object.assign({ label: label, ms: Date.now() - start }, extra || {});
@@ -2847,13 +2820,7 @@
           let tasks = selectTaskPool();
           const projectRootCandidates = selectProjectRootCandidates();
           tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
-          const debugInfo = debugTaskCounts ? {
-            requestId: requestId,
-            availableOnly: availableOnly,
-            inboxView: inboxView,
-            projectView: projectView,
-            initialPoolCount: tasks.length
-          } : null;
+          const debugInfo = null;
           markTaskCounts("selected_base_pool", {
             count: tasks.length,
             durationMs: Date.now() - poolStart,
@@ -2915,8 +2882,7 @@
             Boolean(filterState.tags) ||
             filterState.maxEstimatedMinutes !== undefined ||
             filterState.minEstimatedMinutes !== undefined ||
-            Boolean(filterState.searchQuery) ||
-            debugTaskCounts;
+            Boolean(filterState.searchQuery);
           const useSimpleAvailableFastPath =
             filterState.availableOnly &&
             filterState.completed !== true &&
@@ -3126,24 +3092,11 @@
             debugInfo.afterAllFiltersCount = counts.total;
             debugInfo.afterAllFiltersSample = finalSample;
           }
-          if (debugInfo) {
-            debugInfo.counts = counts;
-            taskCountsDebug.debugInfo = debugInfo;
-            taskCountsDebug.totalTimingMs = Date.now() - start;
-            try {
-              writeJSON(basePath + "/logs/get_task_counts_debug_" + requestId + ".json", taskCountsDebug);
-            } catch (debugError) {}
-          }
-
           response.data = counts;
 } else if (request.op === "get_project_counts") {
           const filter = request.filter || {};
-          const debugProjectCounts = filter.search === "__debug_project_counts__";
-          const projectCountsDebug = debugProjectCounts ? {
-            requestId: requestId,
-            op: request.op,
-            marks: []
-          } : null;
+          // File-based debug logging was removed (see IPC-SPEC.md Security).
+          const projectCountsDebug = null;
           const markProjectCounts = (label, extra) => {
             if (!projectCountsDebug) { return; }
             const entry = Object.assign({ label: label, ms: Date.now() - start }, extra || {});
@@ -3368,13 +3321,6 @@
             });
 
             response.data = { projects: projectIds.size, actions: actionCount };
-          }
-          if (projectCountsDebug) {
-            projectCountsDebug.totalTimingMs = Date.now() - start;
-            projectCountsDebug.responseData = response.data;
-            try {
-              writeJSON(basePath + "/logs/get_project_counts_debug_" + requestId + ".json", projectCountsDebug);
-            } catch (debugError) {}
           }
         } else {
           response.ok = false;
