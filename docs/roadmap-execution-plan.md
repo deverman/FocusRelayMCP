@@ -18,9 +18,10 @@ IPC directory, which holds task data at rest.
    - Retention policy, owner-only permissions, upgrade invalidation, and
      fail-fast container resolution. Security-motivated; ships regardless of
      measured performance outcome.
-2. [#73 — IPC cleanup performance measurement](https://github.com/deverman/FocusRelayMCP/issues/73)
-   - Rescoped as #197's measurement sibling; runs immediately after #197
-     merges. Its revert-if-no-win rule applies to perf tuning only.
+2. [#200 — plug-in loaded from the wrong directory](https://github.com/deverman/FocusRelayMCP/issues/200)
+   - Documentation fix shipped; the durable fix is reporting the loaded
+     plug-in path from the health check so a stale bundle is visible
+     without manual filesystem inspection.
 3. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
    - Replace repeated one-task calls with one stable-ID query that returns only
      the details needed for a workflow decision.
