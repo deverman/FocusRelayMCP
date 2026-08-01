@@ -7,19 +7,24 @@ records only current sequencing and cross-issue dependencies.
 
 ## Current Focus
 
-`v0.12.0-beta` shipped. IPC hardening (#197) and the plug-in diagnostic half
-of #200 have merged. The next slice is
-[#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172),
-returning to product capability work for terminal MCP clients.
+`v0.12.0-beta` shipped. IPC hardening (#197), the plug-in diagnostic half of
+#200, and bounded task-detail lookup (#172) have merged. The next slice is
+[#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88),
+which #171 now depends on.
 
 ## Delivery Order
 
-1. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
-   - Replace repeated one-task calls with one stable-ID query that returns only
-     the details needed for a workflow decision.
+1. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88)
+   - Moved ahead of #171. #171 requires path/parent information so duplicate
+     names stay distinguishable, and `ProjectItem` carries no folder or path
+     field today; tags already expose parent and path.
 2. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
    - Resolve a bounded set of requested names through the existing catalog cache
-     instead of repeating full catalog queries.
+     instead of repeating full catalog queries. Depends on #88 for project
+     paths. Open question at start: whether batch mode accepts
+     `includeTaskCounts` — measured cost on a 392-project database is roughly
+     +1.3 s and about double the response bytes, and project health has its own
+     issue in #87.
 3. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
    - Design the larger approved-workflow batch only after #172 and #171 reduce
      its read-before-write query cost.
@@ -37,9 +42,10 @@ returning to product capability work for terminal MCP clients.
    [#128 — create and assign missing tags](https://github.com/deverman/FocusRelayMCP/issues/128)
    - Query direct project membership by stable ID before creating missing root
      or nested tags during assignment.
-8. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
-   [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
-   - Reduce context before expanding project-review workflows.
+8. [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
+   - Reduce context before expanding project-review workflows. #88 moved to
+     the front of the order; this is the intended home for stalled/health
+     questions rather than widening batch resolution.
 9. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
    [#125 — Forecast-based attention](https://github.com/deverman/FocusRelayMCP/issues/125), then
    [#126 — broader ranked task search](https://github.com/deverman/FocusRelayMCP/issues/126)
