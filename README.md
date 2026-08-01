@@ -153,6 +153,13 @@ open -a "OmniFocus"
 
 ### 4. Add FocusRelay to your AI assistant
 
+FocusRelay currently supports terminal-based MCP clients: Claude Code,
+OpenCode, Codex CLI, and other clients launched from a terminal. Desktop
+applications such as Claude Desktop and ChatGPT's desktop app are not yet
+supported: macOS restricts their access to the OmniFocus data FocusRelay
+relies on. Desktop-app support is tracked in
+[#196](https://github.com/deverman/FocusRelayMCP/issues/196).
+
 Configure a local stdio MCP server with:
 
 - command: `/opt/homebrew/bin/focusrelay`
@@ -181,31 +188,6 @@ claude mcp list
 
 FocusRelay should report `✔ Connected`. Remove it later with
 `claude mcp remove --scope user focusrelay`.
-
-</details>
-
-<details>
-<summary>Claude Desktop configuration</summary>
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` and add
-FocusRelay to `mcpServers`, keeping any servers already listed:
-
-```json
-{
-  "mcpServers": {
-    "focusrelay": {
-      "command": "/opt/homebrew/bin/focusrelay",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-Quit and reopen Claude Desktop; it reads this file only at launch. FocusRelay
-then appears in the app's MCP server list.
-
-Use the absolute path. Claude Desktop does not inherit your shell `PATH`, so a
-bare `focusrelay` command fails to launch.
 
 </details>
 
