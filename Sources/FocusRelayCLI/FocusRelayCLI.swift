@@ -78,7 +78,7 @@ struct ListTasks: AsyncParsableCommand {
         let result = try await service.listTasks(filter: taskFilter, page: pageRequest, fields: selectedFields)
         let fieldSet = Set(selectedFields)
         let items = result.items.map { makeTaskOutput(from: $0, fields: fieldSet) }
-        let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount)
+        let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, unresolvedIDs: result.unresolvedIDs)
         print(try encodeJSON(output))
     }
 }

@@ -66,6 +66,9 @@ struct PageOptions: ParsableArguments {
 }
 
 struct TaskFilterOptions: ParsableArguments {
+    @Option(help: "Comma-separated stable task IDs (max \(TaskIDSelection.maximumCount)) to expand in one read. Other filters still apply.")
+    var ids: String? = nil
+
     @Option(help: "Filter by completion status (true/false).")
     var completed: Bool? = nil
 
@@ -128,7 +131,9 @@ struct TaskFilterOptions: ParsableArguments {
 
     func makeTaskFilter() throws -> TaskFilter {
         let tagList = FieldList.parse(tags)
+        let idList = FieldList.parse(ids)
         return TaskFilter(
+            ids: idList.isEmpty ? nil : idList,
             completed: completed,
             flagged: flagged,
             availableOnly: availableOnly,

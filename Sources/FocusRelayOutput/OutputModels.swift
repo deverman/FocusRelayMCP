@@ -131,11 +131,13 @@ public struct PageOutput<T: Encodable>: Encodable {
     public let returnedCount: Int
     public let totalCount: Int?
     public let warnings: [String]?
+    public let unresolvedIDs: [String]?
 
-    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil, warnings: [String]? = nil) {
+    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil, warnings: [String]? = nil, unresolvedIDs: [String]? = nil) {
         self.items = items
         self.nextCursor = nextCursor
         self.returnedCount = returnedCount
+        self.unresolvedIDs = unresolvedIDs
         self.totalCount = totalCount
         self.warnings = warnings
     }

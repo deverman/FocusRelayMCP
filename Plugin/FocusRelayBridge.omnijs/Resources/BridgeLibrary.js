@@ -2229,7 +2229,41 @@
             !hasAdvancedFilters;
           const useCompletionTopKPath = requiresCompletionSort;
 
-          if (useStreamedSimplePath) {
+          // BOUNDED STABLE-ID SELECTION
+          // Progressive expansion of a few already-listed tasks. The pool is
+          // whatever the supplied scope selected, so every other filter still
+          // applies as an intersection and a scoped-out ID simply does not
+          // match. The client resolves requested order and unresolved IDs;
+          // this returns the in-scope matches only, never a fallback page.
+          const requestedTaskIDs = Array.isArray(filter.ids) ? filter.ids : null;
+          if (requestedTaskIDs && requestedTaskIDs.length > 0) {
+            const selectionStart = Date.now();
+            const wantedIDs = {};
+            for (let i = 0; i < requestedTaskIDs.length; i += 1) {
+              const wanted = String(requestedTaskIDs[i] || "");
+              if (wanted) { wantedIDs[wanted] = true; }
+            }
+
+            const selected = [];
+            for (let i = 0; i < tasks.length; i += 1) {
+              const candidate = tasks[i];
+              const candidateID = String(safe(() => candidate.id.primaryKey) || "");
+              if (!candidateID || wantedIDs[candidateID] !== true) { continue; }
+              if (!taskMatchesFilters(candidate, undefined, undefined)) { continue; }
+              selected.push(candidate);
+            }
+
+            const items = selected.map(t => taskToPayload(t, fields));
+            markListTasks("after_id_selection", {
+              requestedCount: requestedTaskIDs.length,
+              returnedCount: items.length,
+              durationMs: Date.now() - selectionStart
+            });
+            response.data = { items: items, nextCursor: null, returnedCount: items.length };
+            if (includeTotalCount) {
+              response.data.totalCount = items.length;
+            }
+          } else if (useStreamedSimplePath) {
             const fastPathStart = Date.now();
             const pageTasks = [];
             let matchedCount = 0;
