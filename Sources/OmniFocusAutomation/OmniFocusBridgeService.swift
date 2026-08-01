@@ -1,3 +1,4 @@
+import FocusRelayVersion
 import Foundation
 import OmniFocusCore
 
@@ -237,11 +238,18 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 // a binary upgrade; invalidate the IPC directory once.
                 self.client.recordObservedPluginVersion(version)
             }
+            let bundles = installedFocusRelayPluginBundles()
             return BridgeHealthResult(
                 ok: response.ok,
                 plugin: response.data?.plugin,
                 version: response.data?.version,
-                error: response.error?.message
+                error: response.error?.message,
+                installedPlugins: bundles,
+                pluginWarning: pluginConsistencyWarning(
+                    loadedVersion: response.data?.version,
+                    binaryVersion: FocusRelayBuildVersion.current,
+                    bundles: bundles
+                )
             )
         }
     }
@@ -252,4 +260,26 @@ public struct BridgeHealthResult: Codable, Sendable {
     public let plugin: String?
     public let version: String?
     public let error: String?
+    /// Every plug-in bundle found on disk, so a stale copy in a directory the
+    /// user did not update is visible without manual filesystem inspection.
+    public let installedPlugins: [InstalledPluginBundle]?
+    /// Set when the loaded plug-in disagrees with an installed copy or with
+    /// the binary; nil when everything lines up.
+    public let pluginWarning: String?
+
+    public init(
+        ok: Bool,
+        plugin: String?,
+        version: String?,
+        error: String?,
+        installedPlugins: [InstalledPluginBundle]? = nil,
+        pluginWarning: String? = nil
+    ) {
+        self.ok = ok
+        self.plugin = plugin
+        self.version = version
+        self.error = error
+        self.installedPlugins = installedPlugins
+        self.pluginWarning = pluginWarning
+    }
 }
