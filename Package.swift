@@ -42,7 +42,7 @@ let package = Package(
         ),
         .target(
             name: "OmniFocusAutomation",
-            dependencies: ["OmniFocusCore"]
+            dependencies: ["OmniFocusCore", "FocusRelayVersion"]
         ),
         .executableTarget(
             name: "FocusRelayCLI",

@@ -1,22 +1,34 @@
 import Foundation
+import FocusRelayVersion
 import OmniFocusCore
 
 final class BridgeClient: @unchecked Sendable {
-    private let paths: IPCPaths
+    // Mutable state below is safe without locking: the #170 Bridge lane
+    // serializes every request through one FIFO coordinator, so BridgeClient
+    // never runs two requests concurrently.
+    private var resolvedPaths: IPCPaths?
+    private let injectedPaths: IPCPaths?
     private let fileManager: FileManager
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let staleInterval: TimeInterval
     private let configuration: BridgeClientConfiguration
+    private var didEnsureDirectories = false
+    private var didRunStartupMaintenance = false
+    private var lastStaleSweep: Date?
     var onResponseWarnings: (@Sendable (_ warnings: [String], _ op: String) -> Void)?
+    /// Test seam: replaces the OmniFocus URL dispatch so unit tests can
+    /// exercise the full request/response file lifecycle without launching
+    /// OmniFocus. Production code never sets this.
+    var dispatchHandlerForTesting: ((_ requestId: String) throws -> Void)?
 
     init(
-        paths: IPCPaths = .default(),
+        paths: IPCPaths? = nil,
         fileManager: FileManager = .default,
         staleInterval: TimeInterval = 600,
         configuration: BridgeClientConfiguration = .fromEnvironment(ProcessInfo.processInfo.environment)
     ) {
-        self.paths = paths
+        self.injectedPaths = paths
         self.fileManager = fileManager
         self.staleInterval = staleInterval
         self.configuration = configuration
@@ -24,6 +36,32 @@ final class BridgeClient: @unchecked Sendable {
         encoder.dateEncodingStrategy = .iso8601
         self.encoder = encoder
         self.decoder = BridgeDateDecoding.makeJSONDecoder()
+    }
+
+    /// Resolution is deferred to first use so the MCP server starts on
+    /// machines without OmniFocus and tool calls fail fast with an actionable
+    /// error instead of timing out.
+    private func requirePaths() throws -> IPCPaths {
+        if let resolvedPaths { return resolvedPaths }
+        let paths = try injectedPaths ?? IPCPaths.resolve(fileManager: fileManager)
+        resolvedPaths = paths
+        return paths
+    }
+
+    private func makeMaintenance(paths: IPCPaths) -> IPCMaintenance {
+        IPCMaintenance(
+            fileManager: fileManager,
+            paths: paths,
+            staleInterval: staleInterval,
+            currentSwiftVersion: FocusRelayBuildVersion.current
+        )
+    }
+
+    /// Called by the health check when the plugin reports its version, so a
+    /// plugin-only reinstall invalidates the IPC directory once.
+    func recordObservedPluginVersion(_ version: String) {
+        guard let paths = try? requirePaths() else { return }
+        makeMaintenance(paths: paths).recordObservedPluginVersion(version)
     }
 
     func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
@@ -377,35 +415,52 @@ final class BridgeClient: @unchecked Sendable {
     }
 
     private func ensureDirectories() throws {
-        try [paths.baseURL, paths.requestsURL, paths.responsesURL, paths.locksURL, paths.logsURL].forEach { url in
-            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        let paths = try requirePaths()
+        if !didEnsureDirectories {
+            let ownerOnly: [FileAttributeKey: Any] = [.posixPermissions: 0o700]
+            try [paths.baseURL, paths.requestsURL, paths.responsesURL, paths.locksURL, paths.dispatchURL].forEach { url in
+                try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: ownerOnly)
+            }
+            didEnsureDirectories = true
         }
-        cleanupStaleFiles()
+        if !didRunStartupMaintenance {
+            makeMaintenance(paths: paths).performStartupMaintenance()
+            didRunStartupMaintenance = true
+            lastStaleSweep = Date()
+        } else if shouldRunStaleSweep(lastSweep: lastStaleSweep, now: Date(), minimumInterval: staleInterval) {
+            makeMaintenance(paths: paths).sweepStaleFiles()
+            lastStaleSweep = Date()
+        }
     }
 
     private func writeRequest(_ request: BridgeRequest, requestId: String) throws {
-        let requestURL = paths.requestsURL.appendingPathComponent("\(requestId).json")
+        let requestURL = try requirePaths().requestsURL.appendingPathComponent("\(requestId).json")
         let data = try encoder.encode(request)
         try data.write(to: requestURL, options: .atomic)
+        // Atomic replace discards custom modes, so tighten after the write.
+        try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: requestURL.path)
     }
 
-    private var dispatchDirectoryURL: URL {
-        paths.baseURL.appendingPathComponent("dispatch", isDirectory: true)
-    }
-
-    private var dispatchRequestURL: URL {
-        dispatchDirectoryURL.appendingPathComponent("request.json")
+    private func dispatchRequestURL() throws -> URL {
+        try requirePaths().dispatchURL.appendingPathComponent("request.json")
     }
 
     private func writeDispatchRequestId(_ requestId: String) throws {
-        try fileManager.createDirectory(at: dispatchDirectoryURL, withIntermediateDirectories: true)
+        let paths = try requirePaths()
+        try fileManager.createDirectory(at: paths.dispatchURL, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let payload = ["requestId": requestId]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
-        try data.write(to: dispatchRequestURL, options: .atomic)
+        let url = paths.dispatchURL.appendingPathComponent("request.json")
+        try data.write(to: url, options: .atomic)
+        try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     private func triggerOmniFocus(requestId: String) throws {
-        let script = bridgeScript(basePath: paths.baseURL.path, requestId: requestId)
+        if let dispatchHandlerForTesting {
+            try dispatchHandlerForTesting(requestId)
+            return
+        }
+        let script = bridgeScript(basePath: try requirePaths().baseURL.path, requestId: requestId)
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&+=?")
         let encodedScript = script.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
@@ -424,6 +479,7 @@ final class BridgeClient: @unchecked Sendable {
 
     private func sendRequest<T: Decodable>(_ request: BridgeRequest, responseType: T.Type) throws -> BridgeResponse<T> {
         try ensureDirectories()
+        let paths = try requirePaths()
         let responseURL = paths.responsesURL.appendingPathComponent("\(request.requestId).json")
         let requestURL = paths.requestsURL.appendingPathComponent("\(request.requestId).json")
         let lockURL = paths.locksURL.appendingPathComponent("\(request.requestId).lock")
@@ -439,7 +495,15 @@ final class BridgeClient: @unchecked Sendable {
                 timeout: configuration.responseTimeout,
                 responseType: responseType
             )
-            removeIfExists(url: dispatchRequestURL)
+            // Response payloads carry task data; remove them as soon as they
+            // are consumed. Request and lock are belt-and-braces: the plugin
+            // also deletes them but swallows its own removal errors. Request
+            // IDs are never re-dispatched after success, so the plugin's
+            // duplicate-processing check is unaffected.
+            removeIfExists(url: responseURL)
+            removeIfExists(url: requestURL)
+            removeIfExists(url: lockURL)
+            removeIfExists(url: try dispatchRequestURL())
             if let warnings = response.warnings, !warnings.isEmpty {
                 onResponseWarnings?(warnings, request.op)
             }
@@ -448,7 +512,7 @@ final class BridgeClient: @unchecked Sendable {
             if !isTimeoutError(error) {
                 removeIfExists(url: requestURL)
                 removeIfExists(url: lockURL)
-                removeIfExists(url: dispatchRequestURL)
+                removeIfExists(url: (try? dispatchRequestURL()))
             }
             throw error
         }
@@ -558,28 +622,9 @@ final class BridgeClient: @unchecked Sendable {
         return nil
     }
 
-    private func cleanupStaleFiles() {
-        let now = Date()
-        [paths.requestsURL, paths.responsesURL, paths.locksURL].forEach { dir in
-            guard let items = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-                return
-            }
-            for url in items {
-                guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
-                      let modified = values.contentModificationDate else {
-                    continue
-                }
-                if now.timeIntervalSince(modified) > staleInterval {
-                    removeIfExists(url: url)
-                }
-            }
-        }
-    }
-
-    private func removeIfExists(url: URL) {
-        if fileManager.fileExists(atPath: url.path) {
-            try? fileManager.removeItem(at: url)
-        }
+    private func removeIfExists(url: URL?) {
+        guard let url, fileManager.fileExists(atPath: url.path) else { return }
+        try? fileManager.removeItem(at: url)
     }
 
     private func shouldRedispatchStrandedRequest(
@@ -693,7 +738,6 @@ private func bridgeScript(basePath: String, requestId: String) -> String {
         ensureDir(basePath + "/requests");
         ensureDir(basePath + "/responses");
         ensureDir(basePath + "/locks");
-        ensureDir(basePath + "/logs");
         var plugin = PlugIn.find("com.focusrelay.bridge");
         if (!plugin) {
           writeJSON(responsePath, { schemaVersion: 1, requestId: requestId, ok: false, error: { code: "PLUGIN_MISSING", message: "FocusRelay Bridge plug-in not installed" } });

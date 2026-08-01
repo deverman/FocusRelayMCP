@@ -11,20 +11,29 @@ This document defines a file-based IPC protocol between the Swift MCP server and
 
 ## Directories
 
-Default base directory (configurable):
+Fixed base directory (not configurable):
 
 ```
 ~/Library/Containers/com.omnigroup.OmniFocus4/Data/Documents/FocusRelayIPC
 ```
 
-Subdirectories:
+The bridge plug-in can only write inside OmniFocus's sandbox container, so
+there is no usable alternative location. When the OmniFocus 4 container is
+absent, path resolution fails fast with an actionable error instead of
+letting requests time out.
+
+Subdirectories and files:
 
 ```
 requests/
 responses/
 locks/
-logs/
+dispatch/
+bridge-version.json
 ```
+
+Any other top-level entry is out of policy and is deleted during startup
+maintenance (legacy examples: `logs/`, `pid-*/`, `default/`, `*.trace.json`).
 
 ## File Naming
 
@@ -117,8 +126,10 @@ Error response:
 
 1) MCP server writes request file.
 2) MCP server triggers OmniFocus plug-in with requestId.
-3) Plug-in reads request, creates lock, writes response.
-4) MCP server polls for response file, reads it, returns tool output.
+3) Plug-in reads request, creates lock, writes response, removes lock and request.
+4) MCP server polls for response file, reads it, deletes the response (plus
+   any remaining request/lock), and returns tool output. A successful round
+   trip leaves no artifacts on disk.
 
 ## Timeouts + Retries
 
@@ -126,25 +137,59 @@ Error response:
 - Poll interval: 100–200 ms
 - MCP server deletes request/lock if timeout exceeded (optional cleanup)
 
-## Cleanup
+## Retention
 
-- Stale request/response/lock files older than 10 minutes may be deleted by the MCP server.
+| Path | Policy | Enforced |
+| --- | --- | --- |
+| Non-allowlisted top-level entries | delete always | startup maintenance |
+| `requests/<id>.json` | plug-in deletes after response; client deletes after successful decode and on non-timeout error; else stale > 10 min | per-request + throttled sweep |
+| `responses/<id>.json` | client deletes immediately after successful decode; timeout artifacts kept for late-arrival recovery | per-request + throttled sweep |
+| `locks/<id>.lock` | plug-in deletes after response; client belt-and-braces after success; else stale > 10 min | per-request + throttled sweep |
+| `dispatch/request.json` | client deletes after response; else stale > 10 min | throttled sweep |
+| `bridge-version.json` | persistent; rewritten on version change | startup maintenance |
+
+The stale sweep runs at most once per stale interval (10 minutes), never on
+every request. Startup maintenance runs once per process before the first
+bridge request.
 
 ## Idempotency Rules
 
 - Plug-in must check for existing response file; if it exists, return without reprocessing.
 - MCP server should treat multiple identical responses as safe.
+- The response-exists check only matters during the in-flight window
+  (duplicate dispatch from stranded-request redispatch or late recovery).
+  The client deletes the response only after a successful decode and never
+  re-dispatches that request ID afterwards, so consumption does not affect
+  the check.
 
 ## Versioning
 
 - `schemaVersion` is required.
 - Incompatible versions should return a structured error response.
+- `bridge-version.json` records the binary version (and the last observed
+  plug-in version) that owns the directory:
+  `{"schemaVersion":1,"swiftVersion":"…","pluginVersion":"…","updatedAt":"…"}`.
+  A mismatch at startup — or a changed plug-in version observed during a
+  health check — clears the contents of all protocol directories once and
+  rewrites the marker, so no artifacts written by one version are ever read
+  by another.
 
 ## Security
 
-- Files are local only.
-- No secrets should be written unless explicitly required.
-- Requests/responses are readable by the current user.
+- Files are local only and hold OmniFocus content (task and project data) in
+  cleartext while they exist; retention keeps that window minimal (successful
+  round trips leave no artifacts).
+- The Swift side is authoritative for permissions: directories are created
+  and repaired to `0700`; Swift-written files are set to `0600` after each
+  atomic write (atomic replace discards modes, so this is chmod-after-write —
+  the directory is the enforcement boundary, not file creation modes).
+- Plug-in-written files may carry the default mode; they live inside `0700`
+  directories and are deleted as soon as they are consumed.
+- The plug-in writes no log files; plug-in diagnostics return as response
+  data only.
+- `dispatch/request.json` is one shared file, which assumes a single active
+  server per user account; concurrent servers are serialized by the
+  process-wide Bridge lane, not by the file protocol.
 
 ## Notes
 

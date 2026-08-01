@@ -232,6 +232,11 @@ public final class OmniFocusBridgeService: OmniFocusService {
     public func healthCheck() async throws -> BridgeHealthResult {
         try await runtime.submit(category: .health) {
             let response = try self.client.ping()
+            if response.ok, let version = response.data?.version {
+                // A plugin-only reinstall changes the observed version without
+                // a binary upgrade; invalidate the IPC directory once.
+                self.client.recordObservedPluginVersion(version)
+            }
             return BridgeHealthResult(
                 ok: response.ok,
                 plugin: response.data?.plugin,
