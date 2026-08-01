@@ -1,62 +1,70 @@
 # FocusRelay Roadmap Execution Plan
 
-Last updated: 2026-07-29
+Last updated: 2026-08-01
 
 GitHub issues own requirements, discussion, and validation evidence. This file
 records only current sequencing and cross-issue dependencies.
 
-## Next Beta
+## Current Focus
 
-[`v0.12.0-beta`](https://github.com/deverman/FocusRelayMCP/milestone/1)
-packages the merged reliable-inbox workflow and bounded Bridge architecture.
-[#188](https://github.com/deverman/FocusRelayMCP/issues/188) owns its release
-gates. The final production blocker and client-restart UAT are complete; freeze
-the candidate and run the release validation once.
+`v0.12.0-beta` shipped (#188 closed). The next slice is
+[#197 — IPC directory hardening](https://github.com/deverman/FocusRelayMCP/issues/197):
+retention, owner-only permissions, and upgrade invalidation for the bridge
+IPC directory, which holds task data at rest.
 
 ## Delivery Order
 
-1. [#188 — release v0.12.0-beta](https://github.com/deverman/FocusRelayMCP/issues/188)
-   - Complete headline UAT, freeze one production fingerprint, and run the
-     fail-closed release gates before tagging.
-2. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
+1. [#197 — harden bridge IPC directory](https://github.com/deverman/FocusRelayMCP/issues/197)
+   - Retention policy, owner-only permissions, upgrade invalidation, and
+     fail-fast container resolution. Security-motivated; ships regardless of
+     measured performance outcome.
+2. [#200 — plug-in loaded from the wrong directory](https://github.com/deverman/FocusRelayMCP/issues/200)
+   - Documentation fix shipped; the durable fix is reporting the loaded
+     plug-in path from the health check so a stale bundle is visible
+     without manual filesystem inspection.
+3. [#172 — bounded task-detail lookup](https://github.com/deverman/FocusRelayMCP/issues/172)
    - Replace repeated one-task calls with one stable-ID query that returns only
      the details needed for a workflow decision.
-3. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
+4. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
    - Resolve a bounded set of requested names through the existing catalog cache
      instead of repeating full catalog queries.
-4. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
+5. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
    - Design the larger approved-workflow batch only after #172 and #171 reduce
      its read-before-write query cost.
-5. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
+6. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
    - Continue measured client research after the shipped `process_inbox`
      vertical; add another prompt only when UAT demonstrates a reliable benefit.
-6. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
+7. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
    [#83 — project creation/conversion](https://github.com/deverman/FocusRelayMCP/issues/83)
    - Build on the consolidated edit surface, support safe project folder
      destinations, and retain duplicate/write safety.
-7. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
+8. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
    - After task creation and truthful drop behavior stabilize, establish complete
      schedule readback before adding create, edit, and lifecycle mutation slices.
-8. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
+9. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
    [#128 — create and assign missing tags](https://github.com/deverman/FocusRelayMCP/issues/128)
    - Query direct project membership by stable ID before creating missing root
      or nested tags during assignment.
-9. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
+10. [#88 — project folder membership](https://github.com/deverman/FocusRelayMCP/issues/88), then
    [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
    - Reduce context before expanding project-review workflows.
-10. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
+11. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
    [#125 — Forecast-based attention](https://github.com/deverman/FocusRelayMCP/issues/125), then
    [#126 — broader ranked task search](https://github.com/deverman/FocusRelayMCP/issues/126)
    - Reuse one documented task-only Forecast classifier for attention ranking.
    - Keep search independent, broad, relevance-ranked, and lightweight.
-11. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
+12. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
     - Reduce installation friction after the next product capabilities settle.
-12. Measured transport and command experiments:
-    [#90](https://github.com/deverman/FocusRelayMCP/issues/90) and
-    [#73](https://github.com/deverman/FocusRelayMCP/issues/73).
-13. Small independent query improvements: #11, #22, #18, #59, #62, #65,
+    - Do not finalize the installer flow before the #196 signing verdict
+      lands; a Developer ID pipeline or LaunchAgent directly shapes it.
+13. Measured transport and command experiments:
+    [#90 — command/session latency](https://github.com/deverman/FocusRelayMCP/issues/90) and
+    [#196 — multi-host transport spike](https://github.com/deverman/FocusRelayMCP/issues/196)
+    (decision-revisit: TCC diagnosis and Developer ID signing feasibility;
+    depends on #197 for the on-disk contract it would inherit).
+14. Small independent query improvements: #11, #22, #18, #59, #62, #65,
     #66, #67, and #68.
-14. Feasibility work for #10 custom perspectives and #16 planned-date writes.
+15. Feasibility work for #10 custom perspectives and #16 planned-date writes.
 
 ## Standing Decisions
 
@@ -85,8 +93,8 @@ the candidate and run the release validation once.
 
 ## Release Reference
 
-- Current release: [`v0.11.0-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.11.0-beta)
-- Planned release: [`v0.12.0-beta`](https://github.com/deverman/FocusRelayMCP/issues/188)
+- Current release: [`v0.12.0-beta`](https://github.com/deverman/FocusRelayMCP/releases/tag/v0.12.0-beta)
+- Release notes: [`release-notes-v0.12.0-beta.md`](release-notes-v0.12.0-beta.md)
 - Release engineering: [`release-engineering-checklist.md`](release-engineering-checklist.md)
 - Development validation: [`development-workflow.md`](development-workflow.md)
 - User-facing changes: [`../CHANGELOG.md`](../CHANGELOG.md)
