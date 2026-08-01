@@ -125,6 +125,9 @@ struct ListProjects: AsyncParsableCommand {
     @Flag(name: .customLong("include-task-counts"), help: "Include task counts for each project.")
     var includeTaskCounts: Bool = false
 
+    @Flag(name: .customLong("root-only"), help: "Only projects at the library root (not inside any folder).")
+    var rootOnly: Bool = false
+
     @Flag(name: .customLong("review-perspective"), help: "Apply Review due-date defaults while honoring --status (active, onHold, or all reviewable projects).")
     var reviewPerspective: Bool = false
 
@@ -165,6 +168,7 @@ struct ListProjects: AsyncParsableCommand {
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
             search: search,
+            rootOnly: rootOnly,
             reviewDueBefore: reviewBeforeDate,
             reviewDueAfter: reviewAfterDate,
             reviewPerspective: reviewPerspective,

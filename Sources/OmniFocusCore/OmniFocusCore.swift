@@ -94,6 +94,12 @@ public struct ProjectItem: Codable, Sendable {
     public let containsSingletonActions: Bool?
     public let isStalled: Bool?
     public let completionDate: Date?
+    /// Direct parent folder, or nil for a project at the library root.
+    public let folderID: String?
+    public let folderName: String?
+    /// Ancestor folders root-first, so repeated folder names remain
+    /// distinguishable. nil at the library root.
+    public let folderPath: [FolderPathElement]?
 
     public init(
         id: String,
@@ -113,7 +119,10 @@ public struct ProjectItem: Codable, Sendable {
         nextTask: ProjectTaskSummary? = nil,
         containsSingletonActions: Bool? = nil,
         isStalled: Bool? = nil,
-        completionDate: Date? = nil
+        completionDate: Date? = nil,
+        folderID: String? = nil,
+        folderName: String? = nil,
+        folderPath: [FolderPathElement]? = nil
     ) {
         self.id = id
         self.name = name
@@ -133,6 +142,21 @@ public struct ProjectItem: Codable, Sendable {
         self.containsSingletonActions = containsSingletonActions
         self.isStalled = isStalled
         self.completionDate = completionDate
+        self.folderID = folderID
+        self.folderName = folderName
+        self.folderPath = folderPath
+    }
+}
+
+/// One ancestor in a folder chain, root first. Mirrors `TagPathElement` so
+/// nested folders with repeated names stay distinguishable.
+public struct FolderPathElement: Codable, Sendable, Equatable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
     }
 }
 
@@ -269,6 +293,8 @@ public struct TagFilter: Codable, Sendable {
 }
 
 public struct ProjectFilter: Codable, Sendable {
+    /// When true, return only projects whose documented parentFolder is null.
+    public var rootOnly: Bool?
     public var statusFilter: String?
     public var includeTaskCounts: Bool?
     public var search: String?
@@ -280,6 +306,7 @@ public struct ProjectFilter: Codable, Sendable {
     public var completedAfter: Date?
 
     public init(
+        rootOnly: Bool? = nil,
         statusFilter: String? = nil,
         includeTaskCounts: Bool? = nil,
         search: String? = nil,
@@ -290,6 +317,7 @@ public struct ProjectFilter: Codable, Sendable {
         completedBefore: Date? = nil,
         completedAfter: Date? = nil
     ) {
+        self.rootOnly = rootOnly
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts
         self.search = search
@@ -391,6 +419,7 @@ public protocol OmniFocusService: Sendable {
         statusFilter: String?,
         includeTaskCounts: Bool,
         search: String?,
+        rootOnly: Bool,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,

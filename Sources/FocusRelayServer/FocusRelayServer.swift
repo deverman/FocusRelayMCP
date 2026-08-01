@@ -422,6 +422,11 @@ public enum FocusRelayServer {
                                 "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
                                 "default": .string("active")
                             ]),
+                            "rootOnly": .object([
+                                "type": .string("boolean"),
+                                "description": .string("When true, return only projects at the library root — those whose parent folder is null. This is the efficient path for reviewing unfiled projects: request it with compact fields instead of listing the whole catalogue and inferring membership. Composes with statusFilter and pagination."),
+                                "default": .bool(false)
+                            ]),
                             "search": .object([
                                 "type": .string("string"),
                                 "description": .string("Trimmed, literal, case-insensitive substring match against project names only. Empty or whitespace-only values are rejected.")
@@ -844,6 +849,7 @@ public enum FocusRelayServer {
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let search = try decodeArgument(String.self, from: params.arguments, key: "search")
+                    let rootOnly = try decodeArgument(Bool.self, from: params.arguments, key: "rootOnly") ?? false
                     let reviewDueBefore = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueBefore")
                     let reviewDueAfter = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueAfter")
                     let reviewPerspective = try decodeArgument(Bool.self, from: params.arguments, key: "reviewPerspective") ?? false
@@ -862,6 +868,7 @@ public enum FocusRelayServer {
                         statusFilter: statusFilter,
                         includeTaskCounts: includeTaskCounts,
                         search: search,
+                        rootOnly: rootOnly,
                         reviewDueBefore: reviewDueBefore,
                         reviewDueAfter: reviewDueAfter,
                         reviewPerspective: reviewPerspective,

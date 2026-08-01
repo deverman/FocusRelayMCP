@@ -136,6 +136,7 @@ final class BridgeClient: @unchecked Sendable {
         statusFilter: String?,
         includeTaskCounts: Bool,
         search: String? = nil,
+        rootOnly: Bool = false,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,
@@ -146,6 +147,7 @@ final class BridgeClient: @unchecked Sendable {
     ) throws -> Page<ProjectItem> {
         let requestId = UUID().uuidString
         let projectFilter = ProjectFilter(
+            rootOnly: rootOnly ? true : nil,
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
             search: search,
@@ -194,7 +196,12 @@ final class BridgeClient: @unchecked Sendable {
                     nextTask: nextTask,
                     containsSingletonActions: payload.containsSingletonActions,
                     isStalled: payload.isStalled,
-                    completionDate: payload.completionDate
+                    completionDate: payload.completionDate,
+                    folderID: payload.folderID,
+                    folderName: payload.folderName,
+                    folderPath: payload.folderPath.map { elements in
+                        elements.map { FolderPathElement(id: $0.id ?? "", name: $0.name ?? "") }
+                    }
                 )
             }
             return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)

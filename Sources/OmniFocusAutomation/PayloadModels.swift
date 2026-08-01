@@ -49,6 +49,14 @@ struct ProjectItemPayload: Codable {
     let containsSingletonActions: Bool?
     let isStalled: Bool?
     let completionDate: Date?
+    let folderID: String?
+    let folderName: String?
+    let folderPath: [FolderPathElementPayload]?
+}
+
+struct FolderPathElementPayload: Codable {
+    let id: String?
+    let name: String?
 }
 
 struct TagItemPayload: Codable {
