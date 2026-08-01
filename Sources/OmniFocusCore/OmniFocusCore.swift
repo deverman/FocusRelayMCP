@@ -238,11 +238,15 @@ public struct Page<T: Codable & Sendable>: Codable, Sendable {
     public let returnedCount: Int
     public let totalCount: Int?
     public let warnings: [String]?
+    /// Requested IDs that produced no in-scope task. Only set for bounded
+    /// stable-ID selections.
+    public let unresolvedIDs: [String]?
 
-    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil, warnings: [String]? = nil) {
+    public init(items: [T], nextCursor: String? = nil, returnedCount: Int, totalCount: Int? = nil, warnings: [String]? = nil, unresolvedIDs: [String]? = nil) {
         self.items = items
         self.nextCursor = nextCursor
         self.returnedCount = returnedCount
+        self.unresolvedIDs = unresolvedIDs
         self.totalCount = totalCount
         self.warnings = warnings
     }
@@ -299,6 +303,8 @@ public struct ProjectFilter: Codable, Sendable {
 }
 
 public struct TaskFilter: Codable, Sendable {
+    /// Bounded stable-ID selection for progressive expansion; list_tasks only.
+    public var ids: [String]?
     public var completed: Bool?
     public var flagged: Bool?
     public var availableOnly: Bool?
@@ -321,6 +327,7 @@ public struct TaskFilter: Codable, Sendable {
     public var includeTotalCount: Bool?
 
     public init(
+        ids: [String]? = nil,
         completed: Bool? = nil,
         flagged: Bool? = nil,
         availableOnly: Bool? = nil,
@@ -342,6 +349,7 @@ public struct TaskFilter: Codable, Sendable {
         minEstimatedMinutes: Int? = nil,
         includeTotalCount: Bool? = nil
     ) {
+        self.ids = ids
         self.completed = completed
         self.flagged = flagged
         self.availableOnly = availableOnly

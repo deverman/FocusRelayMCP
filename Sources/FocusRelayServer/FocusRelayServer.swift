@@ -202,9 +202,12 @@ public enum FocusRelayServer {
         "includeTotalCount"
     ]
 
-    static func makeTaskFilterSchema() -> Value {
+    /// `ids` is offered to `list_tasks` only. `get_task_counts` returns
+    /// scalars, so selecting specific tasks there has no meaning, and leaving
+    /// it out lets closed-property validation reject it with a clear message.
+    static func makeTaskFilterSchema(includeTaskIDSelection: Bool = false) -> Value {
         let dateExample = Value.string("2026-01-30T12:00:00Z")
-        let properties: [String: Value] = [
+        var properties: [String: Value] = [
             "completed": propertySchema(
                 type: "boolean",
                 description: "Match completed (true) or remaining (false) tasks. Omit to use the selected view's default."
@@ -271,8 +274,24 @@ public enum FocusRelayServer {
             )
         ]
 
+        if includeTaskIDSelection {
+            properties["ids"] = .object([
+                "type": .string("array"),
+                "description": .string(
+                    "Expand a bounded set of already-known tasks in one read instead of one get_task call each. "
+                        + "Supply 1-\(TaskIDSelection.maximumCount) stable task IDs. Other filters still apply as an "
+                        + "intersection, so an ID outside the supplied scope is reported in unresolvedIDs rather than "
+                        + "returned. Results follow the requested ID order and are never paginated: page.cursor is "
+                        + "rejected and page.limit must be at least the number of IDs."
+                ),
+                "items": .object(["type": .string("string")]),
+                "minItems": .int(1),
+                "maxItems": .int(TaskIDSelection.maximumCount)
+            ])
+        }
+
         precondition(
-            Set(properties.keys) == taskFilterPropertyNames,
+            Set(properties.keys) == (includeTaskIDSelection ? taskFilterPropertyNames.union(["ids"]) : taskFilterPropertyNames),
             "The shared MCP task filter schema must cover the intentional TaskFilter surface."
         )
 
@@ -344,7 +363,7 @@ public enum FocusRelayServer {
                     description: listTasksToolDescription,
                     inputSchema: toolSchema(
                         properties: [
-                            "filter": makeTaskFilterSchema(),
+                            "filter": makeTaskFilterSchema(includeTaskIDSelection: true),
                             "page": .object([
                                 "type": .string("object"),
                                 "properties": .object([
@@ -806,7 +825,7 @@ public enum FocusRelayServer {
                     let result = try await service.listTasks(filter: filter, page: page, fields: fields)
                     let fieldSet = Set(fields)
                     let items = result.items.map { makeTaskOutput(from: $0, fields: fieldSet) }
-                    let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
+                    let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings, unresolvedIDs: result.unresolvedIDs)
                     return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
                 case "get_task":
                     let id = try decodeArgument(String.self, from: params.arguments, key: "id") ?? ""
@@ -1135,7 +1154,10 @@ func discriminatedToolSchema(
     ]))
 }
 
-private func closingObjectSchemas(_ value: Value) -> Value {
+/// Marks every object schema closed so unknown properties are rejected at the
+/// wire boundary. Internal rather than private so tests can validate against
+/// the same closed shape clients receive.
+func closingObjectSchemas(_ value: Value) -> Value {
     switch value {
     case .object(var object):
         for (key, child) in object {

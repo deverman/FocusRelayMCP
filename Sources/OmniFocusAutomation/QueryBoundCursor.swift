@@ -23,6 +23,7 @@ enum QueryBoundCursor {
         try queryIdentity(
             tool: "list_tasks",
             input: TaskFilter(
+                ids: filter.ids,
                 completed: filter.completed,
                 flagged: filter.flagged,
                 availableOnly: filter.availableOnly,
@@ -123,7 +124,8 @@ enum QueryBoundCursor {
             nextCursor: nextCursor,
             returnedCount: page.returnedCount,
             totalCount: page.totalCount,
-            warnings: page.warnings
+            warnings: page.warnings,
+            unresolvedIDs: page.unresolvedIDs
         )
     }
 

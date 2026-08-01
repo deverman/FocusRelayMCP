@@ -25,10 +25,32 @@ public final class OmniFocusBridgeService: OmniFocusService {
     }
 
     public func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) async throws -> Page<TaskItem> {
-        let identity = try QueryBoundCursor.taskIdentity(for: filter)
+        var normalizedFilter = filter
+        normalizedFilter.ids = try TaskIDSelection.normalize(filter.ids)
+        let resolvedFilter = normalizedFilter
+
+        if let ids = resolvedFilter.ids {
+            // A bounded ID selection is one complete response: no cursor in,
+            // no cursor out, and the caller's requested order is preserved.
+            try TaskIDSelection.validatePaging(idCount: ids.count, limit: page.limit, cursor: page.cursor)
+            let result = try await runtime.submit(category: .taskQuery) {
+                try self.client.listTasks(filter: resolvedFilter, page: PageRequest(limit: page.limit), fields: fields)
+            }
+            let (ordered, unresolved) = TaskIDSelection.order(result.items, by: ids) { $0.id }
+            return Page(
+                items: ordered,
+                nextCursor: nil,
+                returnedCount: ordered.count,
+                totalCount: result.totalCount,
+                warnings: result.warnings,
+                unresolvedIDs: unresolved
+            )
+        }
+
+        let identity = try QueryBoundCursor.taskIdentity(for: resolvedFilter)
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
         let result = try await runtime.submit(category: .taskQuery) {
-            try self.client.listTasks(filter: filter, page: bridgePage, fields: fields)
+            try self.client.listTasks(filter: resolvedFilter, page: bridgePage, fields: fields)
         }
         return try QueryBoundCursor.publicPage(from: result, identity: identity)
     }
