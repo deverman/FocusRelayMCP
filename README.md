@@ -159,6 +159,57 @@ Configure a local stdio MCP server with:
 - arguments: `serve`
 
 <details>
+<summary>Claude Code configuration</summary>
+
+Claude Code registers MCP servers from the command line, so no file editing is
+required:
+
+```bash
+claude mcp add --scope user focusrelay /opt/homebrew/bin/focusrelay serve
+```
+
+`--scope user` makes FocusRelay available in every project on your Mac. Use
+`--scope project` instead to share the server with collaborators through a
+checked-in `.mcp.json`, or omit the flag to enable it only in the current
+directory.
+
+Confirm the server is registered and reachable:
+
+```bash
+claude mcp list
+```
+
+FocusRelay should report `✔ Connected`. Remove it later with
+`claude mcp remove --scope user focusrelay`.
+
+</details>
+
+<details>
+<summary>Claude Desktop configuration</summary>
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` and add
+FocusRelay to `mcpServers`, keeping any servers already listed:
+
+```json
+{
+  "mcpServers": {
+    "focusrelay": {
+      "command": "/opt/homebrew/bin/focusrelay",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Quit and reopen Claude Desktop; it reads this file only at launch. FocusRelay
+then appears in the app's MCP server list.
+
+Use the absolute path. Claude Desktop does not inherit your shell `PATH`, so a
+bare `focusrelay` command fails to launch.
+
+</details>
+
+<details>
 <summary>OpenCode configuration example</summary>
 
 ```json
@@ -301,6 +352,28 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 The plugin JavaScript is cached by OmniFocus. Reinstall the plugin and restart
 OmniFocus completely. Project and tag catalogs cache for five minutes; task
 queries are always fresh.
+
+### The plugin and binary versions do not match
+
+Upgrading the Homebrew formula replaces the binary but leaves the copy of the
+plugin already inside OmniFocus untouched, so a skipped step 2 can strand the
+plugin many releases behind. Compare the two versions:
+
+```bash
+focusrelay --version
+grep -o '"version": "[^"]*"' \
+  "$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins/FocusRelayBridge.omnijs/manifest.json"
+```
+
+If they differ, repeat step 2 and step 3, then confirm the bridge reports the
+new version:
+
+```bash
+focusrelay bridge-health-check
+```
+
+A healthy bridge returns `"ok":true` with the same version as
+`focusrelay --version`.
 
 ### A time-based result looks wrong after travel
 
