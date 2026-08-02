@@ -1,67 +1,31 @@
 import Foundation
 import OmniFocusCore
 
+/// Cache identity for a catalog page.
+///
+/// The filter contributes a fingerprint of its own encoding rather than a
+/// hand-listed set of fields, so adding a filter field changes the key
+/// automatically. Page and field selection are separate because they are not
+/// part of the filter.
 struct CacheKey: Hashable {
     let limit: Int
     let cursor: String?
     let fieldsKey: String
-    let statusFilter: String?
-    let includeTaskCounts: Bool
-    let search: String?
-    let rootOnly: Bool
+    let filterFingerprint: String
 
-    private init(
-        limit: Int,
-        cursor: String?,
-        fieldsKey: String,
-        statusFilter: String?,
-        includeTaskCounts: Bool,
-        search: String?,
-        rootOnly: Bool = false
-    ) {
-        self.limit = limit
-        self.cursor = cursor
-        self.fieldsKey = fieldsKey
-        self.statusFilter = statusFilter
-        self.includeTaskCounts = includeTaskCounts
-        self.search = search
-        self.rootOnly = rootOnly
+    init(page: PageRequest, fields: [String]?, filterFingerprint: String) {
+        self.limit = page.limit
+        self.cursor = page.cursor
+        self.fieldsKey = (fields ?? []).joined(separator: ",")
+        self.filterFingerprint = filterFingerprint
     }
 
-    static func projects(
-        page: PageRequest,
-        fields: [String]?,
-        statusFilter: String?,
-        includeTaskCounts: Bool,
-        search: String? = nil,
-        rootOnly: Bool = false
-    ) -> CacheKey {
-        CacheKey(
-            limit: page.limit,
-            cursor: page.cursor,
-            fieldsKey: (fields ?? []).joined(separator: ","),
-            statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts,
-            search: search,
-            rootOnly: rootOnly
-        )
+    static func projects(page: PageRequest, fields: [String]?, filter: ProjectFilter) throws -> CacheKey {
+        CacheKey(page: page, fields: fields, filterFingerprint: try FilterCacheIdentity.fingerprint(filter))
     }
 
-    static func tags(
-        page: PageRequest,
-        fields: [String]? = nil,
-        statusFilter: String?,
-        includeTaskCounts: Bool,
-        search: String? = nil
-    ) -> CacheKey {
-        CacheKey(
-            limit: page.limit,
-            cursor: page.cursor,
-            fieldsKey: (fields ?? []).joined(separator: ","),
-            statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts,
-            search: search
-        )
+    static func tags(page: PageRequest, fields: [String]?, filter: TagFilter) throws -> CacheKey {
+        CacheKey(page: page, fields: fields, filterFingerprint: try FilterCacheIdentity.fingerprint(filter))
     }
 }
 

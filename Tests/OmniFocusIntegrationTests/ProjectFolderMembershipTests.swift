@@ -10,13 +10,10 @@ import Testing
 @Suite("rootOnly cache keying")
 struct RootOnlyCacheKeyTests {
     private func key(rootOnly: Bool, statusFilter: String = "active") -> CacheKey {
-        CacheKey.projects(
+        try! CacheKey.projects(
             page: PageRequest(limit: 150),
             fields: ["id", "name"],
-            statusFilter: statusFilter,
-            includeTaskCounts: false,
-            search: nil,
-            rootOnly: rootOnly
+            filter: ProjectFilter(rootOnly: rootOnly ? true : nil, statusFilter: statusFilter, includeTaskCounts: false)
         )
     }
 

@@ -9,13 +9,10 @@ import Testing
 @Suite("Catalog cache fill coalescing")
 struct CatalogCacheCoalescingTests {
     private func key(_ search: String? = nil) -> CacheKey {
-        CacheKey.projects(
+        try! CacheKey.projects(
             page: PageRequest(limit: 1000),
             fields: ["id", "name"],
-            statusFilter: "active",
-            includeTaskCounts: false,
-            search: search,
-            rootOnly: false
+            filter: ProjectFilter(statusFilter: "active", includeTaskCounts: false, search: search)
         )
     }
 

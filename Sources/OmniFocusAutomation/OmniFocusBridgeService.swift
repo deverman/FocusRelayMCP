@@ -96,16 +96,13 @@ public final class OmniFocusBridgeService: OmniFocusService {
             input: projectFilter
         )
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
-        let shouldBypassCache = reviewPerspective || reviewDueBefore != nil || reviewDueAfter != nil || completed != nil || completedBefore != nil || completedAfter != nil
-        if !shouldBypassCache {
-            let key = CacheKey.projects(
-                page: bridgePage,
-                fields: fields,
-                statusFilter: statusFilter,
-                includeTaskCounts: includeTaskCounts,
-                search: normalizedSearch,
-                rootOnly: rootOnly
-            )
+        // Both the cacheability decision and the key now come from the filter
+        // itself, so a new filter field cannot be missed by one and not the other.
+        let cacheable = (try? FilterCacheIdentity.isCacheable(
+            projectFilter,
+            uncacheableFields: FilterCacheIdentity.uncacheableProjectFields
+        )) ?? false
+        if cacheable, let key = try? CacheKey.projects(page: bridgePage, fields: fields, filter: projectFilter) {
             if let cached = await cache.getProjects(key: key) {
                 return try QueryBoundCursor.publicPage(from: cached, identity: identity)
             }
@@ -180,14 +177,12 @@ public final class OmniFocusBridgeService: OmniFocusService {
         )
         let identity = try QueryBoundCursor.queryIdentity(tool: "list_tags", input: filter)
         let bridgePage = try QueryBoundCursor.bridgePage(from: page, identity: identity)
-        let key = CacheKey.tags(
-            page: bridgePage,
-            fields: fields,
-            statusFilter: statusFilter,
-            includeTaskCounts: includeTaskCounts,
-            search: normalizedSearch
-        )
-        if let cached = await cache.getTags(key: key) {
+        let tagsCacheable = (try? FilterCacheIdentity.isCacheable(
+            filter,
+            uncacheableFields: FilterCacheIdentity.uncacheableTagFields
+        )) ?? false
+        let key = try CacheKey.tags(page: bridgePage, fields: fields, filter: filter)
+        if tagsCacheable, let cached = await cache.getTags(key: key) {
             return try QueryBoundCursor.publicPage(from: cached, identity: identity)
         }
         let pageResult = try await runtime.submit(
@@ -202,7 +197,9 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 )
             },
             finalize: { pageResult in
-                await self.cache.setTags(pageResult, key: key, ttl: self.cacheTTL)
+                if tagsCacheable {
+                    await self.cache.setTags(pageResult, key: key, ttl: self.cacheTTL)
+                }
                 return pageResult
             }
         )
