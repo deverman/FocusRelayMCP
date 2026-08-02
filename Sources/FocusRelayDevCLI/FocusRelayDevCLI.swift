@@ -31,16 +31,32 @@ private struct Classify: ParsableCommand {
         let untracked = try CommandRunner.capture("git", ["ls-files", "--others", "--exclude-standard"])
         let files = (changed + "\n" + untracked).split(separator: "\n").map(String.init)
         let result = ChangeClassifier.classify(files)
+        let coverage = BenchmarkCoverage.assess(changedFiles: files)
         if json {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            FileHandle.standardOutput.write(try encoder.encode(result))
+            FileHandle.standardOutput.write(try encoder.encode(ClassifyReport(classification: result, coverage: coverage)))
             print()
         } else {
             print(result.impact.rawValue)
             result.reasons.forEach { print("- \($0)") }
+            if !coverage.touchedTools.isEmpty {
+                print("")
+                print("Benchmark coverage:")
+                for tool in coverage.covered { print("  ✅ \(tool)") }
+                for tool in coverage.uncovered { print("  ⚠️  \(tool) — no benchmark in the suite") }
+            }
+            if coverage.hasCoverageGap {
+                print("")
+                print(BenchmarkCoverage.coverageGapMessage(coverage))
+            }
         }
     }
+}
+
+private struct ClassifyReport: Codable {
+    let classification: ChangeClassification
+    let coverage: BenchmarkCoverage.Assessment
 }
 
 private struct Validate: ParsableCommand {
