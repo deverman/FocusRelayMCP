@@ -302,6 +302,476 @@ public enum FocusRelayServer {
         ])
     }
 
+    /// Static so the tool surface can be validated in tests without booting
+    /// the server; it captures nothing from the run loop.
+    static func makeToolsForTesting() -> [Tool] {
+        let tools = [
+            Tool(
+                name: "list_tasks",
+                description: listTasksToolDescription,
+                inputSchema: toolSchema(
+                    properties: [
+                        "filter": makeTaskFilterSchema(includeTaskIDSelection: true),
+                        "page": .object([
+                            "type": .string("object"),
+                            "properties": .object([
+                                "limit": .object([
+                                    "type": .string("integer"),
+                                    "minimum": .int(1),
+                                    "description": .string("Maximum items in this page. For inbox processing, start with 10-20 rather than requesting the 50-item default.")
+                                ]),
+                                "cursor": paginationCursorSchema()
+                            ])
+                        ]),
+                        "fields": .object([
+                            "type": .string("array"),
+                            "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether this task itself is flagged\n- 'effectiveFlagged' - visible OmniFocus flag state, including flags inherited from a parent task or project\n\nFor Flagged-perspective questions, filter with flagged=true and request 'effectiveFlagged' when returning flag state. ALWAYS include the fields you need to answer the user's question."),
+                            "items": outputFieldItemsSchema(for: "list_tasks"),
+                            "examples": .array([
+                                .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
+                                .array([.string("id"), .string("name"), .string("dueDate"), .string("plannedDate"), .string("deferDate"), .string("available")]),
+                                .array([.string("id"), .string("name"), .string("tagNames"), .string("projectName")])
+                            ])
+                        ])
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "get_task",
+                description: "Get a single task by ID",
+                inputSchema: toolSchema(
+                    properties: [
+                        "id": .object(["type": .string("string")]),
+                        "fields": .object([
+                            "type": .string("array"),
+                            "items": outputFieldItemsSchema(for: "get_task")
+                        ])
+                    ],
+                    required: ["id"]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "list_projects",
+                description: listProjectsToolDescription,
+                inputSchema: toolSchema(
+                    properties: [
+                        "page": .object([
+                            "type": .string("object"),
+                            "properties": .object([
+                                "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
+                                "cursor": paginationCursorSchema()
+                            ])
+                        ]),
+                        "statusFilter": .object([
+                            "type": .string("string"),
+                            "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'. Use 'active' for current-project maintenance. 'all' includes historical done/dropped projects, so inspect each returned status before making recommendations."),
+                            "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
+                            "default": .string("active")
+                        ]),
+                        "rootOnly": .object([
+                            "type": .string("boolean"),
+                            "description": .string("When true, return only projects at the library root — those whose parent folder is null. This is the efficient path for reviewing unfiled projects: request it with compact fields instead of listing the whole catalogue and inferring membership. Composes with statusFilter and pagination."),
+                            "default": .bool(false)
+                        ]),
+                        "searches": .object([
+                            "type": .string("array"),
+                            "description": .string(
+                                "Resolve several candidate names in one call instead of one search per name. "
+                                    + "Supply 1-\(BatchNameResolution.maximumSearches) names. Results are grouped by the "
+                                    + "requested name, in request order, and a name that matches nothing returns an empty "
+                                    + "group rather than being omitted. Matching is literal and case-insensitive, the same "
+                                    + "as search. Mutually exclusive with search, page.cursor, and includeTaskCounts."
+                            ),
+                            "items": .object(["type": .string("string")]),
+                            "minItems": .int(1),
+                            "maxItems": .int(BatchNameResolution.maximumSearches)
+                        ]),
+                        "matchLimitPerSearch": .object([
+                            "type": .string("integer"),
+                            "minimum": .int(1),
+                            "maximum": .int(BatchNameResolution.maximumMatchLimit),
+                            "default": .int(BatchNameResolution.defaultMatchLimit),
+                            "description": .string("Maximum matches returned per requested name. A group with more matches than this is marked truncated=true rather than silently narrowed.")
+                        ]),
+                        "search": .object([
+                            "type": .string("string"),
+                            "description": .string("Trimmed, literal, case-insensitive substring match against project names only. Empty or whitespace-only values are rejected.")
+                        ]),
+                        "completed": .object([
+                            "type": .string("boolean"),
+                            "description": .string("Filter by completion status. When true with completedAfter/completedBefore, finds completed projects in time window (excludes dropped)"),
+                            "default": .bool(false)
+                        ]),
+                        "completedAfter": .object([
+                            "type": .string("string"),
+                            "description": .string("ISO8601 datetime. Projects completed on or after this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
+                            "examples": .array([.string("2026-01-01T00:00:00Z")])
+                        ]),
+                        "completedBefore": .object([
+                            "type": .string("string"),
+                            "description": .string("ISO8601 datetime. Projects completed on or before this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
+                            "examples": .array([.string("2026-02-01T00:00:00Z")])
+                        ]),
+                        "includeTaskCounts": .object([
+                            "type": .string("boolean"),
+                            "description": .string("Include child-task counts for each project (available, remaining, completed, dropped, total). Counts do not determine project status: inspect the returned project status, treat empty projects separately, and use isStalled rather than availableTasks=0 for stalled-project analysis."),
+                            "default": .bool(false)
+                        ]),
+                        "reviewPerspective": .object([
+                            "type": .string("boolean"),
+                            "description": .string("If true, apply OmniFocus Review perspective defaults: exclude dropped/done, honor statusFilter for active/onHold grouping, and require nextReviewDate <= now when reviewDueBefore is omitted"),
+                            "default": .bool(false)
+                        ]),
+                        "reviewDueBefore": propertySchema(
+                            type: "string",
+                            description: "ISO8601 datetime. Only include projects whose nextReviewDate is before or equal to this time. If reviewPerspective=true and omitted, defaults to now.",
+                            examples: [.string("2026-02-04T12:00:00Z")]
+                        ),
+                        "reviewDueAfter": propertySchema(
+                            type: "string",
+                            description: "ISO8601 datetime. Only include projects whose nextReviewDate is after or equal to this time.",
+                            examples: [.string("2026-02-04T00:00:00Z")]
+                        ),
+                        "fields": .object([
+                            "type": .string("array"),
+                            "description": .string("Specify which fields to return. Useful fields: 'id', 'name', 'note', 'status', 'flagged', 'completionDate', 'lastReviewDate', 'nextReviewDate', 'reviewInterval', 'hasChildren', 'nextTask', 'containsSingletonActions', and 'isStalled'. Always include 'status' when comparing projects across statuses. Task-count fields are included by includeTaskCounts."),
+                            "items": outputFieldItemsSchema(for: "list_projects"),
+                            "examples": .array([
+                                .array([.string("id"), .string("name"), .string("status"), .string("isStalled")]),
+                                .array([.string("id"), .string("name"), .string("status"), .string("completionDate")]),
+                                .array([.string("id"), .string("name"), .string("status"), .string("lastReviewDate"), .string("nextReviewDate")])
+                            ])
+                        ])
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "list_tags",
+                description: "Find OmniFocus tags by partial name with pagination and status filtering. Request parentID, parentName, or path to distinguish duplicate names without loading the full tag catalog. Search is a trimmed, literal, case-insensitive substring and is applied before pagination.",
+                inputSchema: toolSchema(
+                    properties: [
+                        "page": .object([
+                            "type": .string("object"),
+                            "properties": .object([
+                                "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
+                                "cursor": paginationCursorSchema()
+                            ])
+                        ]),
+                        "statusFilter": .object([
+                            "type": .string("string"),
+                            "description": .string("Filter tags by status: 'active' (default), 'onHold', 'dropped', or 'all'"),
+                            "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("all")]),
+                            "default": .string("active")
+                        ]),
+                        "includeTaskCounts": .object([
+                            "type": .string("boolean"),
+                            "description": .string("Include task counts for each tag (available, remaining, total)"),
+                            "default": .bool(false)
+                        ]),
+                        "searches": .object([
+                            "type": .string("array"),
+                            "description": .string(
+                                "Resolve several candidate names in one call instead of one search per name. "
+                                    + "Supply 1-\(BatchNameResolution.maximumSearches) names. Results are grouped by the "
+                                    + "requested name, in request order, and a name that matches nothing returns an empty "
+                                    + "group rather than being omitted. Matching is literal and case-insensitive, the same "
+                                    + "as search. Mutually exclusive with search, page.cursor, and includeTaskCounts."
+                            ),
+                            "items": .object(["type": .string("string")]),
+                            "minItems": .int(1),
+                            "maxItems": .int(BatchNameResolution.maximumSearches)
+                        ]),
+                        "matchLimitPerSearch": .object([
+                            "type": .string("integer"),
+                            "minimum": .int(1),
+                            "maximum": .int(BatchNameResolution.maximumMatchLimit),
+                            "default": .int(BatchNameResolution.defaultMatchLimit),
+                            "description": .string("Maximum matches returned per requested name. A group with more matches than this is marked truncated=true rather than silently narrowed.")
+                        ]),
+                        "search": .object([
+                            "type": .string("string"),
+                            "description": .string("Trimmed, literal, case-insensitive substring match against tag names")
+                        ]),
+                        "fields": .object([
+                            "type": .string("array"),
+                            "description": .string("Fields to return. Defaults to the existing id, name, and status shape. Request path to disambiguate duplicate tag names."),
+                            "items": outputFieldItemsSchema(for: "list_tags")
+                        ])
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "list_folders",
+                description: "List OmniFocus folders with pagination for project move destination discovery. Use this before edit_projects with operation=move when moving projects into a folder. Compact default fields are id and name; request parentID, parentName, projectCount, or childFolderCount when needed.",
+                inputSchema: toolSchema(
+                    properties: [
+                        "page": .object([
+                            "type": .string("object"),
+                            "properties": .object([
+                                "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
+                                "cursor": paginationCursorSchema()
+                            ])
+                        ]),
+                        "fields": .object([
+                            "type": .string("array"),
+                            "description": .string("Specify folder fields to return: id, name, parentID, parentName, projectCount, childFolderCount."),
+                            "items": outputFieldItemsSchema(for: "list_folders")
+                        ])
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "edit_tasks",
+                description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_status with taskStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_status for dropping/restoring, set_completion only for complete/reopen, and move for inbox/project/parent changes. Never translate drop, discard, abandon, or cancel into completion. Repeating drops require an explicit occurrence or series scope. No plannedDate writes.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task." + mutationToolSequencingGuidance,
+                inputSchema: makeTaskEditSchema(
+                    properties: [
+                        "operation": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
+                            "description": .string("Required edit operation. Include exactly one matching payload.")
+                        ]),
+                        "targetIDs": .object([
+                            "type": .string("array"),
+                            "description": .string("Task IDs to update."),
+                            "items": .object(["type": .string("string")])
+                        ]),
+                        "taskPatch": .object([
+                            "type": .string("object"),
+                            "description": .string("Shared task patch applied to every task ID in targetIDs."),
+                            "properties": .object([
+                                "name": propertySchema(type: "string", description: "Set a new task name."),
+                                "note": propertySchema(type: "string", description: "Replace the task note."),
+                                "noteAppend": propertySchema(type: "string", description: "Append text to the task note."),
+                                "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
+                                "estimatedMinutes": propertySchema(type: "integer", description: "Set estimated minutes."),
+                                "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
+                                "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
+                                "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
+                                "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
+                                "tags": .object([
+                                    "type": .string("object"),
+                                    "description": .string("Deterministic tag mutation. Tag IDs only in v1."),
+                                    "properties": .object([
+                                        "add": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                        "remove": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                        "set": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                        "clear": propertySchema(type: "boolean", description: "Clear all tags.")
+                                    ])
+                                ])
+                            ])
+                        ]),
+                        "completion": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=set_completion. Never use completion to drop a task."),
+                            "properties": .object([
+                                "state": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("active"), .string("completed")])
+                                ])
+                            ]),
+                            "required": .array([.string("state")])
+                        ]),
+                        "taskStatus": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=set_status. Use dropped to discard without completion or active to restore a dropped task."),
+                            "properties": .object([
+                                "status": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("active"), .string("dropped")])
+                                ]),
+                                "recurrenceScope": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("occurrence"), .string("series")]),
+                                    "description": .string("Required when dropping a repeating task and forbidden otherwise.")
+                                ])
+                            ]),
+                            "required": .array([.string("status")])
+                        ]),
+                        "move": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=move. Shared task destination."),
+                            "properties": .object([
+                                "destinationKind": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("inbox"), .string("project"), .string("parent_task")])
+                                ]),
+                                "destinationID": propertySchema(type: "string", description: "Project or parent task ID. Omit for inbox moves."),
+                                "position": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("beginning"), .string("ending")]),
+                                    "default": .string("ending")
+                                ])
+                            ]),
+                            "required": .array([.string("destinationKind")])
+                        ]),
+                        "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                        "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
+                        "returnFields": .object([
+                            "type": .string("array"),
+                            "description": .string("Optional task fields to return in per-item results after mutation."),
+                            "items": .object(["type": .string("string")])
+                        ])
+                    ]
+                ),
+                annotations: mutationToolAnnotations
+            ),
+            Tool(
+                name: "edit_projects",
+                description: "Edit existing OmniFocus projects by ID. Choose exactly one operation and include only its matching payload: update with projectPatch, set_status with projectStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse set_status for active/on-hold/dropped and set_completion for complete/reopen. Use list_folders before a folder move when its ID is unknown; omit destinationID for the root library. Project tags and containsSingletonActions writes are not supported.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original project." + mutationToolSequencingGuidance,
+                inputSchema: makeProjectEditSchema(
+                    properties: [
+                        "operation": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
+                            "description": .string("Required edit operation. Include exactly one matching payload.")
+                        ]),
+                        "targetIDs": .object([
+                            "type": .string("array"),
+                            "description": .string("Project IDs to update."),
+                            "items": .object(["type": .string("string")])
+                        ]),
+                        "projectPatch": .object([
+                            "type": .string("object"),
+                            "description": .string("Shared project patch applied to every project ID in targetIDs."),
+                            "properties": .object([
+                                "name": propertySchema(type: "string", description: "Set a new project name."),
+                                "note": propertySchema(type: "string", description: "Replace the project note."),
+                                "noteAppend": propertySchema(type: "string", description: "Append text to the project note."),
+                                "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
+                                "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
+                                "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
+                                "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
+                                "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
+                                "sequential": propertySchema(type: "boolean", description: "Set whether the project's actions are sequential."),
+                                "reviewInterval": .object([
+                                    "type": .string("object"),
+                                    "description": .string("Set the simple review interval."),
+                                    "properties": .object([
+                                        "steps": propertySchema(type: "integer", description: "Review interval step count."),
+                                        "unit": propertySchema(type: "string", description: "Review interval unit, such as days, weeks, months, or years.")
+                                    ])
+                                ]),
+                                "reviewedNow": propertySchema(
+                                    type: "boolean",
+                                    description: "Mark active or on-hold projects reviewed now. Only true is accepted, and it must be the only projectPatch field."
+                                )
+                            ])
+                        ]),
+                        "projectStatus": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=set_status."),
+                            "properties": .object([
+                                "status": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("active"), .string("on_hold"), .string("dropped")])
+                                ])
+                            ]),
+                            "required": .array([.string("status")])
+                        ]),
+                        "completion": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=set_completion."),
+                            "properties": .object([
+                                "state": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("active"), .string("completed")])
+                                ])
+                            ]),
+                            "required": .array([.string("state")])
+                        ]),
+                        "move": .object([
+                            "type": .string("object"),
+                            "description": .string("Required only for operation=move. Omit destinationID for the root library."),
+                            "properties": .object([
+                                "destinationKind": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("folder")])
+                                ]),
+                                "destinationID": propertySchema(type: "string", description: "Destination folder ID from list_folders."),
+                                "position": .object([
+                                    "type": .string("string"),
+                                    "enum": .array([.string("beginning"), .string("ending")]),
+                                    "default": .string("ending")
+                                ])
+                            ]),
+                            "required": .array([.string("destinationKind")])
+                        ]),
+                        "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
+                        "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
+                        "returnFields": .object([
+                            "type": .string("array"),
+                            "description": .string("Optional project fields to return in per-item results after mutation."),
+                            "items": .object(["type": .string("string")])
+                        ])
+                    ]
+                ),
+                annotations: mutationToolAnnotations
+            ),
+            Tool(
+                name: "get_task_counts",
+                description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
+                inputSchema: toolSchema(
+                    properties: [
+                        "filter": makeTaskFilterSchema()
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
+                name: "get_project_counts",
+                description: "Get project/action counts for a view filter.\n\nCOMPLETED PROJECTS COUNT:\n- Use completedAfter/completedBefore to count completed projects in time windows\n- Returns: projects (count of completed projects), actions (count of completed tasks in those projects)\n- Excludes dropped projects (only status=done)\n- Use this to answer 'How many projects did I complete this month?' without listing all items",
+                inputSchema: toolSchema(
+                    properties: [
+                        "filter": .object([
+                            "type": .string("object"),
+                            "properties": .object([
+                                "completed": .object([
+                                    "type": .string("boolean"),
+                                    "description": .string("Filter by completion status")
+                                ]),
+                                "completedAfter": .object([
+                                    "type": .string("string"),
+                                    "description": .string("ISO8601 datetime. Count projects completed after this time")
+                                ]),
+                                "completedBefore": .object([
+                                    "type": .string("string"),
+                                    "description": .string("ISO8601 datetime. Count projects completed before this time")
+                                ]),
+                                "projectView": .object([
+                                    "type": .string("string"),
+                                    "description": .string("Project view filter: 'active', 'onHold', 'dropped', 'done', 'all'"),
+                                    "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")])
+                                ])
+                            ])
+                        ])
+                    ]
+                ),
+                annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            )
+        ]
+
+        precondition(
+            tools.map(\.name) == publicToolNames,
+            "The MCP tool catalog must match the intentional public tool surface."
+        )
+        precondition(
+            tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
+                $0.annotations.readOnlyHint == false &&
+                    $0.annotations.destructiveHint == true &&
+                    $0.annotations.idempotentHint == false &&
+                    $0.annotations.openWorldHint == false
+            },
+            "Mutation tool annotations must truthfully describe write risk."
+        )
+
+        return tools
+    }
+
     public static func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler: StreamLogHandler
@@ -356,433 +826,7 @@ public enum FocusRelayServer {
             )
         )
 
-        func makeTools() -> [Tool] {
-            let tools = [
-                Tool(
-                    name: "list_tasks",
-                    description: listTasksToolDescription,
-                    inputSchema: toolSchema(
-                        properties: [
-                            "filter": makeTaskFilterSchema(includeTaskIDSelection: true),
-                            "page": .object([
-                                "type": .string("object"),
-                                "properties": .object([
-                                    "limit": .object([
-                                        "type": .string("integer"),
-                                        "minimum": .int(1),
-                                        "description": .string("Maximum items in this page. For inbox processing, start with 10-20 rather than requesting the 50-item default.")
-                                    ]),
-                                    "cursor": paginationCursorSchema()
-                                ])
-                            ]),
-                            "fields": .object([
-                                "type": .string("array"),
-                                "description": .string("CRITICAL: Specify which fields to return. DEFAULT ONLY includes 'id' and 'name'.\n\nIMPORTANT FIELD NAMES (case-sensitive):\n- 'completionDate' - when task was completed (NOT 'completedDate')\n- 'dueDate' - when task is due\n- 'plannedDate' - when task is planned for\n- 'deferDate' - when task becomes available\n- 'completed' - true/false completion status\n- 'projectName' - name of the project\n- 'tagNames' - list of tags\n- 'available' - whether task is actionable now\n- 'flagged' - whether this task itself is flagged\n- 'effectiveFlagged' - visible OmniFocus flag state, including flags inherited from a parent task or project\n\nFor Flagged-perspective questions, filter with flagged=true and request 'effectiveFlagged' when returning flag state. ALWAYS include the fields you need to answer the user's question."),
-                                "items": outputFieldItemsSchema(for: "list_tasks"),
-                                "examples": .array([
-                                    .array([.string("id"), .string("name"), .string("completionDate"), .string("completed"), .string("projectName")]),
-                                    .array([.string("id"), .string("name"), .string("dueDate"), .string("plannedDate"), .string("deferDate"), .string("available")]),
-                                    .array([.string("id"), .string("name"), .string("tagNames"), .string("projectName")])
-                                ])
-                            ])
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "get_task",
-                    description: "Get a single task by ID",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "id": .object(["type": .string("string")]),
-                            "fields": .object([
-                                "type": .string("array"),
-                                "items": outputFieldItemsSchema(for: "get_task")
-                            ])
-                        ],
-                        required: ["id"]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "list_projects",
-                    description: listProjectsToolDescription,
-                    inputSchema: toolSchema(
-                        properties: [
-                            "page": .object([
-                                "type": .string("object"),
-                                "properties": .object([
-                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": paginationCursorSchema()
-                                ])
-                            ]),
-                            "statusFilter": .object([
-                                "type": .string("string"),
-                                "description": .string("Filter projects by status: 'active' (default), 'onHold', 'dropped', 'done', or 'all'. Use 'active' for current-project maintenance. 'all' includes historical done/dropped projects, so inspect each returned status before making recommendations."),
-                                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")]),
-                                "default": .string("active")
-                            ]),
-                            "rootOnly": .object([
-                                "type": .string("boolean"),
-                                "description": .string("When true, return only projects at the library root — those whose parent folder is null. This is the efficient path for reviewing unfiled projects: request it with compact fields instead of listing the whole catalogue and inferring membership. Composes with statusFilter and pagination."),
-                                "default": .bool(false)
-                            ]),
-                            "search": .object([
-                                "type": .string("string"),
-                                "description": .string("Trimmed, literal, case-insensitive substring match against project names only. Empty or whitespace-only values are rejected.")
-                            ]),
-                            "completed": .object([
-                                "type": .string("boolean"),
-                                "description": .string("Filter by completion status. When true with completedAfter/completedBefore, finds completed projects in time window (excludes dropped)"),
-                                "default": .bool(false)
-                            ]),
-                            "completedAfter": .object([
-                                "type": .string("string"),
-                                "description": .string("ISO8601 datetime. Projects completed on or after this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
-                                "examples": .array([.string("2026-01-01T00:00:00Z")])
-                            ]),
-                            "completedBefore": .object([
-                                "type": .string("string"),
-                                "description": .string("ISO8601 datetime. Projects completed on or before this time (inclusive). Completion queries ignore default statusFilter=active and return Done projects only."),
-                                "examples": .array([.string("2026-02-01T00:00:00Z")])
-                            ]),
-                            "includeTaskCounts": .object([
-                                "type": .string("boolean"),
-                                "description": .string("Include child-task counts for each project (available, remaining, completed, dropped, total). Counts do not determine project status: inspect the returned project status, treat empty projects separately, and use isStalled rather than availableTasks=0 for stalled-project analysis."),
-                                "default": .bool(false)
-                            ]),
-                            "reviewPerspective": .object([
-                                "type": .string("boolean"),
-                                "description": .string("If true, apply OmniFocus Review perspective defaults: exclude dropped/done, honor statusFilter for active/onHold grouping, and require nextReviewDate <= now when reviewDueBefore is omitted"),
-                                "default": .bool(false)
-                            ]),
-                            "reviewDueBefore": propertySchema(
-                                type: "string",
-                                description: "ISO8601 datetime. Only include projects whose nextReviewDate is before or equal to this time. If reviewPerspective=true and omitted, defaults to now.",
-                                examples: [.string("2026-02-04T12:00:00Z")]
-                            ),
-                            "reviewDueAfter": propertySchema(
-                                type: "string",
-                                description: "ISO8601 datetime. Only include projects whose nextReviewDate is after or equal to this time.",
-                                examples: [.string("2026-02-04T00:00:00Z")]
-                            ),
-                            "fields": .object([
-                                "type": .string("array"),
-                                "description": .string("Specify which fields to return. Useful fields: 'id', 'name', 'note', 'status', 'flagged', 'completionDate', 'lastReviewDate', 'nextReviewDate', 'reviewInterval', 'hasChildren', 'nextTask', 'containsSingletonActions', and 'isStalled'. Always include 'status' when comparing projects across statuses. Task-count fields are included by includeTaskCounts."),
-                                "items": outputFieldItemsSchema(for: "list_projects"),
-                                "examples": .array([
-                                    .array([.string("id"), .string("name"), .string("status"), .string("isStalled")]),
-                                    .array([.string("id"), .string("name"), .string("status"), .string("completionDate")]),
-                                    .array([.string("id"), .string("name"), .string("status"), .string("lastReviewDate"), .string("nextReviewDate")])
-                                ])
-                            ])
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "list_tags",
-                    description: "Find OmniFocus tags by partial name with pagination and status filtering. Request parentID, parentName, or path to distinguish duplicate names without loading the full tag catalog. Search is a trimmed, literal, case-insensitive substring and is applied before pagination.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "page": .object([
-                                "type": .string("object"),
-                                "properties": .object([
-                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": paginationCursorSchema()
-                                ])
-                            ]),
-                            "statusFilter": .object([
-                                "type": .string("string"),
-                                "description": .string("Filter tags by status: 'active' (default), 'onHold', 'dropped', or 'all'"),
-                                "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("all")]),
-                                "default": .string("active")
-                            ]),
-                            "includeTaskCounts": .object([
-                                "type": .string("boolean"),
-                                "description": .string("Include task counts for each tag (available, remaining, total)"),
-                                "default": .bool(false)
-                            ]),
-                            "search": .object([
-                                "type": .string("string"),
-                                "description": .string("Trimmed, literal, case-insensitive substring match against tag names")
-                            ]),
-                            "fields": .object([
-                                "type": .string("array"),
-                                "description": .string("Fields to return. Defaults to the existing id, name, and status shape. Request path to disambiguate duplicate tag names."),
-                                "items": outputFieldItemsSchema(for: "list_tags")
-                            ])
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "list_folders",
-                    description: "List OmniFocus folders with pagination for project move destination discovery. Use this before edit_projects with operation=move when moving projects into a folder. Compact default fields are id and name; request parentID, parentName, projectCount, or childFolderCount when needed.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "page": .object([
-                                "type": .string("object"),
-                                "properties": .object([
-                                    "limit": .object(["type": .string("integer"), "minimum": .int(1)]),
-                                    "cursor": paginationCursorSchema()
-                                ])
-                            ]),
-                            "fields": .object([
-                                "type": .string("array"),
-                                "description": .string("Specify folder fields to return: id, name, parentID, parentName, projectCount, childFolderCount."),
-                                "items": outputFieldItemsSchema(for: "list_folders")
-                            ])
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "edit_tasks",
-                    description: "Edit existing OmniFocus tasks by ID. Choose exactly one operation and include only its matching payload: update with taskPatch, set_status with taskStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse update for fields and tags, set_status for dropping/restoring, set_completion only for complete/reopen, and move for inbox/project/parent changes. Never translate drop, discard, abandon, or cancel into completion. Repeating drops require an explicit occurrence or series scope. No plannedDate writes.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original task." + mutationToolSequencingGuidance,
-                    inputSchema: makeTaskEditSchema(
-                        properties: [
-                            "operation": .object([
-                                "type": .string("string"),
-                                "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
-                                "description": .string("Required edit operation. Include exactly one matching payload.")
-                            ]),
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Task IDs to update."),
-                                "items": .object(["type": .string("string")])
-                            ]),
-                            "taskPatch": .object([
-                                "type": .string("object"),
-                                "description": .string("Shared task patch applied to every task ID in targetIDs."),
-                                "properties": .object([
-                                    "name": propertySchema(type: "string", description: "Set a new task name."),
-                                    "note": propertySchema(type: "string", description: "Replace the task note."),
-                                    "noteAppend": propertySchema(type: "string", description: "Append text to the task note."),
-                                    "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
-                                    "estimatedMinutes": propertySchema(type: "integer", description: "Set estimated minutes."),
-                                    "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
-                                    "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
-                                    "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
-                                    "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
-                                    "tags": .object([
-                                        "type": .string("object"),
-                                        "description": .string("Deterministic tag mutation. Tag IDs only in v1."),
-                                        "properties": .object([
-                                            "add": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                            "remove": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                            "set": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                            "clear": propertySchema(type: "boolean", description: "Clear all tags.")
-                                        ])
-                                    ])
-                                ])
-                            ]),
-                            "completion": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=set_completion. Never use completion to drop a task."),
-                                "properties": .object([
-                                    "state": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("completed")])
-                                    ])
-                                ]),
-                                "required": .array([.string("state")])
-                            ]),
-                            "taskStatus": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=set_status. Use dropped to discard without completion or active to restore a dropped task."),
-                                "properties": .object([
-                                    "status": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("dropped")])
-                                    ]),
-                                    "recurrenceScope": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("occurrence"), .string("series")]),
-                                        "description": .string("Required when dropping a repeating task and forbidden otherwise.")
-                                    ])
-                                ]),
-                                "required": .array([.string("status")])
-                            ]),
-                            "move": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=move. Shared task destination."),
-                                "properties": .object([
-                                    "destinationKind": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("inbox"), .string("project"), .string("parent_task")])
-                                    ]),
-                                    "destinationID": propertySchema(type: "string", description: "Project or parent task ID. Omit for inbox moves."),
-                                    "position": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("beginning"), .string("ending")]),
-                                        "default": .string("ending")
-                                    ])
-                                ]),
-                                "required": .array([.string("destinationKind")])
-                            ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional task fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ]
-                    ),
-                    annotations: mutationToolAnnotations
-                ),
-                Tool(
-                    name: "edit_projects",
-                    description: "Edit existing OmniFocus projects by ID. Choose exactly one operation and include only its matching payload: update with projectPatch, set_status with projectStatus, set_completion with completion, or move with move. One call applies the same operation and payload to every target.\n\nUse set_status for active/on-hold/dropped and set_completion for complete/reopen. Use list_folders before a folder move when its ID is unknown; omit destinationID for the root library. Project tags and containsSingletonActions writes are not supported.\n\nThe complete target set is preflighted before any apply or save; one missing target fails the whole request without changing valid targets. Set previewOnly=true to validate without writing. Use verify=true for post-write readback. Repeating completion may advance the original project." + mutationToolSequencingGuidance,
-                    inputSchema: makeProjectEditSchema(
-                        properties: [
-                            "operation": .object([
-                                "type": .string("string"),
-                                "enum": .array([.string("update"), .string("set_status"), .string("set_completion"), .string("move")]),
-                                "description": .string("Required edit operation. Include exactly one matching payload.")
-                            ]),
-                            "targetIDs": .object([
-                                "type": .string("array"),
-                                "description": .string("Project IDs to update."),
-                                "items": .object(["type": .string("string")])
-                            ]),
-                            "projectPatch": .object([
-                                "type": .string("object"),
-                                "description": .string("Shared project patch applied to every project ID in targetIDs."),
-                                "properties": .object([
-                                    "name": propertySchema(type: "string", description: "Set a new project name."),
-                                    "note": propertySchema(type: "string", description: "Replace the project note."),
-                                    "noteAppend": propertySchema(type: "string", description: "Append text to the project note."),
-                                    "flagged": propertySchema(type: "boolean", description: "Set flagged state."),
-                                    "dueDate": propertySchema(type: "string", description: "Set due date as ISO8601 UTC.", examples: [.string("2026-04-18T12:00:00Z")]),
-                                    "clearDueDate": propertySchema(type: "boolean", description: "Clear the due date."),
-                                    "deferDate": propertySchema(type: "string", description: "Set defer date as ISO8601 UTC.", examples: [.string("2026-04-19T09:00:00Z")]),
-                                    "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
-                                    "sequential": propertySchema(type: "boolean", description: "Set whether the project's actions are sequential."),
-                                    "reviewInterval": .object([
-                                        "type": .string("object"),
-                                        "description": .string("Set the simple review interval."),
-                                        "properties": .object([
-                                            "steps": propertySchema(type: "integer", description: "Review interval step count."),
-                                            "unit": propertySchema(type: "string", description: "Review interval unit, such as days, weeks, months, or years.")
-                                        ])
-                                    ]),
-                                    "reviewedNow": propertySchema(
-                                        type: "boolean",
-                                        description: "Mark active or on-hold projects reviewed now. Only true is accepted, and it must be the only projectPatch field."
-                                    )
-                                ])
-                            ]),
-                            "projectStatus": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=set_status."),
-                                "properties": .object([
-                                    "status": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("on_hold"), .string("dropped")])
-                                    ])
-                                ]),
-                                "required": .array([.string("status")])
-                            ]),
-                            "completion": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=set_completion."),
-                                "properties": .object([
-                                    "state": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("active"), .string("completed")])
-                                    ])
-                                ]),
-                                "required": .array([.string("state")])
-                            ]),
-                            "move": .object([
-                                "type": .string("object"),
-                                "description": .string("Required only for operation=move. Omit destinationID for the root library."),
-                                "properties": .object([
-                                    "destinationKind": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("folder")])
-                                    ]),
-                                    "destinationID": propertySchema(type: "string", description: "Destination folder ID from list_folders."),
-                                    "position": .object([
-                                        "type": .string("string"),
-                                        "enum": .array([.string("beginning"), .string("ending")]),
-                                        "default": .string("ending")
-                                    ])
-                                ]),
-                                "required": .array([.string("destinationKind")])
-                            ]),
-                            "previewOnly": propertySchema(type: "boolean", description: "When true, validate and resolve targets without mutating. False or omitted performs the write.", defaultValue: .bool(false)),
-                            "verify": propertySchema(type: "boolean", description: "When true, read back and verify the final state after a write. Defaults to false.", defaultValue: .bool(false)),
-                            "returnFields": .object([
-                                "type": .string("array"),
-                                "description": .string("Optional project fields to return in per-item results after mutation."),
-                                "items": .object(["type": .string("string")])
-                            ])
-                        ]
-                    ),
-                    annotations: mutationToolAnnotations
-                ),
-                Tool(
-                    name: "get_task_counts",
-                    description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "filter": makeTaskFilterSchema()
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                ),
-                Tool(
-                    name: "get_project_counts",
-                    description: "Get project/action counts for a view filter.\n\nCOMPLETED PROJECTS COUNT:\n- Use completedAfter/completedBefore to count completed projects in time windows\n- Returns: projects (count of completed projects), actions (count of completed tasks in those projects)\n- Excludes dropped projects (only status=done)\n- Use this to answer 'How many projects did I complete this month?' without listing all items",
-                    inputSchema: toolSchema(
-                        properties: [
-                            "filter": .object([
-                                "type": .string("object"),
-                                "properties": .object([
-                                    "completed": .object([
-                                        "type": .string("boolean"),
-                                        "description": .string("Filter by completion status")
-                                    ]),
-                                    "completedAfter": .object([
-                                        "type": .string("string"),
-                                        "description": .string("ISO8601 datetime. Count projects completed after this time")
-                                    ]),
-                                    "completedBefore": .object([
-                                        "type": .string("string"),
-                                        "description": .string("ISO8601 datetime. Count projects completed before this time")
-                                    ]),
-                                    "projectView": .object([
-                                        "type": .string("string"),
-                                        "description": .string("Project view filter: 'active', 'onHold', 'dropped', 'done', 'all'"),
-                                        "enum": .array([.string("active"), .string("onHold"), .string("dropped"), .string("done"), .string("all")])
-                                    ])
-                                ])
-                            ])
-                        ]
-                    ),
-                    annotations: .init(readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false)
-                )
-            ]
-
-            precondition(
-                tools.map(\.name) == publicToolNames,
-                "The MCP tool catalog must match the intentional public tool surface."
-            )
-            precondition(
-                tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
-                    $0.annotations.readOnlyHint == false &&
-                        $0.annotations.destructiveHint == true &&
-                        $0.annotations.idempotentHint == false &&
-                        $0.annotations.openWorldHint == false
-                },
-                "Mutation tool annotations must truthfully describe write risk."
-            )
-
-            return tools
-        }
+        let makeTools = Self.makeToolsForTesting
 
         let tools = makeTools()
         await server.withMethodHandler(ListTools.self) { _ in
@@ -850,6 +894,42 @@ public enum FocusRelayServer {
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let search = try decodeArgument(String.self, from: params.arguments, key: "search")
                     let rootOnly = try decodeArgument(Bool.self, from: params.arguments, key: "rootOnly") ?? false
+
+                    if let rawSearches = decodeStringArray(params.arguments?["searches"]) {
+                        let searches = try BatchNameResolution.normalize(rawSearches, tool: "list_projects") ?? []
+                        try BatchNameResolution.validateExclusivity(
+                            tool: "list_projects",
+                            hasScalarSearch: search != nil,
+                            hasCursor: params.arguments?["page"].flatMap { value -> Bool? in
+                                guard case let .object(page) = value else { return nil }
+                                return page["cursor"] != nil
+                            } ?? false,
+                            includeTaskCounts: includeTaskCounts
+                        )
+                        let matchLimit = try BatchNameResolution.validateMatchLimit(
+                            try decodeArgument(Int.self, from: params.arguments, key: "matchLimitPerSearch"),
+                            tool: "list_projects"
+                        )
+                        let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
+                        try OutputFieldCatalog.validate(requestedFields, for: "list_projects")
+                        let batchFields = requestedFields.isEmpty ? ["id", "name", "status"] : requestedFields
+                        let groups = try await service.resolveProjectNames(
+                            searches: searches,
+                            matchLimitPerSearch: matchLimit,
+                            statusFilter: statusFilter,
+                            fields: batchFields
+                        )
+                        let fieldSet = Set(batchFields)
+                        let output = BatchSearchOutput(searchResults: groups.map { group in
+                            NameSearchGroupOutput(
+                                search: group.search,
+                                items: group.items.map { makeProjectOutput(from: $0, fields: fieldSet, includeTaskCounts: false) },
+                                returnedCount: group.returnedCount,
+                                truncated: group.truncated
+                            )
+                        })
+                        return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
+                    }
                     let reviewDueBefore = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueBefore")
                     let reviewDueAfter = try decodeArgument(Date.self, from: params.arguments, key: "reviewDueAfter")
                     let reviewPerspective = try decodeArgument(Bool.self, from: params.arguments, key: "reviewPerspective") ?? false
@@ -886,6 +966,43 @@ public enum FocusRelayServer {
                     let statusFilter = try decodeArgument(String.self, from: params.arguments, key: "statusFilter") ?? "active"
                     let includeTaskCounts = try decodeArgument(Bool.self, from: params.arguments, key: "includeTaskCounts") ?? false
                     let search = try decodeArgument(String.self, from: params.arguments, key: "search")
+
+                    if let rawSearches = decodeStringArray(params.arguments?["searches"]) {
+                        let searches = try BatchNameResolution.normalize(rawSearches, tool: "list_tags") ?? []
+                        try BatchNameResolution.validateExclusivity(
+                            tool: "list_tags",
+                            hasScalarSearch: search != nil,
+                            hasCursor: params.arguments?["page"].flatMap { value -> Bool? in
+                                guard case let .object(page) = value else { return nil }
+                                return page["cursor"] != nil
+                            } ?? false,
+                            includeTaskCounts: includeTaskCounts
+                        )
+                        let matchLimit = try BatchNameResolution.validateMatchLimit(
+                            try decodeArgument(Int.self, from: params.arguments, key: "matchLimitPerSearch"),
+                            tool: "list_tags"
+                        )
+                        let requested = decodeStringArray(params.arguments?["fields"]) ?? []
+                        try OutputFieldCatalog.validate(requested, for: "list_tags")
+                        let batchFields = requested.isEmpty ? ["id", "name", "path"] : requested
+                        let groups = try await service.resolveTagNames(
+                            searches: searches,
+                            matchLimitPerSearch: matchLimit,
+                            statusFilter: statusFilter,
+                            fields: batchFields
+                        )
+                        let fieldSet = Set(batchFields)
+                        let output = BatchSearchOutput(searchResults: groups.map { group in
+                            NameSearchGroupOutput(
+                                search: group.search,
+                                items: group.items.map { makeTagOutput(from: $0, fields: fieldSet, includeTaskCounts: false) },
+                                returnedCount: group.returnedCount,
+                                truncated: group.truncated
+                            )
+                        })
+                        return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
+                    }
+
                     let requestedFields = decodeStringArray(params.arguments?["fields"]) ?? []
                     try OutputFieldCatalog.validate(requestedFields, for: "list_tags")
                     let fields = Self.resolvedTagFields(

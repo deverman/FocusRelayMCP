@@ -73,6 +73,46 @@ struct CacheEntry<T> {
 actor CatalogCache {
     private var projects: [CacheKey: CacheEntry<Page<ProjectItem>>] = [:]
     private var tags: [CacheKey: CacheEntry<Page<TagItem>>] = [:]
+    private var projectFills: [CacheKey: Task<Page<ProjectItem>, Error>] = [:]
+    private var tagFills: [CacheKey: Task<Page<TagItem>, Error>] = [:]
+
+    /// Returns the cached page, or performs `fill` exactly once for concurrent
+    /// callers asking for the same key. Without this, several requests arriving
+    /// on a cold cache each drive their own catalog fetch through the Bridge
+    /// lane — a stampede that is slow precisely when the cache would help most.
+    func projects(
+        key: CacheKey,
+        ttl: TimeInterval,
+        fill: @escaping @Sendable () async throws -> Page<ProjectItem>
+    ) async throws -> Page<ProjectItem> {
+        purgeExpired()
+        if let cached = projects[key]?.value { return cached }
+        if let inFlight = projectFills[key] { return try await inFlight.value }
+
+        let task = Task { try await fill() }
+        projectFills[key] = task
+        defer { projectFills[key] = nil }
+        let page = try await task.value
+        projects[key] = CacheEntry(value: page, expiresAt: Date().addingTimeInterval(ttl))
+        return page
+    }
+
+    func tags(
+        key: CacheKey,
+        ttl: TimeInterval,
+        fill: @escaping @Sendable () async throws -> Page<TagItem>
+    ) async throws -> Page<TagItem> {
+        purgeExpired()
+        if let cached = tags[key]?.value { return cached }
+        if let inFlight = tagFills[key] { return try await inFlight.value }
+
+        let task = Task { try await fill() }
+        tagFills[key] = task
+        defer { tagFills[key] = nil }
+        let page = try await task.value
+        tags[key] = CacheEntry(value: page, expiresAt: Date().addingTimeInterval(ttl))
+        return page
+    }
 
     func getProjects(key: CacheKey) -> Page<ProjectItem>? {
         purgeExpired()
@@ -94,10 +134,17 @@ actor CatalogCache {
 
     func invalidateProjects() {
         projects.removeAll()
+        // In-flight fills started before a mutation may carry pre-mutation
+        // data; drop them so the next caller refetches rather than adopting
+        // a result that is already stale.
+        projectFills.values.forEach { $0.cancel() }
+        projectFills.removeAll()
     }
 
     func invalidateTags() {
         tags.removeAll()
+        tagFills.values.forEach { $0.cancel() }
+        tagFills.removeAll()
     }
 
     func invalidateAll() {

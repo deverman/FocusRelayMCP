@@ -401,6 +401,25 @@ public struct TaskFilter: Codable, Sendable {
     }
 }
 
+/// One requested name and the catalog entries that matched it. An unmatched
+/// name still returns a group with no items, so a caller can distinguish
+/// "nothing matched" from "not asked".
+public struct NameSearchGroup<Item: Codable & Sendable>: Codable, Sendable {
+    public let search: String
+    public let items: [Item]
+    public let returnedCount: Int
+    /// True when more entries matched than `matchLimitPerSearch` allowed, so a
+    /// broad name reads as truncated rather than silently narrowed.
+    public let truncated: Bool
+
+    public init(search: String, items: [Item], truncated: Bool) {
+        self.search = search
+        self.items = items
+        self.returnedCount = items.count
+        self.truncated = truncated
+    }
+}
+
 public struct PageRequest: Codable, Sendable {
     public let limit: Int
     public let cursor: String?
@@ -436,6 +455,18 @@ public protocol OmniFocusService: Sendable {
         fields: [String]?
     ) async throws -> Page<TagItem>
     func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem>
+    func resolveProjectNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) async throws -> [NameSearchGroup<ProjectItem>]
+    func resolveTagNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) async throws -> [NameSearchGroup<TagItem>]
     func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts
     func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts
     func performMutation(_ request: MutationRequest) async throws -> MutationResponse

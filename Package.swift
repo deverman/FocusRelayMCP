@@ -96,6 +96,7 @@ let package = Package(
             name: "FocusRelayServerTests",
             dependencies: [
                 "FocusRelayServer",
+                "FocusRelayOutput",
                 "OmniFocusAutomation",
                 "FocusRelayVersion",
                 .product(name: "MCP", package: "swift-sdk"),

@@ -3,10 +3,13 @@ import Foundation
 import OmniFocusCore
 
 public final class OmniFocusBridgeService: OmniFocusService {
-    private let client: BridgeClient
-    private let cache: CatalogCache
-    private let runtime: BridgeRuntime
-    private let cacheTTL: TimeInterval = 300
+    // internal rather than private so the batch-resolution extension in
+    // BatchNameResolutionService.swift can reuse the same client, cache, and
+    // Bridge lane instead of constructing its own.
+    let client: BridgeClient
+    let cache: CatalogCache
+    let runtime: BridgeRuntime
+    let cacheTTL: TimeInterval = 300
 
     public init() {
         self.client = BridgeClient()

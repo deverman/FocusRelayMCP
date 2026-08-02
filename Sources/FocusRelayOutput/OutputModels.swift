@@ -357,3 +357,32 @@ public func encodeJSON<T: Encodable>(_ value: T) throws -> String {
     let data = try encoder.encode(value)
     return String(decoding: data, as: UTF8.self)
 }
+
+/// One requested name and its matches, as returned by batch name resolution.
+public struct NameSearchGroupOutput<T: Encodable>: Encodable {
+    public let search: String
+    public let items: [T]
+    public let returnedCount: Int
+    public let truncated: Bool
+
+    public init(search: String, items: [T], returnedCount: Int, truncated: Bool) {
+        self.search = search
+        self.items = items
+        self.returnedCount = returnedCount
+        self.truncated = truncated
+    }
+}
+
+/// Batch resolution response: groups in requested order, plus the total number
+/// of matched entries across every group.
+public struct BatchSearchOutput<T: Encodable>: Encodable {
+    public let searchResults: [NameSearchGroupOutput<T>]
+    public let returnedCount: Int
+    public let warnings: [String]?
+
+    public init(searchResults: [NameSearchGroupOutput<T>], warnings: [String]? = nil) {
+        self.searchResults = searchResults
+        self.returnedCount = searchResults.reduce(0) { $0 + $1.returnedCount }
+        self.warnings = warnings
+    }
+}
