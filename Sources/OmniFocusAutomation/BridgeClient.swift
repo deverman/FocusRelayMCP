@@ -41,6 +41,51 @@ final class BridgeClient: @unchecked Sendable {
     /// Resolution is deferred to first use so the MCP server starts on
     /// machines without OmniFocus and tool calls fail fast with an actionable
     /// error instead of timing out.
+    static func projectItem(from payload: ProjectItemPayload) -> ProjectItem {
+                let nextTask = payload.nextTask.map { ProjectTaskSummary(id: $0.id ?? "", name: $0.name ?? "") }
+                let reviewInterval = payload.reviewInterval.map { ReviewInterval(steps: $0.steps, unit: $0.unit) }
+                return ProjectItem(
+                    id: payload.id ?? "",
+                    name: payload.name ?? "",
+                    note: payload.note,
+                    status: payload.status ?? "",
+                    flagged: payload.flagged ?? false,
+                    lastReviewDate: payload.lastReviewDate,
+                    nextReviewDate: payload.nextReviewDate,
+                    reviewInterval: reviewInterval,
+                    availableTasks: payload.availableTasks,
+                    remainingTasks: payload.remainingTasks,
+                    completedTasks: payload.completedTasks,
+                    droppedTasks: payload.droppedTasks,
+                    totalTasks: payload.totalTasks,
+                    hasChildren: payload.hasChildren,
+                    nextTask: nextTask,
+                    containsSingletonActions: payload.containsSingletonActions,
+                    isStalled: payload.isStalled,
+                    completionDate: payload.completionDate,
+                    folderID: payload.folderID,
+                    folderName: payload.folderName,
+                    folderPath: payload.folderPath.map { elements in
+                        elements.map { FolderPathElement(id: $0.id ?? "", name: $0.name ?? "") }
+                    }
+                )
+    }
+
+    static func tagItem(from payload: TagItemPayload) -> TagItem {
+        TagItem(
+                    id: payload.id ?? "",
+                    name: payload.name ?? "",
+                    status: payload.status,
+                    availableTasks: payload.availableTasks,
+                    remainingTasks: payload.remainingTasks,
+                    totalTasks: payload.totalTasks,
+                    parentID: payload.parentID,
+                    parentName: payload.parentName,
+                    path: payload.path,
+                    childrenAreMutuallyExclusive: payload.childrenAreMutuallyExclusive
+                )
+    }
+
     private func requirePaths() throws -> IPCPaths {
         if let resolvedPaths { return resolvedPaths }
         let paths = try injectedPaths ?? IPCPaths.resolve(fileManager: fileManager)
@@ -175,35 +220,7 @@ final class BridgeClient: @unchecked Sendable {
 
         let response: BridgeResponse<Page<ProjectItemPayload>> = try sendRequest(request, responseType: Page<ProjectItemPayload>.self)
         if response.ok, let payloadPage = response.data {
-            let items = payloadPage.items.map { payload in
-                let nextTask = payload.nextTask.map { ProjectTaskSummary(id: $0.id ?? "", name: $0.name ?? "") }
-                let reviewInterval = payload.reviewInterval.map { ReviewInterval(steps: $0.steps, unit: $0.unit) }
-                return ProjectItem(
-                    id: payload.id ?? "",
-                    name: payload.name ?? "",
-                    note: payload.note,
-                    status: payload.status ?? "",
-                    flagged: payload.flagged ?? false,
-                    lastReviewDate: payload.lastReviewDate,
-                    nextReviewDate: payload.nextReviewDate,
-                    reviewInterval: reviewInterval,
-                    availableTasks: payload.availableTasks,
-                    remainingTasks: payload.remainingTasks,
-                    completedTasks: payload.completedTasks,
-                    droppedTasks: payload.droppedTasks,
-                    totalTasks: payload.totalTasks,
-                    hasChildren: payload.hasChildren,
-                    nextTask: nextTask,
-                    containsSingletonActions: payload.containsSingletonActions,
-                    isStalled: payload.isStalled,
-                    completionDate: payload.completionDate,
-                    folderID: payload.folderID,
-                    folderName: payload.folderName,
-                    folderPath: payload.folderPath.map { elements in
-                        elements.map { FolderPathElement(id: $0.id ?? "", name: $0.name ?? "") }
-                    }
-                )
-            }
+            let items = payloadPage.items.map(Self.projectItem(from:))
             return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
@@ -241,20 +258,7 @@ final class BridgeClient: @unchecked Sendable {
 
         let response: BridgeResponse<Page<TagItemPayload>> = try sendRequest(request, responseType: Page<TagItemPayload>.self)
         if response.ok, let payloadPage = response.data {
-            let items = payloadPage.items.map { payload in
-                TagItem(
-                    id: payload.id ?? "",
-                    name: payload.name ?? "",
-                    status: payload.status,
-                    availableTasks: payload.availableTasks,
-                    remainingTasks: payload.remainingTasks,
-                    totalTasks: payload.totalTasks,
-                    parentID: payload.parentID,
-                    parentName: payload.parentName,
-                    path: payload.path,
-                    childrenAreMutuallyExclusive: payload.childrenAreMutuallyExclusive
-                )
-            }
+            let items = payloadPage.items.map(Self.tagItem(from:))
             return Page(items: items, nextCursor: payloadPage.nextCursor, returnedCount: payloadPage.returnedCount, totalCount: payloadPage.totalCount, warnings: response.warnings)
         }
 
@@ -763,4 +767,98 @@ private func jsonString(_ value: String) -> String {
     let data = try? JSONEncoder().encode(value)
     let encoded = data.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
     return encoded
+}
+
+// MARK: - Batch name resolution
+
+struct NameSearchGroupPayload<Item: Codable>: Codable {
+    let search: String?
+    let items: [Item]?
+    let returnedCount: Int?
+    let truncated: Bool?
+}
+
+struct BatchSearchPayload<Item: Codable>: Codable {
+    let searchResults: [NameSearchGroupPayload<Item>]?
+    let returnedCount: Int?
+}
+
+extension BridgeClient {
+    func resolveProjectNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) throws -> [NameSearchGroup<ProjectItem>] {
+        let request = BridgeRequest(
+            schemaVersion: 1,
+            requestId: UUID().uuidString,
+            op: "list_projects",
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
+            id: nil,
+            filter: nil,
+            tagFilter: nil,
+            projectFilter: ProjectFilter(
+                searches: searches,
+                matchLimitPerSearch: matchLimitPerSearch,
+                statusFilter: statusFilter,
+                includeTaskCounts: false
+            ),
+            mutation: nil,
+            fields: fields,
+            page: nil
+        )
+        let response: BridgeResponse<BatchSearchPayload<ProjectItemPayload>> =
+            try sendRequest(request, responseType: BatchSearchPayload<ProjectItemPayload>.self)
+        guard response.ok, let data = response.data else {
+            throw AutomationError.executionFailed(response.error?.message ?? "Unknown bridge error")
+        }
+        return (data.searchResults ?? []).map { group in
+            NameSearchGroup(
+                search: group.search ?? "",
+                items: (group.items ?? []).map(Self.projectItem(from:)),
+                truncated: group.truncated ?? false
+            )
+        }
+    }
+
+    func resolveTagNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) throws -> [NameSearchGroup<TagItem>] {
+        let request = BridgeRequest(
+            schemaVersion: 1,
+            requestId: UUID().uuidString,
+            op: "list_tags",
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            userTimeZone: TimeZone.current.identifier,
+            id: nil,
+            filter: nil,
+            tagFilter: TagFilter(
+                searches: searches,
+                matchLimitPerSearch: matchLimitPerSearch,
+                statusFilter: statusFilter,
+                includeTaskCounts: false
+            ),
+            projectFilter: nil,
+            mutation: nil,
+            fields: fields,
+            page: nil
+        )
+        let response: BridgeResponse<BatchSearchPayload<TagItemPayload>> =
+            try sendRequest(request, responseType: BatchSearchPayload<TagItemPayload>.self)
+        guard response.ok, let data = response.data else {
+            throw AutomationError.executionFailed(response.error?.message ?? "Unknown bridge error")
+        }
+        return (data.searchResults ?? []).map { group in
+            NameSearchGroup(
+                search: group.search ?? "",
+                items: (group.items ?? []).map(Self.tagItem(from:)),
+                truncated: group.truncated ?? false
+            )
+        }
+    }
 }

@@ -109,6 +109,24 @@ private actor CancellationBoundaryService: OmniFocusService {
         throw CancellationBoundaryTestError.unexpectedTool
     }
 
+    func resolveProjectNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) async throws -> [NameSearchGroup<ProjectItem>] {
+        throw CancellationBoundaryTestError.unexpectedTool
+    }
+
+    func resolveTagNames(
+        searches: [String],
+        matchLimitPerSearch: Int,
+        statusFilter: String?,
+        fields: [String]?
+    ) async throws -> [NameSearchGroup<TagItem>] {
+        throw CancellationBoundaryTestError.unexpectedTool
+    }
+
     func listFolders(page: PageRequest, fields: [String]?) async throws -> Page<FolderItem> {
         throw CancellationBoundaryTestError.unexpectedTool
     }

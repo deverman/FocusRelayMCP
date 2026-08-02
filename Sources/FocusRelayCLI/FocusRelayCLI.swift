@@ -122,6 +122,12 @@ struct ListProjects: AsyncParsableCommand {
     @Option(help: "Search project names by trimmed, case-insensitive literal substring.")
     var search: String?
 
+    @Option(help: "Comma-separated candidate names (max \(BatchNameResolution.maximumSearches)) resolved in one call. Results are grouped per name.")
+    var searches: String?
+
+    @Option(name: .customLong("match-limit-per-search"), help: "Maximum matches per requested name (1-\(BatchNameResolution.maximumMatchLimit)).")
+    var matchLimitPerSearch: Int?
+
     @Flag(name: .customLong("include-task-counts"), help: "Include task counts for each project.")
     var includeTaskCounts: Bool = false
 
@@ -158,6 +164,36 @@ struct ListProjects: AsyncParsableCommand {
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts
         )
+        let searchList = FieldList.parse(searches)
+        if !searchList.isEmpty {
+            let normalized = try BatchNameResolution.normalize(searchList, tool: "list_projects") ?? []
+            try BatchNameResolution.validateExclusivity(
+                tool: "list_projects",
+                hasScalarSearch: search != nil,
+                hasCursor: pageRequest.cursor != nil,
+                includeTaskCounts: includeTaskCounts
+            )
+            let matchLimit = try BatchNameResolution.validateMatchLimit(matchLimitPerSearch, tool: "list_projects")
+            let batchFields = fieldList.isEmpty ? ["id", "name", "status"] : fieldList
+            let groups = try await service.resolveProjectNames(
+                searches: normalized,
+                matchLimitPerSearch: matchLimit,
+                statusFilter: statusFilter,
+                fields: batchFields
+            )
+            let batchFieldSet = Set(batchFields)
+            let batchOutput = BatchSearchOutput(searchResults: groups.map { group in
+                NameSearchGroupOutput(
+                    search: group.search,
+                    items: group.items.map { makeProjectOutput(from: $0, fields: batchFieldSet, includeTaskCounts: false) },
+                    returnedCount: group.returnedCount,
+                    truncated: group.truncated
+                )
+            })
+            print(try encodeJSON(batchOutput))
+            return
+        }
+
         let reviewBeforeDate = try ISO8601DateParser.parseOptional(reviewDueBefore, argumentName: "--review-due-before")
         let reviewAfterDate = try ISO8601DateParser.parseOptional(reviewDueAfter, argumentName: "--review-due-after")
         let completedBeforeDate = try ISO8601DateParser.parseOptional(completedBefore, argumentName: "--completed-before")
@@ -202,6 +238,12 @@ struct ListTags: AsyncParsableCommand {
     @Option(help: "Case-insensitive substring to match against tag names.")
     var search: String?
 
+    @Option(help: "Comma-separated candidate names (max \(BatchNameResolution.maximumSearches)) resolved in one call. Results are grouped per name.")
+    var searches: String?
+
+    @Option(name: .customLong("match-limit-per-search"), help: "Maximum matches per requested name (1-\(BatchNameResolution.maximumMatchLimit)).")
+    var matchLimitPerSearch: Int?
+
     @Option(help: "Comma-separated field names to return.")
     var fields: String?
 
@@ -213,6 +255,36 @@ struct ListTags: AsyncParsableCommand {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
         try OutputFieldCatalog.validate(requestedFields, for: "list_tags")
+        let tagSearchList = FieldList.parse(searches)
+        if !tagSearchList.isEmpty {
+            let normalized = try BatchNameResolution.normalize(tagSearchList, tool: "list_tags") ?? []
+            try BatchNameResolution.validateExclusivity(
+                tool: "list_tags",
+                hasScalarSearch: search != nil,
+                hasCursor: pageRequest.cursor != nil,
+                includeTaskCounts: includeTaskCounts
+            )
+            let matchLimit = try BatchNameResolution.validateMatchLimit(matchLimitPerSearch, tool: "list_tags")
+            let batchFields = requestedFields.isEmpty ? ["id", "name", "path"] : requestedFields
+            let groups = try await service.resolveTagNames(
+                searches: normalized,
+                matchLimitPerSearch: matchLimit,
+                statusFilter: statusFilter,
+                fields: batchFields
+            )
+            let batchFieldSet = Set(batchFields)
+            let batchOutput = BatchSearchOutput(searchResults: groups.map { group in
+                NameSearchGroupOutput(
+                    search: group.search,
+                    items: group.items.map { makeTagOutput(from: $0, fields: batchFieldSet, includeTaskCounts: false) },
+                    returnedCount: group.returnedCount,
+                    truncated: group.truncated
+                )
+            })
+            print(try encodeJSON(batchOutput))
+            return
+        }
+
         let resolvedFields = FocusRelayServer.resolvedTagFields(
             requestedFields: requestedFields,
             statusFilter: statusFilter,
