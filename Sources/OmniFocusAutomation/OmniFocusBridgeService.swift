@@ -66,6 +66,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
         statusFilter: String?,
         includeTaskCounts: Bool,
         search: String? = nil,
+        rootOnly: Bool,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,
@@ -76,6 +77,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
     ) async throws -> Page<ProjectItem> {
         let normalizedSearch = try Self.normalizeProjectSearch(search)
         let projectFilter = ProjectFilter(
+            rootOnly: rootOnly ? true : nil,
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
             search: normalizedSearch,
@@ -98,7 +100,8 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 fields: fields,
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts,
-                search: normalizedSearch
+                search: normalizedSearch,
+                rootOnly: rootOnly
             )
             if let cached = await cache.getProjects(key: key) {
                 return try QueryBoundCursor.publicPage(from: cached, identity: identity)
@@ -111,6 +114,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                         statusFilter: statusFilter,
                         includeTaskCounts: includeTaskCounts,
                         search: normalizedSearch,
+                        rootOnly: rootOnly,
                         reviewDueBefore: reviewDueBefore,
                         reviewDueAfter: reviewDueAfter,
                         reviewPerspective: reviewPerspective,
@@ -134,6 +138,7 @@ public final class OmniFocusBridgeService: OmniFocusService {
                 statusFilter: statusFilter,
                 includeTaskCounts: includeTaskCounts,
                 search: normalizedSearch,
+                rootOnly: rootOnly,
                 reviewDueBefore: reviewDueBefore,
                 reviewDueAfter: reviewDueAfter,
                 reviewPerspective: reviewPerspective,

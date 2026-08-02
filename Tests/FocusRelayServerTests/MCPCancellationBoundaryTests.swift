@@ -87,6 +87,7 @@ private actor CancellationBoundaryService: OmniFocusService {
         statusFilter: String?,
         includeTaskCounts: Bool,
         search: String?,
+        rootOnly: Bool,
         reviewDueBefore: Date?,
         reviewDueAfter: Date?,
         reviewPerspective: Bool,

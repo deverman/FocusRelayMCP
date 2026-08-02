@@ -8,6 +8,7 @@ struct CacheKey: Hashable {
     let statusFilter: String?
     let includeTaskCounts: Bool
     let search: String?
+    let rootOnly: Bool
 
     private init(
         limit: Int,
@@ -15,7 +16,8 @@ struct CacheKey: Hashable {
         fieldsKey: String,
         statusFilter: String?,
         includeTaskCounts: Bool,
-        search: String?
+        search: String?,
+        rootOnly: Bool = false
     ) {
         self.limit = limit
         self.cursor = cursor
@@ -23,6 +25,7 @@ struct CacheKey: Hashable {
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts
         self.search = search
+        self.rootOnly = rootOnly
     }
 
     static func projects(
@@ -30,7 +33,8 @@ struct CacheKey: Hashable {
         fields: [String]?,
         statusFilter: String?,
         includeTaskCounts: Bool,
-        search: String? = nil
+        search: String? = nil,
+        rootOnly: Bool = false
     ) -> CacheKey {
         CacheKey(
             limit: page.limit,
@@ -38,7 +42,8 @@ struct CacheKey: Hashable {
             fieldsKey: (fields ?? []).joined(separator: ","),
             statusFilter: statusFilter,
             includeTaskCounts: includeTaskCounts,
-            search: search
+            search: search,
+            rootOnly: rootOnly
         )
     }
 

@@ -2523,6 +2523,13 @@
             );
           }
 
+          // Library-root scoping. Omni Automation documents project.parentFolder
+          // as the containing Folder or null at the root, so membership is read
+          // directly rather than reconstructed by scanning every folder.
+          if (filter.rootOnly === true) {
+            projects = projects.filter(project => !safe(() => project.parentFolder));
+          }
+
           if (reviewCutoff || reviewDueAfter) {
             projects = projects.filter(p => {
               const nextReview = getProjectDateTimestamp(p, project => project.nextReviewDate);
@@ -2600,6 +2607,43 @@
             
             const completionDate = hasField("completionDate") ? safe(() => p.completionDate) : null;
 
+            // Folder membership from the documented parentFolder relationship.
+            // null parentFolder means the project sits at the library root.
+            const wantsFolderID = hasField("folderID");
+            const wantsFolderName = hasField("folderName");
+            const wantsFolderPath = hasField("folderPath");
+            let folderID = null;
+            let folderName = null;
+            let folderPath = null;
+            if (wantsFolderID || wantsFolderName || wantsFolderPath) {
+              const parentFolder = safe(() => p.parentFolder);
+              if (parentFolder) {
+                if (wantsFolderID) {
+                  folderID = String(safe(() => parentFolder.id.primaryKey) || "") || null;
+                }
+                if (wantsFolderName) {
+                  folderName = String(safe(() => parentFolder.name) || "") || null;
+                }
+                if (wantsFolderPath) {
+                  // Walk documented parent links, root first, so repeated
+                  // folder names stay distinguishable. Depth-capped so a
+                  // malformed cycle cannot spin here.
+                  const chain = [];
+                  let cursor = parentFolder;
+                  let depth = 0;
+                  while (cursor && depth < 32) {
+                    chain.unshift({
+                      id: String(safe(() => cursor.id.primaryKey) || "") || null,
+                      name: String(safe(() => cursor.name) || "") || null
+                    });
+                    cursor = safe(() => cursor.parent);
+                    depth += 1;
+                  }
+                  folderPath = chain;
+                }
+              }
+            }
+
             const item = {
               id: hasField("id") ? String(safe(() => p.id.primaryKey) || "") : null,
               name: hasField("name") ? String(safe(() => p.name) || "") : null,
@@ -2609,7 +2653,10 @@
               lastReviewDate: hasField("lastReviewDate") && lastReviewDate ? lastReviewDate.toISOString() : null,
               nextReviewDate: hasField("nextReviewDate") && nextReviewDate ? nextReviewDate.toISOString() : null,
               reviewInterval: hasField("reviewInterval") ? reviewIntervalPayload : null,
-              completionDate: hasField("completionDate") && completionDate ? completionDate.toISOString() : null
+              completionDate: hasField("completionDate") && completionDate ? completionDate.toISOString() : null,
+              folderID: folderID,
+              folderName: folderName,
+              folderPath: folderPath
             };
             
             // Calculate task counts from flattenedTasks

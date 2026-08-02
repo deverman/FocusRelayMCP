@@ -11,7 +11,8 @@ public enum OutputFieldCatalog {
     public static let project = [
         "id", "name", "note", "status", "flagged", "lastReviewDate",
         "nextReviewDate", "reviewInterval", "hasChildren", "nextTask",
-        "containsSingletonActions", "isStalled", "completionDate"
+        "containsSingletonActions", "isStalled", "completionDate",
+        "folderID", "folderName", "folderPath"
     ]
 
     public static let folder = [
@@ -162,6 +163,9 @@ public struct ProjectOutput: Encodable {
     public let containsSingletonActions: Bool?
     public let isStalled: Bool?
     public let completionDate: Date?
+    public let folderID: String?
+    public let folderName: String?
+    public let folderPath: [FolderPathElement]?
 
     public init(
         id: String?,
@@ -181,7 +185,10 @@ public struct ProjectOutput: Encodable {
         nextTask: ProjectTaskSummary?,
         containsSingletonActions: Bool?,
         isStalled: Bool?,
-        completionDate: Date?
+        completionDate: Date?,
+        folderID: String? = nil,
+        folderName: String? = nil,
+        folderPath: [FolderPathElement]? = nil
     ) {
         self.id = id
         self.name = name
@@ -201,6 +208,9 @@ public struct ProjectOutput: Encodable {
         self.containsSingletonActions = containsSingletonActions
         self.isStalled = isStalled
         self.completionDate = completionDate
+        self.folderID = folderID
+        self.folderName = folderName
+        self.folderPath = folderPath
     }
 }
 
@@ -306,7 +316,10 @@ public func makeProjectOutput(from project: ProjectItem, fields: Set<String>, in
         nextTask: fields.contains("nextTask") ? project.nextTask : nil,
         containsSingletonActions: fields.contains("containsSingletonActions") ? project.containsSingletonActions : nil,
         isStalled: fields.contains("isStalled") ? project.isStalled : nil,
-        completionDate: fields.contains("completionDate") ? project.completionDate : nil
+        completionDate: fields.contains("completionDate") ? project.completionDate : nil,
+        folderID: fields.contains("folderID") ? project.folderID : nil,
+        folderName: fields.contains("folderName") ? project.folderName : nil,
+        folderPath: fields.contains("folderPath") ? project.folderPath : nil
     )
 }
 
