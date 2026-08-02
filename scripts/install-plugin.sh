@@ -31,9 +31,10 @@ timeout_seconds = 5
 sandbox_dir = os.path.expanduser(
     "~/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
 )
-icloud_dir = os.path.expanduser(
-    "~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins"
+icloud_container_dir = os.path.expanduser(
+    "~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus"
 )
+icloud_dir = os.path.join(icloud_container_dir, "Documents", "Plug-Ins")
 legacy_dir = os.path.expanduser("~/Library/Application Support/OmniFocus/Plug-Ins")
 
 
@@ -71,11 +72,23 @@ def read_custom_plugin_dirs():
     return dirs
 
 
-def add_target(targets, seen, path, reason, create_if_missing=False):
+def add_target(targets, seen, skipped, path, reason, create_if_missing=False, expected_when=None):
+    """Record a plugin directory as a target, or as a reportable skip.
+
+    A location that is absent because the user does not use it is fine to skip
+    quietly. A location that is *expected* but not currently on disk -- an
+    iCloud plug-in folder that has not been materialised, for example -- is a
+    partial install waiting to happen: OmniFocus may still load the stale copy
+    from there later. Those skips are reported and make the run fail.
+    """
     if not path or path in seen:
         return
     if create_if_missing or os.path.isdir(path):
         targets.append((path, reason))
+        seen.add(path)
+        return
+    if expected_when and os.path.isdir(expected_when):
+        skipped.append((path, reason))
         seen.add(path)
 
 
@@ -104,13 +117,18 @@ def sha256_file(path):
 
 targets = []
 seen = set()
+skipped = []
 
 for custom_dir in read_custom_plugin_dirs():
-    add_target(targets, seen, custom_dir, "custom", create_if_missing=False)
+    # A directory the user named explicitly is always expected.
+    add_target(targets, seen, skipped, custom_dir, "custom", expected_when=custom_dir)
 
-add_target(targets, seen, icloud_dir, "icloud", create_if_missing=False)
-add_target(targets, seen, sandbox_dir, "sandbox", create_if_missing=True)
-add_target(targets, seen, legacy_dir, "legacy", create_if_missing=False)
+# The iCloud plug-in folder is expected whenever the OmniFocus iCloud container
+# exists, which means the user has plug-in sync. OmniFocus prefers that copy, so
+# skipping it silently is how an install looks successful yet changes nothing.
+add_target(targets, seen, skipped, icloud_dir, "icloud", expected_when=icloud_container_dir)
+add_target(targets, seen, skipped, sandbox_dir, "sandbox", create_if_missing=True)
+add_target(targets, seen, skipped, legacy_dir, "legacy")
 
 if not targets:
     print("❌ Failed to detect any OmniFocus plugin directory.", file=sys.stderr)
@@ -119,6 +137,11 @@ if not targets:
 print("Detected plugin directories:")
 for path, reason in targets:
     print(f"  - {path} ({reason})")
+if skipped:
+    print("")
+    print("⚠️  Expected plugin directories that are not currently available:")
+    for path, reason in skipped:
+        print(f"  - {path} ({reason})")
 
 installed = []
 errors = []
@@ -153,6 +176,17 @@ if errors:
 if len(installed) > 1:
     print("")
     print("ℹ️  Multiple OmniFocus plugin directories were updated to keep duplicate bundles in sync.")
+
+if skipped or errors:
+    print("")
+    print("❌ Partial install: at least one expected plugin location was not updated.", file=sys.stderr)
+    print("   OmniFocus may keep loading an older plugin from a location that was", file=sys.stderr)
+    print("   skipped. Check `focusrelay bridge-health-check` — it reports every", file=sys.stderr)
+    print("   installed copy and warns when they disagree.", file=sys.stderr)
+    if skipped:
+        print("   For an iCloud location, open OmniFocus once so the plug-in folder", file=sys.stderr)
+        print("   is materialised locally, then re-run this script.", file=sys.stderr)
+    sys.exit(1)
 
 print("")
 print("🔄 IMPORTANT: You MUST restart OmniFocus completely for changes to take effect.")
