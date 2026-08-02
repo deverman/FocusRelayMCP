@@ -1,72 +1,63 @@
 # FocusRelay Roadmap Execution Plan
 
-Last updated: 2026-08-02
+Last updated: 2026-08-03
 
 GitHub issues own requirements, discussion, and validation evidence. This file
 records only current sequencing and cross-issue dependencies.
 
 ## Current Focus
 
-`v0.12.0-beta` shipped. IPC hardening (#197), the plug-in diagnostic half of
-#200, bounded task-detail lookup (#172), and project folder membership (#88)
-have merged. The next slice is
-[#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171),
-now unblocked by #88.
+`v0.12.0-beta` shipped. Merged since: IPC hardening (#197), bounded
+task-detail lookup (#172), project folder membership (#88), multi-name
+resolution (#171), and both halves of #200. All of that is read-path work;
+the mutation surface is unchanged since the release.
+
+The next slice is [#173 — atomic heterogeneous task edit
+plans](https://github.com/deverman/FocusRelayMCP/issues/173), whose
+read-before-write cost #172 and #171 were sequenced to reduce.
 
 ## Delivery Order
 
-1. [#171 — multi-name project and tag resolution](https://github.com/deverman/FocusRelayMCP/issues/171)
-   - Resolve a bounded set of requested names in one call instead of repeating
-     scalar catalog searches. Unblocked by #88, which supplies project paths.
-     Settled: batch mode rejects `includeTaskCounts` — measured cost is roughly
-     +1.3 s and about double the response bytes, and project health belongs to
-     #87.
-2. [#206 — benchmark the changed path and state a merge verdict](https://github.com/deverman/FocusRelayMCP/issues/206)
-   - Validating #88 spent four smoke suites on a gate that never benchmarks
-     `list_projects`, while host variance ran 3-4x and flipped the pass/fail
-     twice on noise. Coverage checks, interleaved baseline comparison, explicit
-     better/worse/inconclusive criteria, and a merge recommendation. Apply its
-     approach while benchmarking #171 and fold what is learned back in.
-3. [#207 — derive catalog cache keys from the filter](https://github.com/deverman/FocusRelayMCP/issues/207)
-   - No live bug: `CacheKey` and the `shouldBypassCache` list agree by
-     inspection, not construction. #88 nearly shipped a `rootOnly` key omission
-     that would have served filed projects to an unfiled-projects query with no
-     error. Derive the key so the gap cannot recur.
-4. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
+1. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
    - Design the larger approved-workflow batch only after #172 and #171 reduce
      its read-before-write query cost.
-5. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
+2. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
    - Continue measured client research after the shipped `process_inbox`
      vertical; add another prompt only when UAT demonstrates a reliable benefit.
-6. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
+3. [#82 — task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82), then
    [#83 — project creation/conversion](https://github.com/deverman/FocusRelayMCP/issues/83)
    - Build on the consolidated edit surface, support safe project folder
      destinations, and retain duplicate/write safety.
-7. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
+4. [#93 — repetition support](https://github.com/deverman/FocusRelayMCP/issues/93)
    - After task creation and truthful drop behavior stabilize, establish complete
      schedule readback before adding create, edit, and lifecycle mutation slices.
-8. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
+5. [#130 — project tag membership and filtering](https://github.com/deverman/FocusRelayMCP/issues/130), then
    [#128 — create and assign missing tags](https://github.com/deverman/FocusRelayMCP/issues/128)
    - Query direct project membership by stable ID before creating missing root
      or nested tags during assignment.
-9. [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
+6. [#87 — project-health filters](https://github.com/deverman/FocusRelayMCP/issues/87)
    - Reduce context before expanding project-review workflows. #88 moved to
      the front of the order; this is the intended home for stalled/health
      questions rather than widening batch resolution.
-10. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
+7. [#85 — safe Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85), then
    [#125 — Forecast-based attention](https://github.com/deverman/FocusRelayMCP/issues/125), then
    [#126 — broader ranked task search](https://github.com/deverman/FocusRelayMCP/issues/126)
    - Reuse one documented task-only Forecast classifier for attention ranking.
    - Keep search independent, broad, relevance-ranked, and lightweight.
-11. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
+8. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
     - Reduce installation friction after the next product capabilities settle.
     - Covers the plug-in directory discovery and partial-install reporting
       left open by #200.
-12. [#90 — command/session latency](https://github.com/deverman/FocusRelayMCP/issues/90)
+9. [#90 — command/session latency](https://github.com/deverman/FocusRelayMCP/issues/90)
     - The remaining measured command experiment.
-13. Small independent query improvements: #11, #22, #18, #59, #62, #65,
+10. [#206 — benchmark coverage for unmeasured tools](https://github.com/deverman/FocusRelayMCP/issues/206)
+    - Partially shipped: `classify` now warns when a change touches a tool the
+      suite cannot measure, which is the part that was costing real time. What
+      remains is adding benchmarks for the six uncovered tools. Do that when a
+      change to one of them actually needs measuring, not before.
+11. Small independent query improvements: #11, #22, #18, #59, #62, #65,
     #66, #67, and #68.
-14. Feasibility work for #10 custom perspectives and #16 planned-date writes.
+12. Feasibility work for #10 custom perspectives and #16 planned-date writes.
 
 ## Standing Decisions
 
@@ -96,7 +87,14 @@ now unblocked by #88.
 - Raw benchmark artifacts are not roadmap content and belong under `.build`.
 - Benchmark a change on the path it changed. A suite that does not exercise the
   changed tool cannot clear it, and a single stalled call on a noisy host is one
-  observation rather than a verdict. #206 owns turning this into tooling.
+  observation rather than a verdict. `focusrelay-dev classify` reports the gap.
+- Fix defects that have a reproduction. A latent risk with no reachable failure
+  is not worth a refactor: #207 was closed after its fix turned out to change
+  233 lines while fixing nothing reachable. Prefer a regression test at the
+  point of the near-miss, which is what #88 already did.
+- Do not build tooling ahead of a caller. #206's verdict engine was written,
+  merged, and deleted unused; only the part wired into `classify` earned its
+  place.
 
 ## Release Reference
 
