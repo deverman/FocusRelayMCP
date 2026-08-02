@@ -277,15 +277,21 @@ public struct Page<T: Codable & Sendable>: Codable, Sendable {
 }
 
 public struct TagFilter: Codable, Sendable {
+    public var searches: [String]?
+    public var matchLimitPerSearch: Int?
     public var statusFilter: String?
     public var includeTaskCounts: Bool?
     public var search: String?
 
     public init(
+        searches: [String]? = nil,
+        matchLimitPerSearch: Int? = nil,
         statusFilter: String? = nil,
         includeTaskCounts: Bool? = nil,
         search: String? = nil
     ) {
+        self.searches = searches
+        self.matchLimitPerSearch = matchLimitPerSearch
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts
         self.search = search
@@ -293,6 +299,9 @@ public struct TagFilter: Codable, Sendable {
 }
 
 public struct ProjectFilter: Codable, Sendable {
+    /// Bounded batch name resolution; matched inside OmniFocus.
+    public var searches: [String]?
+    public var matchLimitPerSearch: Int?
     /// When true, return only projects whose documented parentFolder is null.
     public var rootOnly: Bool?
     public var statusFilter: String?
@@ -306,6 +315,8 @@ public struct ProjectFilter: Codable, Sendable {
     public var completedAfter: Date?
 
     public init(
+        searches: [String]? = nil,
+        matchLimitPerSearch: Int? = nil,
         rootOnly: Bool? = nil,
         statusFilter: String? = nil,
         includeTaskCounts: Bool? = nil,
@@ -317,6 +328,8 @@ public struct ProjectFilter: Codable, Sendable {
         completedBefore: Date? = nil,
         completedAfter: Date? = nil
     ) {
+        self.searches = searches
+        self.matchLimitPerSearch = matchLimitPerSearch
         self.rootOnly = rootOnly
         self.statusFilter = statusFilter
         self.includeTaskCounts = includeTaskCounts

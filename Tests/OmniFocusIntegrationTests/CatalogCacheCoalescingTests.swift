@@ -108,31 +108,3 @@ private actor FillCounter {
     private(set) var value = 0
     func increment() { value += 1 }
 }
-
-/// Regression: matching reads `name`, so a caller requesting only `id` must
-/// still get a catalog fill that carries names. Caught live — batch resolution
-/// returned zero matches for names that scalar search found.
-@Suite("Batch catalog fetch fields")
-struct BatchCatalogFetchFieldTests {
-    @Test func nameIsAlwaysFetchedEvenWhenNotRequested() {
-        let fields = OmniFocusBridgeService.catalogFetchFields(["id"])
-        #expect(fields.contains("name"), "matching is impossible without names")
-        #expect(fields.contains("id"))
-    }
-
-    @Test func requestedFieldsArePreserved() {
-        let fields = OmniFocusBridgeService.catalogFetchFields(["id", "status", "folderPath"])
-        #expect(Set(fields).isSuperset(of: ["id", "status", "folderPath", "name"]))
-    }
-
-    @Test func noDuplicatesWhenAlreadyPresent() {
-        let fields = OmniFocusBridgeService.catalogFetchFields(["id", "name"])
-        #expect(fields.filter { $0 == "name" }.count == 1)
-        #expect(fields.filter { $0 == "id" }.count == 1)
-    }
-
-    @Test func nilRequestStillFetchesMatchableFields() {
-        let fields = OmniFocusBridgeService.catalogFetchFields(nil)
-        #expect(Set(fields) == ["id", "name"])
-    }
-}

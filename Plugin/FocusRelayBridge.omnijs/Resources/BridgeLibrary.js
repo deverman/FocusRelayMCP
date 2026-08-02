@@ -2571,9 +2571,7 @@
             if (!isNaN(parsed) && parsed >= 0) { offset = parsed; }
           }
           
-          const slice = projects.slice(offset, offset + limit);
-          
-          const items = slice.map(p => {
+          const buildProjectItem = (p) => {
             const lastReviewDate = hasField("lastReviewDate") ? safe(() => p.lastReviewDate) : null;
             const nextReviewDate = hasField("nextReviewDate") ? safe(() => p.nextReviewDate) : null;
             const reviewInterval = hasField("reviewInterval") ? safe(() => p.reviewInterval) : null;
@@ -2700,11 +2698,47 @@
             }
             
             return item;
-          });
-          
-          const nextCursor = (offset + limit < projects.length) ? String(offset + limit) : null;
-          const returnedCount = items.length;
-          response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: projects.length };
+          };
+
+          // BATCH NAME RESOLUTION
+          // Resolve several candidate names in one request. Matching runs here,
+          // against the live database, using the same normalizer and matcher as
+          // the scalar search — so batch and scalar agree by construction rather
+          // than by a second implementation kept in step by hand.
+          const requestedSearches = Array.isArray(filter.searches) ? filter.searches : null;
+          if (requestedSearches && requestedSearches.length > 0) {
+            const perSearchLimit = (typeof filter.matchLimitPerSearch === "number" && filter.matchLimitPerSearch > 0)
+              ? Math.trunc(filter.matchLimitPerSearch)
+              : 10;
+            const searchResults = requestedSearches.map(rawSearch => {
+              const query = normalizedProjectNameSearch(rawSearch);
+              const matchedItems = [];
+              let truncated = false;
+              if (query) {
+                for (let i = 0; i < projects.length; i += 1) {
+                  if (!projectMatchesNameSearch(projects[i], query)) { continue; }
+                  if (matchedItems.length === perSearchLimit) { truncated = true; break; }
+                  matchedItems.push(buildProjectItem(projects[i]));
+                }
+              }
+              return {
+                search: String(rawSearch),
+                items: matchedItems,
+                returnedCount: matchedItems.length,
+                truncated: truncated
+              };
+            });
+            response.data = {
+              searchResults: searchResults,
+              returnedCount: searchResults.reduce((sum, group) => sum + group.returnedCount, 0)
+            };
+          } else {
+            const slice = projects.slice(offset, offset + limit);
+            const items = slice.map(buildProjectItem);
+            const nextCursor = (offset + limit < projects.length) ? String(offset + limit) : null;
+            const returnedCount = items.length;
+            response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: projects.length };
+          }
         } else if (request.op === "list_tags") {
           // Check both filter and tagFilter (Swift sends tagFilter)
           const filter = request.tagFilter || request.filter || {};
@@ -2744,8 +2778,7 @@
             if (!isNaN(parsed) && parsed >= 0) { offset = parsed; }
           }
           
-          const slice = tags.slice(offset, offset + limit);
-          const items = slice.map(tag => {
+          const buildTagItem = (tag) => {
             // Convert Tag.Status enum to string - check directly on tag object
             function getTagStatusString(tag) {
               const status = safe(() => tag.status);
@@ -2798,11 +2831,44 @@
             }
             
             return item;
-          });
-          
-          const nextCursor = (offset + limit < tags.length) ? String(offset + limit) : null;
-          const returnedCount = items.length;
-          response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: tags.length };
+          };
+
+          // BATCH NAME RESOLUTION — same contract as list_projects, matched
+          // here with the scalar tag matcher so the two agree by construction.
+          const requestedTagSearches = Array.isArray(filter.searches) ? filter.searches : null;
+          if (requestedTagSearches && requestedTagSearches.length > 0) {
+            const perSearchLimit = (typeof filter.matchLimitPerSearch === "number" && filter.matchLimitPerSearch > 0)
+              ? Math.trunc(filter.matchLimitPerSearch)
+              : 10;
+            const searchResults = requestedTagSearches.map(rawSearch => {
+              const query = normalizedTagNameSearch(rawSearch);
+              const matchedItems = [];
+              let truncated = false;
+              if (query) {
+                for (let i = 0; i < tags.length; i += 1) {
+                  if (!tagMatchesNameSearch(tags[i], query)) { continue; }
+                  if (matchedItems.length === perSearchLimit) { truncated = true; break; }
+                  matchedItems.push(buildTagItem(tags[i]));
+                }
+              }
+              return {
+                search: String(rawSearch),
+                items: matchedItems,
+                returnedCount: matchedItems.length,
+                truncated: truncated
+              };
+            });
+            response.data = {
+              searchResults: searchResults,
+              returnedCount: searchResults.reduce((sum, group) => sum + group.returnedCount, 0)
+            };
+          } else {
+            const slice = tags.slice(offset, offset + limit);
+            const items = slice.map(buildTagItem);
+            const nextCursor = (offset + limit < tags.length) ? String(offset + limit) : null;
+            const returnedCount = items.length;
+            response.data = { items: items, nextCursor: nextCursor, returnedCount: returnedCount, totalCount: tags.length };
+          }
         } else if (request.op === "list_folders") {
           const fields = request.fields || [];
           const folders = toTaskArray(safe(() => flattenedFolders));
