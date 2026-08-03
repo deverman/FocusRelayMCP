@@ -14,13 +14,19 @@ the mutation surface is unchanged since the release.
 
 The next slice is [#173 — atomic heterogeneous task edit
 plans](https://github.com/deverman/FocusRelayMCP/issues/173), whose
-read-before-write cost #172 and #171 were sequenced to reduce.
+read-before-write cost #172 and #171 were sequenced to reduce. It is also the
+first mutation work in the queue, and it deserves more caution than the
+read-path slices behind it: a wrong query returns bad data the caller can
+discard, while a wrong write changes the user's database.
 
 ## Delivery Order
 
 1. [#173 — atomic heterogeneous task edit plans](https://github.com/deverman/FocusRelayMCP/issues/173)
    - Design the larger approved-workflow batch only after #172 and #171 reduce
      its read-before-write query cost.
+   - First mutation slice since the release. Establish the failure and rollback
+     story before the convenience of the batch: what a partially applied plan
+     leaves behind, and how the caller learns which edits landed.
 2. [#94 — discoverable MCP workflows](https://github.com/deverman/FocusRelayMCP/issues/94)
    - Continue measured client research after the shipped `process_inbox`
      vertical; add another prompt only when UAT demonstrates a reliable benefit.
