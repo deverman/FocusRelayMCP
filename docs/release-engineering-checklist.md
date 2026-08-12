@@ -31,17 +31,21 @@ Production query, performance, transport, or reliability changes:
 
 ```bash
 swift run focusrelay-dev validate --impact transport-reliability
-swift run focusrelay-dev benchmark --profile release
+caffeinate -is swift run focusrelay-dev benchmark --profile release
 ```
 
-The release profile is the realistic 1.5-hour suite. Use `smoke` during targeted
-performance work and `stress` only to answer a named diagnostic question.
-Every benchmark profile fails closed when a required measured scenario reports
-an error or timeout, has incomplete coverage, or produces malformed/missing
-artifacts. An environment-interrupted run is failed evidence even when the
-interruption is external. Diagnose it first, then permit at most one bounded
-retry with the cause removed; for sleep interruption, run the retry under
-`caffeinate`.
+Run the release profile unattended from the start under `caffeinate`, with the
+Mac connected to AC power. Keep a MacBook lid open because a power assertion
+cannot prevent clamshell sleep. The display may sleep or lock normally. The
+realistic suite takes 1.5 hours, so starting it before an overnight unattended
+window is acceptable.
+
+Use `smoke` during targeted performance work and `stress` only to answer a named
+diagnostic question. Every benchmark profile fails closed when a required
+measured scenario reports an error or timeout, has incomplete coverage, or
+produces malformed/missing artifacts. An environment-interrupted run is invalid
+evidence even when the interruption is external. Diagnose it first, then permit
+at most one bounded retry with the cause removed.
 
 ## 3. Tag The Certified Commit
 
