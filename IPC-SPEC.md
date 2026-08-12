@@ -124,12 +124,15 @@ Error response:
 
 ## Request Lifecycle (Happy Path)
 
-1) MCP server writes request file.
-2) MCP server triggers OmniFocus plug-in with requestId.
-3) Plug-in reads request, creates lock, writes response, removes lock and request.
-4) MCP server polls for response file, reads it, deletes the response (plus
-   any remaining request/lock), and returns tool output. A successful round
-   trip leaves no artifacts on disk.
+1) MCP server writes `requests/<requestId>.json`.
+2) MCP server passes `requestId` as the OmniFocus URL argument. The inline
+   bootstrap reads that argument and calls `BridgeLibrary.handleRequest` with
+   the request ID and IPC base path.
+3) Plug-in reads the UUID-named request, creates its matching lock, writes the
+   UUID-named response, then removes the lock and request.
+4) MCP server polls for the matching response file, reads it, deletes the
+   response (plus any remaining request/lock), and returns tool output. A
+   successful round trip leaves no artifacts on disk.
 
 ## Timeouts + Retries
 
@@ -145,7 +148,7 @@ Error response:
 | `requests/<id>.json` | plug-in deletes after response; client deletes after successful decode and on non-timeout error; else stale > 10 min | per-request + throttled sweep |
 | `responses/<id>.json` | client deletes immediately after successful decode; timeout artifacts kept for late-arrival recovery | per-request + throttled sweep |
 | `locks/<id>.lock` | plug-in deletes after response; client belt-and-braces after success; else stale > 10 min | per-request + throttled sweep |
-| `dispatch/request.json` | client deletes after response; else stale > 10 min | throttled sweep |
+| `dispatch/request.json` | compatibility artifact written by the client but not read by the current URL/bootstrap/plug-in path; client deletes after response, else stale > 10 min | per-request + throttled sweep |
 | `bridge-version.json` | persistent; rewritten on version change | startup maintenance |
 
 The stale sweep runs at most once per stale interval (10 minutes), never on
@@ -187,11 +190,26 @@ bridge request.
   directories and are deleted as soon as they are consumed.
 - The plug-in writes no log files; plug-in diagnostics return as response
   data only.
-- `dispatch/request.json` is one shared file, which assumes a single active
-  server per user account; concurrent servers are serialized by the
-  process-wide Bridge lane, not by the file protocol.
+
+## Concurrency And Admission Scope
+
+- The request ID passed as the URL argument and its UUID-named request file are
+  the authoritative request selector. Per-request locks prevent duplicate
+  processing of one request ID; they do not serialize different request IDs.
+- The process-wide Bridge lane coordinates all service instances inside one
+  `focusrelay serve` process. Independent server executables do not share that
+  in-memory lane, and the file protocol does not currently provide a global
+  admission lock or broker.
+- `dispatch/request.json` remains a client-written compatibility artifact. The
+  current production URL bootstrap and `BridgeLibrary.handleRequest` do not
+  read it, so it must not be treated as a request selector or concurrency
+  control. Removing it is a separate transport-reliability change.
+- Cross-process admission behavior is not yet established by the existing
+  single-process burst evidence. The bounded measurement and decision gate are
+  tracked in [#216](https://github.com/deverman/FocusRelayMCP/issues/216).
 
 ## Notes
 
-- The URL trigger should only send `requestId` and operation name (if needed).
+- The URL trigger selects the file payload with `requestId`; operation and tool
+  arguments remain in the request file.
 - File-based IPC is the source of truth for payloads.
