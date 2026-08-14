@@ -213,13 +213,18 @@ func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
 
 @Test
 func processInboxPromptContractIsStableAndInstructionFirst() throws {
+    let workflow = try #require(FocusRelayServer.workflow(named: "process_inbox"))
+    #expect(FocusRelayServer.workflows == [workflow])
+    #expect(workflow.title == "Process OmniFocus Inbox")
+    #expect(workflow.description == "Safely process a bounded batch of unresolved OmniFocus inbox items.")
+
     let prompt = FocusRelayServer.processInboxPrompt
-    #expect(prompt.name == "process_inbox")
-    #expect(prompt.title == "Process OmniFocus Inbox")
+    #expect(prompt.name == workflow.name)
+    #expect(prompt.title == workflow.title)
     #expect(prompt.arguments == nil)
 
     let result = try FocusRelayServer.prompt(named: prompt.name)
-    #expect(result.description == FocusRelayServer.processInboxPromptDescription)
+    #expect(result.description == workflow.description)
     #expect(result.messages.count == 1)
     #expect(result.messages[0].role == .user)
 
@@ -227,12 +232,24 @@ func processInboxPromptContractIsStableAndInstructionFirst() throws {
         Issue.record("process_inbox must return one instruction-only text message")
         return
     }
-    #expect(text == FocusRelayServer.processInboxPromptText)
+    #expect(text == workflow.instructions)
     #expect(text.contains("filter.inboxOnly=true"))
     #expect(text.contains(#"filter.inboxView="remaining""#))
     #expect(text.contains("10–20 item decision batch"))
     #expect(text.contains("Initially request only id and name"))
     #expect(text.contains("before following nextCursor"))
+    #expect(text.contains("Ambiguity is not evidence that an item should be dropped"))
+    #expect(text.contains("desired outcome"))
+    #expect(text.contains("physical, visible next action"))
+    #expect(text.contains("under two minutes"))
+    #expect(text.contains("Waiting For"))
+    #expect(text.contains("Someday/Maybe or reference"))
+    #expect(text.contains("Reserve due dates for genuine deadlines"))
+    #expect(text.contains("does not manage calendar events"))
+    #expect(text.contains("Do not impose a project or tag taxonomy"))
+    #expect(text.contains("filter.ids"))
+    #expect(text.contains("same inboxOnly=true and inboxView=\"remaining\" scope"))
+    #expect(text.contains("list_projects.searches and list_tags.searches"))
     #expect(text.contains("obtain explicit approval"))
     #expect(text.contains("fewest supported calls"))
     #expect(text.contains("Never run mutation calls concurrently"))
@@ -325,7 +342,7 @@ func promptProtocolAdvertisesListsAndRetrievesWithoutChangingTools() throws {
     #expect(messages[0]["role"] as? String == "user")
     let content = try #require(messages[0]["content"] as? [String: Any])
     #expect(content["type"] as? String == "text")
-    #expect(content["text"] as? String == FocusRelayServer.processInboxPromptText)
+    #expect(content["text"] as? String == FocusRelayServer.workflow(named: "process_inbox")?.instructions)
 
     let unknownError = try #require(responses[6]?["error"] as? [String: Any])
     #expect((unknownError["message"] as? String)?.contains("Unknown prompt: unknown_prompt") == true)

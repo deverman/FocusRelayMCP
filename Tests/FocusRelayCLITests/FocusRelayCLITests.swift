@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import FocusRelayCLI
 import FocusRelayOutput
+import FocusRelayServer
 import FocusRelayVersion
 import OmniFocusCore
 
@@ -316,12 +317,39 @@ func editProjectsParsesAndBuildsCompletionRequest() throws {
 @Test
 func cliExposesOnlyConsolidatedEditCommands() {
     let names = Set(FocusRelayCLI.configuration.subcommands.map { $0.configuration.commandName })
+    #expect(names.contains("workflow"))
     #expect(names.contains("edit-tasks"))
     #expect(names.contains("edit-projects"))
     #expect(names.isDisjoint(with: [
         "update-tasks", "set-tasks-completion", "move-tasks", "update-projects",
         "set-projects-status", "set-projects-completion", "move-projects"
     ]))
+}
+
+@Test
+func workflowCLIUsesTheSharedMCPDefinition() throws {
+    let command = try WorkflowGet.parse(["process_inbox"])
+    let workflow = try command.resolveWorkflow()
+
+    #expect(workflow == FocusRelayServer.workflow(named: "process_inbox"))
+    #expect(try command.renderedOutput() == workflow.instructions)
+
+    let list = try WorkflowList.parse([])
+    let data = Data(try list.renderedOutput().utf8)
+    let rows = try #require(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+    #expect(rows.count == 1)
+    #expect(rows[0]["name"] as? String == "process_inbox")
+    #expect(rows[0]["title"] as? String == workflow.title)
+    #expect(rows[0]["description"] as? String == workflow.description)
+    #expect(rows[0]["instructions"] == nil)
+}
+
+@Test
+func workflowCLIRejectsUnknownNamesWithoutGuessing() throws {
+    let command = try WorkflowGet.parse(["weekly_review"])
+    #expect(throws: (any Error).self) {
+        _ = try command.resolveWorkflow()
+    }
 }
 
 @Test

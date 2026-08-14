@@ -11,6 +11,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
     private static var subcommands: [ParsableCommand.Type] {
         var commands: [ParsableCommand.Type] = [
             Serve.self,
+            Workflow.self,
             ListTasks.self,
             GetTask.self,
             ListProjects.self,

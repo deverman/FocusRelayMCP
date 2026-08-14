@@ -31,6 +31,9 @@ Try prompts like:
 
 In clients that expose MCP server prompts, select `process_inbox`. In OpenCode,
 run `/focusrelay:process_inbox` to start the guided workflow.
+CLI-based agents can retrieve the exact same instructions with
+`focusrelay workflow get process_inbox`; use `focusrelay workflow list` to
+discover available workflows without loading their full text.
 
 These workflows were tested with multiple MCP-capable models in OpenCode.
 Updates target stable OmniFocus IDs and can verify the saved result. If names
@@ -38,7 +41,8 @@ are duplicated, ask to see the candidates before changing anything.
 
 The current release can:
 
-- guide supported MCP clients through a bounded, approval-first inbox workflow;
+- guide supported MCP clients and CLI-based agents through a bounded,
+  approval-first inbox workflow;
 - find and count tasks using dates, flags, tags, projects, availability, inbox
   state, completion, estimates, and text search;
 - review projects, folders, tags, task counts, and stalled work;
@@ -265,6 +269,10 @@ access.
 The examples below target the current Homebrew release and source build.
 
 ```bash
+# Discover or retrieve the same workflows exposed as MCP prompts
+focusrelay workflow list
+focusrelay workflow get process_inbox
+
 # Count without returning every matching task
 focusrelay task-counts --flagged true
 
