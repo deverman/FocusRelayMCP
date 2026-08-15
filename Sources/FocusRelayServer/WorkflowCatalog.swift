@@ -40,6 +40,8 @@ extension FocusRelayServer {
 
         Apply the approved organization safely:
 
+        Use FocusRelay tools only for this workflow (typically focusrelay_*); never substitute another OmniFocus server. For moves, pass FocusRelay IDs to edit_tasks operation=move with verify=true. Report failures instead of switching tools or retrying by name.
+
         13. When expanding selected inbox items, use one list_tasks request with filter.ids and the same inboxOnly=true and inboxView="remaining" scope. Use get_task only for IDs still unresolved after that correctly scoped batch, and explain the fallback.
         14. Resolve credible candidate destinations with list_projects.searches and list_tags.searches instead of loading broad project or tag catalogs. Do not launch a large parallel fan-out of project, tag, or task-detail requests. If there is no credible candidate, ask the user rather than guessing.
         15. Present a bounded proposal before changing OmniFocus. Separate recommendations from writes and obtain explicit approval for the exact batch. Keep ambiguous items out of the mutation batch until the user approves a clarified action.
