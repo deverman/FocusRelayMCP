@@ -535,11 +535,23 @@ public enum FocusRelayServer {
                                 "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
                                 "tags": .object([
                                     "type": .string("object"),
-                                    "description": .string("Deterministic tag mutation. Tag IDs only in v1."),
+                                    "description": .string("Deterministic tag mutation using tag IDs. Use add for ordinary tagging because it preserves existing tags; set replaces all existing tags."),
                                     "properties": .object([
-                                        "add": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                        "remove": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                        "set": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                        "add": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Add these tag IDs while preserving every existing tag."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
+                                        "remove": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Remove only these tag IDs while preserving every other existing tag."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
+                                        "set": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Replace all existing tags with exactly these tag IDs. Use only when the user explicitly requests replacement."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
                                         "clear": propertySchema(type: "boolean", description: "Clear all tags.")
                                     ])
                                 ])
