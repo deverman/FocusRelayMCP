@@ -38,8 +38,9 @@ feature issues remain unmilestoned until user evidence promotes them.
 
 ## Evidence-Gated Work
 
-- The bounded #94 `process_inbox` refinement shipped through #219. Keep the
-  broader prompt-research issue parked until its independent-user gate is met.
+- The bounded #94 `process_inbox` refinement shipped through #219 and the
+  umbrella issue is closed. Open a new bounded prompt issue only after
+  independent-user evidence supports another workflow.
 - #173 is not in the delivery order. Current grouped, sequential, verified
   mutations meet the observed workflow need; an atomic heterogeneous plan has
   no demonstrated user benefit.
