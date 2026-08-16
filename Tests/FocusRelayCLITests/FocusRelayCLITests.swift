@@ -4,6 +4,7 @@ import Testing
 import FocusRelayOutput
 import FocusRelayServer
 import FocusRelayVersion
+import OmniFocusAutomation
 import OmniFocusCore
 
 @Test
@@ -21,6 +22,64 @@ func cliVersionFlagReportsEmbeddedBuildVersion() throws {
     } catch {
         #expect(FocusRelayCLI.fullMessage(for: error) == FocusRelayBuildVersion.current)
     }
+}
+
+@Test
+func setupParsesDryRunNonInteractiveReadinessAndClientOptions() throws {
+    let command = try Setup.parse([
+        "--plugin-source", "/tmp/FocusRelayBridge.omnijs",
+        "--non-interactive",
+        "--check-readiness",
+        "--client", "opencode"
+    ])
+
+    #expect(command.pluginSource == "/tmp/FocusRelayBridge.omnijs")
+    #expect(command.assumeYes)
+    #expect(command.checkReadiness)
+    #expect(command.client == .opencode)
+
+    let dryRun = try Setup.parse(["--dry-run"])
+    #expect(dryRun.dryRun)
+}
+
+@Test
+func setupConfirmationIsConservative() {
+    #expect(SetupCommandSupport.isAffirmative("yes"))
+    #expect(SetupCommandSupport.isAffirmative(" Y "))
+    #expect(!SetupCommandSupport.isAffirmative("no"))
+    #expect(!SetupCommandSupport.isAffirmative(nil))
+}
+
+@Test
+func setupClientSnippetsDoNotEditConfiguration() {
+    let path = "/opt/homebrew/bin/focusrelay"
+    #expect(SetupCommandSupport.clientSnippet(.claudeCode, executablePath: path).contains("claude mcp add"))
+    #expect(SetupCommandSupport.clientSnippet(.codex, executablePath: path).contains("codex mcp add"))
+    let openCode = SetupCommandSupport.clientSnippet(.opencode, executablePath: path)
+    #expect(openCode.contains("\"type\" : \"local\""))
+    #expect(openCode.contains(path.replacingOccurrences(of: "/", with: "\\/")))
+}
+
+@Test
+func setupReadinessRequiresHealthyMatchingPlugin() {
+    let healthy = BridgeHealthResult(
+        ok: true,
+        plugin: "FocusRelay Bridge",
+        version: "1.2.3",
+        error: nil
+    )
+    #expect(SetupCommandSupport.readinessSummary(healthy, binaryVersion: "1.2.3").ready)
+
+    let stale = BridgeHealthResult(
+        ok: true,
+        plugin: "FocusRelay Bridge",
+        version: "1.2.2",
+        error: nil,
+        pluginWarning: "Installed copies disagree."
+    )
+    let summary = SetupCommandSupport.readinessSummary(stale, binaryVersion: "1.2.3")
+    #expect(!summary.ready)
+    #expect(summary.message == "Installed copies disagree.")
 }
 
 @Test
