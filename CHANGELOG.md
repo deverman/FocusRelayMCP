@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What’s new
 
+- Retrieve the same `process_inbox` workflow through MCP prompts or the CLI
+  with `focusrelay workflow get process_inbox`, without duplicating workflow
+  instructions between interfaces.
+- Clarify vague inbox captures instead of treating ambiguity as evidence for
+  dropping them, with GTD-informed outcome, next-action, delegation,
+  Someday/Maybe, reference, and genuine-deadline guidance.
 - Process your inbox in manageable batches with a guided workflow that starts
   with unresolved captures, asks before changing anything, and verifies
   approved updates.

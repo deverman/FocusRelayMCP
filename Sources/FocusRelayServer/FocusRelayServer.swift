@@ -48,38 +48,18 @@ public enum FocusRelayServer {
         "\n\nRun edit_tasks and edit_projects calls sequentially: wait for each mutation response before starting another mutation. A structured bridge_busy or bridge_queue_timeout response means that rejected request was not dispatched; wait at least retryAfterMilliseconds before retrying only that request. Do not automatically retry any other mutation failure."
 
     static let processInboxPrompt = Prompt(
-        name: "process_inbox",
-        title: "Process OmniFocus Inbox",
-        description: "Review a small batch of unresolved inbox captures, recommend what to do, and apply only approved changes."
+        name: processInboxWorkflow.name,
+        title: processInboxWorkflow.title,
+        description: processInboxWorkflow.description
     )
 
-    static let processInboxPromptDescription =
-        "Safely process a bounded batch of unresolved OmniFocus inbox items."
-
-    static let processInboxPromptText = """
-    Help the user process their OmniFocus inbox safely and incrementally.
-
-    1. Establish scope first. Use get_task_counts when only a count is needed.
-    2. Read unresolved inbox captures with list_tasks using filter.inboxOnly=true and filter.inboxView="remaining".
-    3. Work in one 10–20 item decision batch. Initially request only id and name.
-    4. Fetch note or other verbose fields only for selected captures whose meaning is ambiguous.
-    5. Finish recommending actions for the current page before following nextCursor. Never respond to trouble by requesting an unbounded or substantially larger page, loading a full catalog, or writing a local script to classify ordinary output.
-    6. Present a bounded proposal before changing OmniFocus. Separate recommendations from writes and obtain explicit approval for the exact batch.
-    7. Resolve project and tag destinations to stable IDs before writing. If multiple matching paths remain, ask the user to choose.
-    8. Group targets that share one operation, patch, state, or destination into the fewest supported calls. Never run mutation calls concurrently. Preview, apply, and verify one mutation group before starting the next.
-    9. Keep lookups bounded. Do not launch a large parallel fan-out of project, tag, or task-detail requests; resolve a small set at a time.
-    10. Recount after the approved mutation groups finish, then continue only if the user wants another batch.
-    11. Do not delegate broad classification or mutation unless the user approved that exact scope.
-    12. FocusRelay cannot yet create tasks, subtasks, or projects. Do not promise creation or conversion; explain that limit and use only currently supported edits, moves, status changes, and completion changes.
-    """
-
     static func prompt(named name: String) throws -> GetPrompt.Result {
-        guard name == processInboxPrompt.name else {
+        guard let workflow = workflow(named: name) else {
             throw MCPError.invalidRequest("Unknown prompt: \(name)")
         }
         return GetPrompt.Result(
-            description: processInboxPromptDescription,
-            messages: [.user(.text(text: processInboxPromptText))]
+            description: workflow.description,
+            messages: [.user(.text(text: workflow.instructions))]
         )
     }
 
@@ -555,11 +535,23 @@ public enum FocusRelayServer {
                                 "clearDeferDate": propertySchema(type: "boolean", description: "Clear the defer date."),
                                 "tags": .object([
                                     "type": .string("object"),
-                                    "description": .string("Deterministic tag mutation. Tag IDs only in v1."),
+                                    "description": .string("Deterministic tag mutation using tag IDs. Use add for ordinary tagging because it preserves existing tags; set replaces all existing tags."),
                                     "properties": .object([
-                                        "add": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                        "remove": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                                        "set": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                                        "add": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Add these tag IDs while preserving every existing tag."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
+                                        "remove": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Remove only these tag IDs while preserving every other existing tag."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
+                                        "set": .object([
+                                            "type": .string("array"),
+                                            "description": .string("Replace all existing tags with exactly these tag IDs. Use only when the user explicitly requests replacement."),
+                                            "items": .object(["type": .string("string")])
+                                        ]),
                                         "clear": propertySchema(type: "boolean", description: "Clear all tags.")
                                     ])
                                 ])

@@ -89,6 +89,7 @@ let package = Package(
             name: "FocusRelayCLITests",
             dependencies: [
                 "FocusRelayCLI",
+                "FocusRelayServer",
                 "FocusRelayVersion"
             ]
         ),
