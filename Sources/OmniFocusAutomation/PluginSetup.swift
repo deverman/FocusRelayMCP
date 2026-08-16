@@ -256,6 +256,9 @@ public struct FocusRelayPluginInstaller {
                         .appendingPathComponent("share/focusrelay/Plugin/FocusRelayBridge.omnijs", isDirectory: true)
                 )
                 candidates.append(binDirectory.appendingPathComponent("FocusRelayBridge.omnijs", isDirectory: true))
+                if let developmentSource = developmentPluginSource(for: executable) {
+                    candidates.append(developmentSource)
+                }
             }
         }
 
@@ -265,6 +268,24 @@ public struct FocusRelayPluginInstaller {
             return source.standardizedFileURL
         }
         throw FocusRelayPluginSetupError.pluginSourceNotFound(unique.map(\.path))
+    }
+
+    private func developmentPluginSource(for executable: URL) -> URL? {
+        var directory = executable.deletingLastPathComponent().standardizedFileURL
+        for _ in 0..<8 {
+            let packageManifest = directory.appendingPathComponent("Package.swift")
+            if fileManager.fileExists(atPath: packageManifest.path) {
+                return directory.appendingPathComponent(
+                    "Plugin/FocusRelayBridge.omnijs",
+                    isDirectory: true
+                )
+            }
+
+            let parent = directory.deletingLastPathComponent()
+            guard parent.path != directory.path else { break }
+            directory = parent
+        }
+        return nil
     }
 
     private func installSafely(source: URL, target: FocusRelayPluginTarget) throws {

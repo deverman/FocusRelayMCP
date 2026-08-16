@@ -40,6 +40,28 @@ struct PluginSetupTests {
         #expect(plan.unavailableExpectedTargets.isEmpty)
     }
 
+    @Test func findsTheRepositoryPluginWhenRunThroughSwiftPM() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let source = fixture.root.appendingPathComponent(
+            "Plugin/FocusRelayBridge.omnijs",
+            isDirectory: true
+        )
+        try fixture.writePlugin(at: source, marker: "development")
+        try "// fixture".write(
+            to: fixture.root.appendingPathComponent("Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let plan = try fixture.installer().makePlan(
+            pluginSourceOverride: nil,
+            executableURL: fixture.root.appendingPathComponent(".build/out/Products/Debug/focusrelay")
+        )
+
+        #expect(plan.source == source.standardizedFileURL)
+    }
+
     @Test func rejectsABundledPluginThatDoesNotMatchTheBinary() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
