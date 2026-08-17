@@ -374,9 +374,13 @@ focusrelay setup
 focusrelay setup --check-readiness
 ```
 
-Setup preflights every detected copy—including the preferred iCloud location
-when plug-in sync is enabled—and refuses a partial install. A healthy readiness
-result means the loaded plug-in, every installed copy, and the binary agree.
+Setup checks that every expected copy—including the preferred iCloud location
+when plug-in sync is enabled—is available before changing files, and preserves
+each existing copy until its replacement has been copied and verified. It
+updates destinations one at a time, so if a later destination fails, an earlier
+one may already have been updated. Correct the reported problem and rerun setup
+before restarting OmniFocus. A healthy readiness result means the loaded
+plug-in, every installed copy, and the binary agree.
 
 ### A time-based result looks wrong after travel
 
