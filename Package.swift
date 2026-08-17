@@ -90,7 +90,8 @@ let package = Package(
             dependencies: [
                 "FocusRelayCLI",
                 "FocusRelayServer",
-                "FocusRelayVersion"
+                "FocusRelayVersion",
+                "OmniFocusAutomation"
             ]
         ),
         .testTarget(

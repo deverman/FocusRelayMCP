@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What’s new
 
+- Install or update the OmniFocus bridge with `focusrelay setup`, which
+  previews every detected plug-in location, verifies binary/plug-in versions,
+  preserves existing copies during replacement, prints MCP client settings,
+  and can check readiness after restart.
 - Retrieve the same `process_inbox` workflow through MCP prompts or the CLI
   with `focusrelay workflow get process_inbox`, without duplicating workflow
   instructions between interfaces.

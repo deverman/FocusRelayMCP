@@ -65,10 +65,17 @@ Run the repository validation helper to check the published formula:
 
 After installation:
 
-1. Install the bundled plugin with `./scripts/install-plugin.sh` when validating from this repository, or copy the plugin installed by Homebrew.
-2. Quit and fully restart OmniFocus.
-3. Run a real read query.
-4. Run a safe mutation preview.
-5. Run a reversible verified mutation and restore the original state.
+1. Preview the packaged paths with `focusrelay setup --dry-run`.
+2. Install the bundled plug-in with `focusrelay setup --non-interactive`.
+   When validating from this repository, `./scripts/install-plugin.sh` calls
+   that same Swift implementation with the development plug-in source.
+3. Quit and fully restart OmniFocus.
+4. Run `focusrelay setup --non-interactive --check-readiness`.
+5. Run a real read query.
+6. Run a safe mutation preview.
+7. Run a reversible verified mutation and restore the original state.
+
+The tap caveats should name `focusrelay setup` as the only plug-in installation
+step. Do not duplicate copy commands or plug-in path logic in the formula.
 
 The release is not complete until the fresh Homebrew installation passes these checks.

@@ -134,30 +134,33 @@ Formula-specific trust authorizes FocusRelay without trusting every current or
 future formula in the tap. See Homebrew’s
 [Tap Trust documentation](https://docs.brew.sh/Tap-Trust) for details.
 
-### 2. Install the OmniFocus plugin
+### 2. Run guided setup
 
-OmniFocus reads plug-ins from more than one folder, and **if you have OmniFocus
-plug-in sync turned on it prefers the iCloud folder**. Install into every folder
-that exists on your Mac, so OmniFocus cannot load a stale copy:
+Run the installed setup command:
 
 ```bash
-SRC="$(brew --prefix focusrelay)/share/focusrelay/Plugin/FocusRelayBridge.omnijs"
-
-# Sandbox container (always present)
-DEST="$HOME/Library/Containers/com.omnigroup.OmniFocus4/Data/Library/Application Support/Plug-Ins"
-mkdir -p "$DEST" && cp -R "$SRC" "$DEST/"
-
-# iCloud plug-in folder (only when plug-in sync is enabled)
-ICLOUD="$HOME/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins"
-[ -d "$ICLOUD" ] && cp -R "$SRC" "$ICLOUD/" && echo "also installed to iCloud"
+focusrelay setup
 ```
 
-The plugin and binary must stay on the same version. Repeat this step after
-upgrading FocusRelay — a skipped reinstall leaves OmniFocus running the old
-plug-in with no visible error.
+It finds the Homebrew-bundled plug-in, verifies that its version matches the
+binary, detects every supported OmniFocus plug-in folder, and previews the
+source and destinations before asking permission to copy anything. Existing
+plug-ins remain in place until their replacement has been copied successfully.
+Rerunning setup reports copies that are already current.
 
-Building from source? Use `./scripts/install-plugin.sh` instead; it detects and
-updates every plug-in folder for you, including custom ones.
+Setup also prints the client-neutral MCP command and arguments. Add
+`--client claude-code`, `--client codex`, or `--client opencode` for a known
+client example; FocusRelay prints the configuration but does not edit it.
+
+For automation, review the same plan first and then opt in explicitly:
+
+```bash
+focusrelay setup --dry-run
+focusrelay setup --non-interactive
+```
+
+Building from source? Continue using `./scripts/install-plugin.sh`; it is a
+thin development entry point for this same Swift setup implementation.
 
 ### 3. Restart OmniFocus
 
@@ -169,7 +172,7 @@ sleep 2
 open -a "OmniFocus"
 ```
 
-### 4. Add FocusRelay to your AI assistant
+### 4. Check readiness and add FocusRelay to your AI assistant
 
 FocusRelay currently supports terminal-based MCP clients: Claude Code,
 OpenCode, Codex CLI, and other clients launched from a terminal. Desktop
@@ -190,7 +193,7 @@ Claude Code registers MCP servers from the command line, so no file editing is
 required:
 
 ```bash
-claude mcp add --scope user focusrelay /opt/homebrew/bin/focusrelay serve
+claude mcp add --scope user focusrelay -- /opt/homebrew/bin/focusrelay serve
 ```
 
 `--scope user` makes FocusRelay available in every project on your Mac. Use
@@ -229,11 +232,10 @@ FocusRelay should report `✔ Connected`. Remove it later with
 On the first query, OmniFocus asks whether to allow the automation. Choose
 **Run Script**. If the prompt is hidden, bring OmniFocus to the front.
 
-### 5. Check the connection
+After restarting OmniFocus, verify that its loaded plug-in matches the binary:
 
 ```bash
-focusrelay --version
-focusrelay bridge-health-check
+focusrelay setup --check-readiness
 focusrelay list-tasks --fields id,name --limit 1
 ```
 
@@ -256,7 +258,8 @@ swift build -c release
 ./scripts/install-plugin.sh
 ```
 
-After installing the plugin, restart OmniFocus completely.
+After installing the plugin, restart OmniFocus completely and run
+`focusrelay setup --check-readiness`.
 
 </details>
 
@@ -348,14 +351,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 1. Bring OmniFocus to the front and accept the first **Run Script** prompt.
 2. Confirm FocusRelay Bridge is enabled under **Automation → Configure
    Plug-ins…**.
-3. Recopy the plugin, quit OmniFocus completely, and reopen it.
-4. Run `focusrelay bridge-health-check`.
+3. Run `focusrelay setup`, quit OmniFocus completely, and reopen it.
+4. Run `focusrelay setup --check-readiness`.
 
 ### Results look stale after an upgrade
 
-The plugin JavaScript is cached by OmniFocus. Reinstall the plugin and restart
-OmniFocus completely. Project and tag catalogs cache for five minutes; task
-queries are always fresh.
+The plugin JavaScript is cached by OmniFocus. Run `focusrelay setup`, restart
+OmniFocus completely, and check with `focusrelay setup --check-readiness`.
+Project and tag catalogs cache for five minutes; task queries are always fresh.
 
 ### The plugin and binary versions do not match
 
@@ -363,31 +366,21 @@ Upgrading the Homebrew formula replaces the binary but leaves the copies of the
 plugin already installed for OmniFocus untouched, so a skipped step 2 can
 strand the plugin many releases behind.
 
-Ask the bridge what it is actually running, and compare it against the binary:
+Run guided setup again, restart OmniFocus, and check the loaded version:
 
 ```bash
-focusrelay --version
-focusrelay bridge-health-check
+focusrelay setup
+# Fully restart OmniFocus
+focusrelay setup --check-readiness
 ```
 
-A healthy bridge returns `"ok":true` with the same version as
-`focusrelay --version`. If the versions differ, repeat step 2 and step 3.
-
-**If the reported version still does not change**, OmniFocus is loading a
-different copy of the plug-in than the one you updated. List every copy on your
-Mac and check each one:
-
-```bash
-find ~/Library -name "FocusRelayBridge.omnijs" -maxdepth 8 2>/dev/null | while read -r p; do
-  printf '%s\n    %s\n' "$p" "$(grep -m1 -o 'FOCUSRELAY_VERSION = "[^"]*"' "$p/Resources/BridgeLibrary.js")"
-done
-```
-
-Every copy must report the same version as the binary. The iCloud folder
-(`~/Library/Mobile Documents/iCloud~com~omnigroup~OmniFocus/Documents/Plug-Ins`)
-takes priority when OmniFocus plug-in sync is enabled, so a current copy in the
-sandbox container is not enough on its own. Update the stale copies, then quit
-and reopen OmniFocus completely.
+Setup checks that every expected copy—including the preferred iCloud location
+when plug-in sync is enabled—is available before changing files, and preserves
+each existing copy until its replacement has been copied and verified. It
+updates destinations one at a time, so if a later destination fails, an earlier
+one may already have been updated. Correct the reported problem and rerun setup
+before restarting OmniFocus. A healthy readiness result means the loaded
+plug-in, every installed copy, and the binary agree.
 
 ### A time-based result looks wrong after travel
 
