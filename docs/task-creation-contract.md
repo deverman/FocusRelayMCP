@@ -67,6 +67,8 @@ An exact date uses `{"at":"2026-10-06T17:00:00+08:00"}`. A date-only intent uses
 form is required. Date-only strings are real Gregorian `YYYY-MM-DD` dates;
 normalization of nonexistent dates, overflowing times, or implicit timezone
 guesses is rejected.
+Exact timestamps support at most millisecond precision, matching JavaScript
+Date storage; excess precision is rejected rather than silently rounded.
 
 During Bridge preview, date-only intent reads the current
 `settings.objectForKey("DefaultDueTime")` or `DefaultStartTime` and uses

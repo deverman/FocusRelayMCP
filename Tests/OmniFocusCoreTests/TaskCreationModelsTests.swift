@@ -107,6 +107,7 @@ struct TaskCreationModelsTests {
     @Test func validatesEveryNodeBeforeDispatch() {
         let invalidNodes: [TaskCreationNode] = [
             .init(clientID: "", name: "One"), .init(clientID: "../unsafe", name: "One"),
+            .init(clientID: "one\n", name: "One"), .init(clientID: String(repeating: "a", count: 65), name: "One"),
             .init(clientID: "one", name: "\n "), .init(clientID: "one", name: "One", estimatedMinutes: -1),
             .init(clientID: "one", name: "One", tagIDs: ["tag", "tag"]),
             .init(clientID: "one", name: "One", tagIDs: [" "]),
