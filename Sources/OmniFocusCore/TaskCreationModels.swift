@@ -163,7 +163,7 @@ public struct TaskCreationNode: Codable, Sendable, Equatable {
     }
 
     func validateFields() throws {
-        guard clientID.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil else {
+        guard clientID.range(of: #"\A[A-Za-z0-9_-]{1,64}\z"#, options: .regularExpression) != nil else {
             throw MutationValidationError("clientID must contain 1–64 ASCII letters, digits, underscores, or hyphens.")
         }
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -205,9 +205,9 @@ public struct TaskCreationDate: Codable, Sendable, Equatable {
         }
         if let at {
             guard time == nil else { throw MutationValidationError("An exact timestamp must not specify a default-time policy.") }
-            guard at.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$"#, options: .regularExpression) != nil,
+            guard at.range(of: #"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})\z"#, options: .regularExpression) != nil,
                   Self.validCalendarDate(String(at.prefix(10))) else {
-                throw MutationValidationError("at must be a valid ISO-8601 timestamp including seconds and Z or an explicit timezone offset.")
+                throw MutationValidationError("at must be a valid ISO-8601 timestamp including seconds, at most millisecond precision, and Z or an explicit timezone offset.")
             }
             let clock = at.dropFirst(11).prefix(8).split(separator: ":").compactMap { Int($0) }
             guard clock.count == 3, clock[0] < 24, clock[1] < 60, clock[2] < 60 else {
@@ -231,7 +231,7 @@ public struct TaskCreationDate: Codable, Sendable, Equatable {
     }
 
     private static func validCalendarDate(_ value: String) -> Bool {
-        guard value.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return false }
+        guard value.range(of: #"\A\d{4}-\d{2}-\d{2}\z"#, options: .regularExpression) != nil else { return false }
         let numbers = value.split(separator: "-").compactMap { Int($0) }
         guard numbers.count == 3, numbers[0] >= 1, (1...12).contains(numbers[1]), (1...31).contains(numbers[2]) else { return false }
         var calendar = Calendar(identifier: .gregorian)
