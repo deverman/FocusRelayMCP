@@ -366,6 +366,13 @@ public struct TaskFilter: Codable, Sendable {
     public var maxEstimatedMinutes: Int?
     public var minEstimatedMinutes: Int?
     public var includeTotalCount: Bool?
+    /// Task-only Forecast view: collects tasks from multiple date sources
+    /// (overdue, due today/soon, planned past/today, deferred until today),
+    /// flagged tasks, and tasks tagged with the Forecast tag. Returns explicit
+    /// warnings that calendar events and inaccessible Forecast preferences are
+    /// excluded. Uses local timezone day boundaries. Dedups tasks appearing
+    /// from multiple sources. Other filters still apply as intersections.
+    public var forecast: Bool?
 
     public init(
         ids: [String]? = nil,
@@ -388,7 +395,8 @@ public struct TaskFilter: Codable, Sendable {
         projectView: String? = nil,
         maxEstimatedMinutes: Int? = nil,
         minEstimatedMinutes: Int? = nil,
-        includeTotalCount: Bool? = nil
+        includeTotalCount: Bool? = nil,
+        forecast: Bool? = nil
     ) {
         self.ids = ids
         self.completed = completed
@@ -411,6 +419,7 @@ public struct TaskFilter: Codable, Sendable {
         self.plannedAfter = plannedAfter
         self.completedBefore = completedBefore
         self.completedAfter = completedAfter
+        self.forecast = forecast
     }
 }
 

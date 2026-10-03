@@ -1698,6 +1698,140 @@
       return tagCollectionMatchesFilter(tags, filterTags);
     }
 
+    // FORECAST MODULE - Task-only Forecast collection with local timezone boundaries
+    function getLocalDayBoundaries(userTimeZone) {
+      const now = new Date();
+      
+      // Try to use the user's timezone if provided, otherwise use system default
+      const timeZoneToUse = (typeof userTimeZone === "string" && userTimeZone.length > 0) 
+        ? userTimeZone 
+        : "America/New_York";  // Fallback, though request should always provide one
+      
+      let todayStart, todayEnd;
+      try {
+        // Get today's date in the user's timezone
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: timeZoneToUse,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parts.find(p => p.type === "year").value;
+        const month = parts.find(p => p.type === "month").value;
+        const day = parts.find(p => p.type === "day").value;
+        
+        // Create start of day (00:00:00) in user's timezone
+        const todayDateString = year + "-" + month + "-" + day + "T00:00:00";
+        todayStart = new Date(todayDateString + "+00:00");  // Parse as UTC first
+        
+        // Adjust to user's timezone by reconstructing with timezone-aware parsing
+        // OmniFocus JavaScript doesn't have full timezone support, so we approximate
+        // by using the local timezone offset of the execution environment
+        const localOffset = now.getTimezoneOffset() * 60000;
+        todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      } catch (e) {
+        // Fallback to simple local date boundaries
+        todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      }
+      
+      return {
+        todayStartMs: todayStart.getTime(),
+        todayEndMs: todayEnd.getTime()
+      };
+    }
+
+    function taskHasForecastTag(task) {
+      const tags = safe(() => task.tags) || [];
+      return tags.some(tag => {
+        const tagName = String(safe(() => tag.name) || "").trim();
+        return tagName.toLowerCase() === "forecast";
+      });
+    }
+
+    function taskMatchesForecastCriteria(task, boundaries, taskStatusValue) {
+      // Overdue: has a due date before today's start
+      const dueTs = getTaskDateTimestamp(task, t => t.dueDate);
+      if (dueTs !== null && dueTs < boundaries.todayStartMs) {
+        return true;
+      }
+
+      // Due today or due soon (OmniFocus native status)
+      if (taskStatusValue === Task.Status.DueSoon || taskStatusValue === Task.Status.Overdue) {
+        return true;
+      }
+      if (dueTs !== null && dueTs >= boundaries.todayStartMs && dueTs <= boundaries.todayEndMs) {
+        return true;
+      }
+
+      // Planned past or today: planned date is on or before today's end
+      const plannedTs = getTaskDateTimestamp(task, t => t.plannedDate);
+      if (plannedTs !== null && plannedTs <= boundaries.todayEndMs) {
+        return true;
+      }
+
+      // Deferred until today: defer date is on or before today's end and task is available
+      const deferTs = getTaskDateTimestamp(task, t => t.deferDate);
+      if (deferTs !== null && deferTs <= boundaries.todayEndMs) {
+        // Check if task is available (not blocked by defer date)
+        if (isAvailableStatusValue(taskStatusValue) || taskStatusValue === Task.Status.Next) {
+          return true;
+        }
+      }
+
+      // Flagged (effective flagged, including inherited flags)
+      if (isTaskEffectivelyFlagged(task)) {
+        return true;
+      }
+
+      // Tagged with "Forecast"
+      if (taskHasForecastTag(task)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    function collectForecastTasks(allTasks, userTimeZone, warnings) {
+      const boundaries = getLocalDayBoundaries(userTimeZone);
+      const forecastTasks = [];
+      const seenTaskIDs = {};
+
+      // Add warning about excluded sources
+      warnings.push("Forecast results are task-only: calendar events are excluded.");
+      warnings.push("Forecast preferences beyond documented task sources (due, planned, defer dates, flags, and Forecast tag) cannot be queried and are excluded.");
+
+      for (let i = 0; i < allTasks.length; i += 1) {
+        const task = allTasks[i];
+        const taskID = taskIdentifier(task);
+        
+        // Skip if already included (deduplication)
+        if (taskID.length > 0 && seenTaskIDs[taskID]) {
+          continue;
+        }
+
+        const taskStatusValue = taskStatus(task);
+        
+        // Skip completed and dropped tasks
+        if (isCompletedStatusValue(taskStatusValue) || isDroppedStatusValue(taskStatusValue)) {
+          continue;
+        }
+
+        // Check if task matches any Forecast criteria
+        if (taskMatchesForecastCriteria(task, boundaries, taskStatusValue)) {
+          forecastTasks.push(task);
+          if (taskID.length > 0) {
+            seenTaskIDs[taskID] = true;
+          }
+        }
+      }
+
+      return forecastTasks;
+    }
+    // END FORECAST MODULE
+
     function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
       if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -2032,6 +2166,8 @@
           let tasks = [];
           let projectRootCandidates = [];
           const useInbox = filter.inboxOnly === true || request.op === "list_inbox";
+          const useForecast = filter.forecast === true;
+          
           if (useInbox) {
             inbox.apply(task => tasks.push(task));
           } else {
@@ -2040,7 +2176,13 @@
               projectRootCandidates = safe(() => flattenedProjects) || [];
             }
           }
-          markListTasks("selected_base_pool", { useInbox: useInbox, count: tasks.length });
+          markListTasks("selected_base_pool", { useInbox: useInbox, useForecast: useForecast, count: tasks.length });
+          
+          // Apply Forecast collection if requested
+          if (useForecast && !useInbox) {
+            tasks = collectForecastTasks(tasks, request.userTimeZone, response.warnings);
+            markListTasks("after_forecast_collection", { count: tasks.length });
+          }
 
           if (!useInbox && typeof filter.project === "string" && filter.project.length > 0) {
             const projectFilter = filter.project;
@@ -2968,14 +3110,22 @@
           const projectRootCandidates = selectProjectRootCandidates();
           tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
           const debugInfo = null;
+          const useForecast = filter.forecast === true;
           markTaskCounts("selected_base_pool", {
             count: tasks.length,
             durationMs: Date.now() - poolStart,
             inboxOnly: filter.inboxOnly === true,
             projectFilter: filter.project || null,
             projectView: projectView,
-            availableOnly: availableOnly
+            availableOnly: availableOnly,
+            useForecast: useForecast
           });
+          
+          // Apply Forecast collection if requested (same as list_tasks)
+          if (useForecast && filter.inboxOnly !== true) {
+            tasks = collectForecastTasks(tasks, request.userTimeZone, response.warnings);
+            markTaskCounts("after_forecast_collection", { count: tasks.length, durationMs: Date.now() - poolStart });
+          }
 
           function sampleTask(task) {
             const project = safe(() => task.containingProject);

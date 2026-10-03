@@ -63,3 +63,29 @@ func taskFilterJSONRoundTrip() throws {
         Issue.record("decoded.dueBefore should not be nil")
     }
 }
+
+@Test
+func taskFilterWithForecast() throws {
+    let filter = TaskFilter(
+        completed: false,
+        forecast: true
+    )
+    
+    #expect(filter.completed == false)
+    #expect(filter.forecast == true)
+}
+
+@Test
+func taskFilterForecastJSONRoundTrip() throws {
+    let filter = TaskFilter(forecast: true)
+    
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(filter)
+    
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(TaskFilter.self, from: data)
+    
+    #expect(decoded.forecast == true)
+}

@@ -179,7 +179,8 @@ public enum FocusRelayServer {
         "projectView",
         "maxEstimatedMinutes",
         "minEstimatedMinutes",
-        "includeTotalCount"
+        "includeTotalCount",
+        "forecast"
     ]
 
     /// `ids` is offered to `list_tasks` only. `get_task_counts` returns
@@ -250,6 +251,11 @@ public enum FocusRelayServer {
             "includeTotalCount": propertySchema(
                 type: "boolean",
                 description: "Inside filter only: for list_tasks, include the full filtered count before pagination. This is not a top-level tool argument. get_task_counts always returns dedicated counts, so this value is unnecessary there.",
+                defaultValue: .bool(false)
+            ),
+            "forecast": propertySchema(
+                type: "boolean",
+                description: "Task-only Forecast view: collects tasks from overdue, due today/soon, planned past/today, deferred until today, flagged, and Forecast-tagged sources. Uses local timezone day boundaries. Returns explicit warnings that calendar events and inaccessible Forecast preference options are excluded. Deduplicates tasks matching multiple sources. Other filters apply as intersections.",
                 defaultValue: .bool(false)
             )
         ]
