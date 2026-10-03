@@ -1,6 +1,6 @@
 # FocusRelay Roadmap Execution Plan
 
-Last updated: 2026-08-16
+Last updated: 2026-10-03
 
 GitHub issues own requirements, discussion, and validation evidence. This file
 records only current sequencing and cross-issue dependencies.
@@ -11,24 +11,21 @@ The next milestone is **Trustworthy daily use**. It favors visible user
 outcomes over speculative infrastructure and delivers one issue at a time,
 with user-facing UAT before the next issue starts.
 
-The active slice is [#92 — guided Homebrew
-setup](https://github.com/deverman/FocusRelayMCP/issues/92). It replaces
-duplicated manual plug-in copy instructions with one Swift setup implementation
-used by the installed CLI and the thin development script. It adds no MCP tool.
+The active slice is [#85 — truthful Forecast
+contract](https://github.com/deverman/FocusRelayMCP/issues/85). Guided Homebrew
+setup (#92) is merged and its feature UAT is complete. The release/tap handoff
+remains separate. Forecast work uses an explicit partial task-only contract;
+native perspective totals must not be inferred from due dates or page counts.
 
 ## Delivery Order
 
-1. [#92 — guided Homebrew setup](https://github.com/deverman/FocusRelayMCP/issues/92)
-   - Provide one guided setup command and one Swift installer implementation.
-   - Keep `scripts/install-plugin.sh` as the required thin development entry
-     point so installation behavior cannot drift.
-2. [#85 — truthful Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85)
+1. [#85 — truthful Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85)
    - Prefer the narrowest truthful task-only result with explicit exclusions
      when documented APIs cannot reproduce native Forecast exactly.
-3. [#11 — OmniFocus URLs](https://github.com/deverman/FocusRelayMCP/issues/11)
+2. [#11 — OmniFocus URLs](https://github.com/deverman/FocusRelayMCP/issues/11)
    - Add an optional native `url` field to existing task and project outputs;
      do not add a tool.
-4. [#82 — safe task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82)
+3. [#82 — safe task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82)
    - Use one shared creation implementation with equivalent CLI/MCP adapters,
      previews, verification, and duplicate safety.
 

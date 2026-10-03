@@ -43,7 +43,8 @@ enum QueryBoundCursor {
                 projectView: filter.projectView,
                 maxEstimatedMinutes: filter.maxEstimatedMinutes,
                 minEstimatedMinutes: filter.minEstimatedMinutes,
-                includeTotalCount: filter.includeTotalCount ?? false
+                includeTotalCount: filter.includeTotalCount ?? false,
+                forecast: filter.forecast
             )
         )
     }

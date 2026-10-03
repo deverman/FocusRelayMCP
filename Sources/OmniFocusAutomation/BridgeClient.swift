@@ -111,7 +111,7 @@ final class BridgeClient: @unchecked Sendable {
 
     func listTasks(filter: TaskFilter, page: PageRequest, fields: [String]?) throws -> Page<TaskItem> {
         let requestId = UUID().uuidString
-        let request = BridgeRequest(
+        var request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
             op: "list_tasks",
@@ -126,6 +126,7 @@ final class BridgeClient: @unchecked Sendable {
             page: page
         )
 
+        if filter.forecast != nil { request.forecastWindow = ForecastWindow() }
         let response: BridgeResponse<Page<TaskItemPayload>> = try sendRequest(request, responseType: Page<TaskItemPayload>.self)
 
         if response.ok, let payloadPage = response.data {
@@ -347,7 +348,7 @@ final class BridgeClient: @unchecked Sendable {
 
     func getTaskCounts(filter: TaskFilter) throws -> TaskCounts {
         let requestId = UUID().uuidString
-        let request = BridgeRequest(
+        var request = BridgeRequest(
             schemaVersion: 1,
             requestId: requestId,
             op: "get_task_counts",
@@ -362,9 +363,11 @@ final class BridgeClient: @unchecked Sendable {
             page: nil
         )
 
+        if filter.forecast != nil { request.forecastWindow = ForecastWindow() }
         let response: BridgeResponse<TaskCounts> = try sendRequest(request, responseType: TaskCounts.self)
         if response.ok, let counts = response.data {
-            return counts
+            return TaskCounts(total: counts.total, completed: counts.completed, available: counts.available,
+                              flagged: counts.flagged, warnings: response.warnings?.isEmpty == false ? response.warnings : nil)
         }
 
         let message = response.error?.message ?? "Unknown bridge error"

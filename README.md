@@ -61,6 +61,13 @@ deleting items is not supported; creation is tracked in
 
 ## Why FocusRelay?
 
+On the development branch, Forecast questions support an explicit
+[partial task-only scope](docs/forecast-contract.md). It includes past/today
+scheduled actions, flags, and the configured Forecast tag; it is not the native
+Forecast total and excludes calendar events and native visibility preferences.
+This requires the matching development binary and bridge, not the current
+Homebrew release.
+
 ### Keep the assistant focused
 
 FocusRelay exposes nine model-facing tools: seven read tools plus `edit_tasks`

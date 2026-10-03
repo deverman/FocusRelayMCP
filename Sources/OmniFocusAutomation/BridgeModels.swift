@@ -14,6 +14,22 @@ struct BridgeRequest: Codable {
     let mutation: MutationRequest?
     let fields: [String]?
     let page: PageRequest?
+    var forecastWindow: ForecastWindow? = nil
+}
+
+/// Half-open local calendar day, computed by Foundation rather than JS locale guesses.
+struct ForecastWindow: Codable {
+    let startMilliseconds: Double
+    let endMilliseconds: Double
+
+    init(now: Date = Date(), timeZone: TimeZone = .current) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let start = calendar.startOfDay(for: now)
+        let end = calendar.date(byAdding: .day, value: 1, to: start)!
+        startMilliseconds = start.timeIntervalSince1970 * 1000
+        endMilliseconds = end.timeIntervalSince1970 * 1000
+    }
 }
 
 struct BridgeResponse<T: Codable>: Codable {
