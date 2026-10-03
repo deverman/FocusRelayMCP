@@ -89,6 +89,7 @@ public enum FocusRelayServer {
 
     COUNTS:
     - Set filter.includeTotalCount=true inside the filter object only when the full filtered count is needed alongside listed items. It is not a top-level list_tasks argument.
+    - For Forecast questions, use filter.forecast='past-and-today'; never infer Forecast from due dates alone. This is a partial task-only result, not the native Forecast total. Explain its warnings and use get_task_counts for counts.
 
     Time formats: ISO8601 UTC (YYYY-MM-DDTHH:MM:SSZ). Default fields are only 'id' and 'name'.
     """
@@ -179,7 +180,8 @@ public enum FocusRelayServer {
         "projectView",
         "maxEstimatedMinutes",
         "minEstimatedMinutes",
-        "includeTotalCount"
+        "includeTotalCount",
+        "forecast"
     ]
 
     /// `ids` is offered to `list_tasks` only. `get_task_counts` returns
@@ -188,6 +190,11 @@ public enum FocusRelayServer {
     static func makeTaskFilterSchema(includeTaskIDSelection: Bool = false) -> Value {
         let dateExample = Value.string("2026-01-30T12:00:00Z")
         var properties: [String: Value] = [
+            "forecast": propertySchema(
+                type: "string",
+                description: "Partial task-only Forecast for past and today: union of remaining actions due/planned before next local midnight, deferred during today, effectively flagged, or carrying the configured Forecast tag. Unavailable tasks are included unless availableOnly=true. Other filters intersect. Excludes future dates, calendar events, project headers, and native preference-dependent visibility; always explain returned warnings. Use get_task_counts for count questions, never returnedCount.",
+                enumValues: [.string("past-and-today")]
+            ),
             "completed": propertySchema(
                 type: "boolean",
                 description: "Match completed (true) or remaining (false) tasks. Omit to use the selected view's default."
@@ -706,7 +713,7 @@ public enum FocusRelayServer {
             ),
             Tool(
                 name: "get_task_counts",
-                description: "Get task counts for a filter. Returns {total, available, completed, flagged}.",
+                description: "Get task counts for a filter. Returns {total, available, completed, flagged, warnings?}. For Forecast questions use filter.forecast='past-and-today' and explain warnings: the partial task-only count is not the native Forecast total. Never substitute a due-date-only approximation.",
                 inputSchema: toolSchema(
                     properties: [
                         "filter": makeTaskFilterSchema()
@@ -1294,9 +1301,11 @@ private func propertySchema(
     type: String,
     description: String = "",
     examples: [Value]? = nil,
-    defaultValue: Value? = nil
+    defaultValue: Value? = nil,
+    enumValues: [Value]? = nil
 ) -> Value {
     var schema: [String: Value] = ["type": .string(type)]
+    if let enumValues { schema["enum"] = .array(enumValues) }
     if !description.isEmpty {
         schema["description"] = .string(description)
     }

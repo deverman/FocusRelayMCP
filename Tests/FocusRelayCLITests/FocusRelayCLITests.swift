@@ -8,6 +8,25 @@ import OmniFocusAutomation
 import OmniFocusCore
 
 @Test
+func cliForecastScopeIsExplicitAndShared() throws {
+    let options = try TaskFilterOptions.parse(["--forecast", "past-and-today", "--inbox-only", "true"])
+    let filter = try options.makeTaskFilter()
+    #expect(filter.forecast == .pastAndToday)
+    #expect(filter.inboxOnly == true)
+    let invalid = try TaskFilterOptions.parse(["--forecast", "exact"])
+    #expect(throws: (any Error).self) { try invalid.makeTaskFilter() }
+}
+
+@Test
+func forecastPageOutputRetainsLimitations() throws {
+    let output = PageOutput(items: [String](), returnedCount: 0, totalCount: 0,
+                            warnings: ["Partial task-only Forecast; not the native Forecast total"])
+    let encoded = try encodeJSON(output)
+    #expect(encoded.contains("warnings"))
+    #expect(encoded.contains("not the native Forecast total"))
+}
+
+@Test
 func cliVersionFlagReportsEmbeddedBuildVersion() throws {
     #expect(FocusRelayCLI.configuration.version == FocusRelayBuildVersion.current)
 

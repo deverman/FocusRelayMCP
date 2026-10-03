@@ -70,6 +70,12 @@ Relevant reference pages:
 - `task.estimatedMinutes`
 - `task.inInbox`
 
+### Partial Forecast tag
+- `Tag.forecastTag` (the configured tag, or null), documented on the
+  [Tags reference](https://omni-automation.com/omnifocus/tag.html).
+- Forecast uses the explicit [partial task contract](forecast-contract.md),
+  never an inferred native perspective count.
+
 ## Allowed derived patterns
 - Enumerate `flattenedTasks` and filter by `task.taskStatus`.
 - Enumerate `flattenedProjects` and filter by `project.status`.

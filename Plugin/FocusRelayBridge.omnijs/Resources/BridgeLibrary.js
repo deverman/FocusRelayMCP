@@ -1698,6 +1698,37 @@
       return tagCollectionMatchesFilter(tags, filterTags);
     }
 
+    // FORECAST MODULE - Explicit partial past-and-today task contract
+    function collectForecastTasks(tasks, request, warnings) {
+      if (!request.filter || request.filter.forecast === undefined || request.filter.forecast === null) return tasks;
+      if (request.filter.forecast !== "past-and-today") throw new Error("Unsupported Forecast scope");
+      const window = request.forecastWindow;
+      if (!window || !Number.isFinite(window.startMilliseconds) ||
+          !Number.isFinite(window.endMilliseconds) || window.endMilliseconds <= window.startMilliseconds) {
+        throw new Error("Forecast requires an explicit local calendar-day window from FocusRelay");
+      }
+      warnings.push("Partial task-only Forecast (past-and-today): not the native Forecast total. Excludes future-day items, calendar events, project headers, and inherited date scheduling. Native Forecast visibility preferences are not applied; flags, configured Forecast-tag membership, and scheduled unavailable actions may differ from your view.");
+      const forecastTag = safe(() => Tag.forecastTag);
+      const forecastTagID = forecastTag ? String(safe(() => forecastTag.id.primaryKey) || "") : "";
+      const seen = new Set();
+      return tasks.filter(task => {
+        const id = taskIdentifier(task);
+        if (seen.has(id) || isProjectRootTask(task) || !isRemainingStatus(task)) return false;
+        const due = getTaskDateTimestamp(task, t => t.dueDate);
+        const planned = getTaskDateTimestamp(task, t => t.plannedDate);
+        const deferred = getTaskDateTimestamp(task, t => t.deferDate);
+        const tagged = forecastTagID.length > 0 && (safe(() => task.tags) || []).some(tag =>
+          String(safe(() => tag.id.primaryKey) || "") === forecastTagID);
+        const matches = (due !== null && due < window.endMilliseconds) ||
+          (planned !== null && planned < window.endMilliseconds) ||
+          (deferred !== null && deferred >= window.startMilliseconds && deferred < window.endMilliseconds) ||
+          isTaskEffectivelyFlagged(task) || tagged;
+        if (matches) seen.add(id);
+        return matches;
+      });
+    }
+    // END FORECAST MODULE
+
     function appendTaggedProjectRootTasks(tasks, projects, filterTags) {
       if (!Array.isArray(filterTags) || filterTags.length === 0) { return tasks; }
 
@@ -2065,6 +2096,7 @@
           }
           // Note: When inboxOnly is false and no project filter is specified,
           // we return tasks from all projects (flattenedTasks)
+          tasks = collectForecastTasks(tasks, request, response.warnings);
 
           const inboxView = (typeof filter.inboxView === "string") ? filter.inboxView.toLowerCase() : "available";
           const isEverything = inboxView === "everything";
@@ -2072,7 +2104,7 @@
 
           const availableOnly = (typeof filter.availableOnly === "boolean")
             ? filter.availableOnly
-            : (filter.completed === true ? false : !isRemaining && !isEverything);
+            : (filter.forecast != null || filter.completed === true ? false : !isRemaining && !isEverything);
           markListTasks("derived_view_state", {
             count: tasks.length,
             completed: filter.completed,
@@ -2917,7 +2949,7 @@
 
           const availableOnly = (typeof filter.availableOnly === "boolean")
             ? filter.availableOnly
-            : (filter.completed === true ? false : !isRemaining && !isEverything);
+            : (filter.forecast != null || filter.completed === true ? false : !isRemaining && !isEverything);
 
           function resolveProject(projectFilter) {
             if (!projectFilter || typeof projectFilter !== "string") { return null; }
@@ -2967,6 +2999,7 @@
           let tasks = selectTaskPool();
           const projectRootCandidates = selectProjectRootCandidates();
           tasks = appendTaggedProjectRootTasks(tasks, projectRootCandidates, filter.tags);
+          tasks = collectForecastTasks(tasks, request, response.warnings);
           const debugInfo = null;
           markTaskCounts("selected_base_pool", {
             count: tasks.length,

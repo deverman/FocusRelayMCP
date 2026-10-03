@@ -237,12 +237,14 @@ public struct TaskCounts: Codable, Sendable {
     public let completed: Int
     public let available: Int
     public let flagged: Int
+    public let warnings: [String]?
 
-    public init(total: Int, completed: Int, available: Int, flagged: Int) {
+    public init(total: Int, completed: Int, available: Int, flagged: Int, warnings: [String]? = nil) {
         self.total = total
         self.completed = completed
         self.available = available
         self.flagged = flagged
+        self.warnings = warnings
     }
 }
 
@@ -343,7 +345,13 @@ public struct ProjectFilter: Codable, Sendable {
     }
 }
 
+public enum TaskForecastScope: String, Codable, Sendable {
+    case pastAndToday = "past-and-today"
+}
+
 public struct TaskFilter: Codable, Sendable {
+    /// Explicit partial Forecast contract; never an exact native perspective count.
+    public var forecast: TaskForecastScope?
     /// Bounded stable-ID selection for progressive expansion; list_tasks only.
     public var ids: [String]?
     public var completed: Bool?
@@ -388,9 +396,11 @@ public struct TaskFilter: Codable, Sendable {
         projectView: String? = nil,
         maxEstimatedMinutes: Int? = nil,
         minEstimatedMinutes: Int? = nil,
-        includeTotalCount: Bool? = nil
+        includeTotalCount: Bool? = nil,
+        forecast: TaskForecastScope? = nil
     ) {
         self.ids = ids
+        self.forecast = forecast
         self.completed = completed
         self.flagged = flagged
         self.availableOnly = availableOnly

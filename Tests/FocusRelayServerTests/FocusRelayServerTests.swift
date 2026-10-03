@@ -968,7 +968,8 @@ func sharedTaskFilterSchemaCoversCompleteModelSurface() {
         "projectView",
         "maxEstimatedMinutes",
         "minEstimatedMinutes",
-        "includeTotalCount"
+        "includeTotalCount",
+        "forecast"
     ]
 
     #expect(FocusRelayServer.taskFilterPropertyNames == expectedPropertyNames)

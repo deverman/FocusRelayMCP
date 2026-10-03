@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### What’s new
 
+- Ask Forecast count questions using an explicit partial task-only
+  `past-and-today` scope, with local-day boundaries, deduplicated list/count
+  results, and returned limitations rather than a misleading native total.
 - Install or update the OmniFocus bridge with `focusrelay setup`, which
   previews every detected plug-in location, verifies binary/plug-in versions,
   preserves existing copies during replacement, prints MCP client settings,

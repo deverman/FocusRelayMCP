@@ -66,6 +66,9 @@ struct PageOptions: ParsableArguments {
 }
 
 struct TaskFilterOptions: ParsableArguments {
+    @Option(help: "Partial task-only Forecast scope: past-and-today (not the native Forecast total).")
+    var forecast: String? = nil
+
     @Option(help: "Comma-separated stable task IDs (max \(TaskIDSelection.maximumCount)) to expand in one read. Other filters still apply.")
     var ids: String? = nil
 
@@ -130,6 +133,15 @@ struct TaskFilterOptions: ParsableArguments {
     var includeTotalCount: Bool = false
 
     func makeTaskFilter() throws -> TaskFilter {
+        let forecastScope: TaskForecastScope?
+        if let forecast {
+            guard let scope = TaskForecastScope(rawValue: forecast) else {
+                throw ValidationError("--forecast must be past-and-today.")
+            }
+            forecastScope = scope
+        } else {
+            forecastScope = nil
+        }
         let tagList = FieldList.parse(tags)
         let idList = FieldList.parse(ids)
         return TaskFilter(
@@ -153,7 +165,8 @@ struct TaskFilterOptions: ParsableArguments {
             projectView: projectView,
             maxEstimatedMinutes: maxEstimatedMinutes,
             minEstimatedMinutes: minEstimatedMinutes,
-            includeTotalCount: includeTotalCount
+            includeTotalCount: includeTotalCount,
+            forecast: forecastScope
         )
     }
 }
