@@ -11,23 +11,21 @@ The next milestone is **Trustworthy daily use**. It favors visible user
 outcomes over speculative infrastructure and delivers one issue at a time,
 with user-facing UAT before the next issue starts.
 
-The active slice is [#85 — truthful Forecast
-contract](https://github.com/deverman/FocusRelayMCP/issues/85). Guided Homebrew
-setup (#92) is merged and its feature UAT is complete. The release/tap handoff
-remains separate. Forecast work uses an explicit partial task-only contract;
-native perspective totals must not be inferred from due dates or page counts.
+The active slice is [#82 — safe task/subtask
+creation](https://github.com/deverman/FocusRelayMCP/issues/82), promoted ahead of
+#11 by an independent user's request. #85 is merged through #224 and its
+feature UAT is complete; release-candidate validation remains separate. Guided
+Homebrew setup (#92) is also merged. Task creation must preserve previews,
+verification, ordered hierarchy, and duplicate safety.
 
 ## Delivery Order
 
-1. [#85 — truthful Forecast contract](https://github.com/deverman/FocusRelayMCP/issues/85)
-   - Prefer the narrowest truthful task-only result with explicit exclusions
-     when documented APIs cannot reproduce native Forecast exactly.
+1. [#82 — safe task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82)
+   - Use one shared creation implementation with equivalent CLI/MCP adapters,
+     previews, verification, and duplicate safety.
 2. [#11 — OmniFocus URLs](https://github.com/deverman/FocusRelayMCP/issues/11)
    - Add an optional native `url` field to existing task and project outputs;
      do not add a tool.
-3. [#82 — safe task/subtask creation](https://github.com/deverman/FocusRelayMCP/issues/82)
-   - Use one shared creation implementation with equivalent CLI/MCP adapters,
-     previews, verification, and duplicate safety.
 
 After #82 UAT, decide whether observed use justifies [#83 — project creation
 and conversion](https://github.com/deverman/FocusRelayMCP/issues/83). All other
