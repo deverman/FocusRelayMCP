@@ -70,10 +70,15 @@ Homebrew release.
 
 ### Keep the assistant focused
 
-FocusRelay exposes nine model-facing tools: seven read tools plus `edit_tasks`
-and `edit_projects` for supported changes. Combining seven editing tools into
-two reduced the full catalog from 14 tools to 9 and cut context usage by
-7–13% in controlled model tests, leaving more room for the user's actual work.
+The development candidate exposes ten model-facing tools: seven read tools plus `edit_tasks`,
+`edit_projects`, and `add_tasks` for supported changes. Task and subtask creation
+uses client-managed approval, optional preview, frozen date-only values, and
+mandatory verification. Omitted `previewOnly` performs a write; uncertain
+creation must not be automatically retried. See the
+[creation contract](docs/task-creation-contract.md).
+Earlier consolidation from seven editing tools to two reduced the catalog
+from 14 tools to 9 and cut context usage by 7–13% in controlled model tests.
+Those historical measurements do not measure the new creation tool's overhead.
 Internal diagnostics stay in the CLI, count commands avoid returning long item
 lists, and field selection keeps responses compact.
 
