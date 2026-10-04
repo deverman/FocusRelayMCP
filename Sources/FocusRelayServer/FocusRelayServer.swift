@@ -28,13 +28,15 @@ public enum FocusRelayServer {
         "list_folders",
         "edit_tasks",
         "edit_projects",
+        "add_tasks",
         "get_task_counts",
         "get_project_counts"
     ]
 
     static let mutationToolNames: Set<String> = [
         "edit_tasks",
-        "edit_projects"
+        "edit_projects",
+        "add_tasks"
     ]
 
     static let mutationToolAnnotations = Tool.Annotations(
@@ -712,6 +714,12 @@ public enum FocusRelayServer {
                 annotations: mutationToolAnnotations
             ),
             Tool(
+                name: "add_tasks",
+                description: "Create approved tasks and ordered subtasks (20 tasks, five levels) in inbox, an existing project, or an existing parent task. Use a fresh UUID creationKey for a new proposal, reused unchanged for preview, approved apply, and every reconciliation. Preview is the default and changes no OmniFocus data. Present the complete hierarchy and resolved local dates to the user; only after approval send previewOnly=false with the returned previewID as approvedPreviewID and otherwise identical intent. Exact dates use {at: ISO8601-with-offset}; date-only uses {on: YYYY-MM-DD, time: {policy: omnifocus_default}} without model-generated UTC offsets. Dates are frozen by preview. Existing tags require stable tagIDs; this does not create projects or missing tags. Always returns names, IDs, parents, order and resolved dates; returnFields controls extra confirmation fields. Completed means every task was created, saved and verified. Partial/uncertain results require user review. After ANY uncertain response, repeat the SAME key and intent to reconcile read-only; NEVER use a new key to retry. Calls are sequential. Rejecting or ignoring a preview leaves OmniFocus unchanged.",
+                inputSchema: taskCreationSchema(),
+                annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+            ),
+            Tool(
                 name: "get_task_counts",
                 description: "Get task counts for a filter. Returns {total, available, completed, flagged, warnings?}. For Forecast questions use filter.forecast='past-and-today' and explain warnings: the partial task-only count is not the native Forecast total. Never substitute a due-date-only approximation.",
                 inputSchema: toolSchema(
@@ -761,8 +769,8 @@ public enum FocusRelayServer {
         precondition(
             tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
                 $0.annotations.readOnlyHint == false &&
-                    $0.annotations.destructiveHint == true &&
-                    $0.annotations.idempotentHint == false &&
+                    $0.annotations.destructiveHint == ($0.name != "add_tasks") &&
+                    $0.annotations.idempotentHint == ($0.name == "add_tasks") &&
                     $0.annotations.openWorldHint == false
             },
             "Mutation tool annotations must truthfully describe write risk."
@@ -1030,6 +1038,13 @@ public enum FocusRelayServer {
                     let items = result.items.map { makeFolderOutput(from: $0, fields: fieldSet) }
                     let output = PageOutput(items: items, nextCursor: result.nextCursor, returnedCount: result.returnedCount, totalCount: result.totalCount, warnings: result.warnings)
                     return .init(content: [.text(text: try encodeJSON(output), annotations: nil, _meta: nil)])
+                case "add_tasks":
+                    let data = try JSONEncoder().encode(params.arguments ?? [:])
+                    let request = try JSONDecoder().decode(TaskCreationRequest.self, from: data)
+                    try request.validate()
+                    let result = try await service.addTasks(request)
+                    return .init(content: [.text(text: try encodeJSON(result), annotations: nil, _meta: nil)],
+                                 isError: result.status == .partial || result.status == .uncertain)
                 case "edit_tasks":
                     let request = try decodeTaskEditRequest(from: params.arguments)
                     let result = try await service.performMutation(request)
@@ -1087,6 +1102,11 @@ public enum FocusRelayServer {
         // Match bridge payload decoding: fractional and standard ISO8601.
         let decoder = BridgeDateDecoding.makeJSONDecoder()
         return try decoder.decode(T.self, from: data)
+    }
+
+    public static func validateCreationJSON(_ data: Data) throws {
+        let arguments = try JSONDecoder().decode([String: Value].self, from: data)
+        try validateToolArguments(toolName: "add_tasks", arguments: arguments, schema: taskCreationSchema())
     }
 
     static func validateToolArguments(

@@ -1757,6 +1757,262 @@
       return expandedTasks;
     }
 
+    // TASK CREATION MODULE BEGIN
+    // Synchronous native execution: no awaits or callbacks between journal admission
+    // and constructors. Receipts live outside disposable protocol artifacts.
+    function performTaskCreation(request, io) {
+      const input = request.creation;
+      const key = String(input.creationKey).toUpperCase();
+      const uuid = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
+      if (!uuid.test(key) || !/^[a-f0-9]{64}$/.test(request.creationFingerprint || "")) {
+        throw new Error("Invalid creation identity or fingerprint.");
+      }
+      const path = io.directory + "/" + key + ".json";
+      let receipt = io.exists(path) ? io.read(path) : null;
+      const nodes = [];
+      const seen = new Set();
+      function visit(items, parent, depth) {
+        if (!Array.isArray(items) || depth > 5) { throw new Error("Invalid creation hierarchy."); }
+        items.forEach((node, index) => {
+          if (!node || !/^[A-Za-z0-9_-]{1,64}$/.test(node.clientID) || seen.has(node.clientID) ||
+              typeof node.name !== "string" || !node.name.trim()) { throw new Error("Invalid or duplicate task fields."); }
+          seen.add(node.clientID);
+          if (nodes.length >= 20) { throw new Error("At most 20 tasks can be created."); }
+          if (node.note != null && typeof node.note !== "string") { throw new Error("Invalid note."); }
+          if (node.flagged != null && typeof node.flagged !== "boolean") { throw new Error("Invalid flag."); }
+          if (node.estimatedMinutes != null && (!Number.isInteger(node.estimatedMinutes) || node.estimatedMinutes < 0)) {
+            throw new Error("Invalid estimate.");
+          }
+          if (node.tagIDs != null && (!Array.isArray(node.tagIDs) || new Set(node.tagIDs).size !== node.tagIDs.length ||
+              node.tagIDs.some(id => typeof id !== "string" || !id || id.trim() !== id))) { throw new Error("Invalid tag IDs."); }
+          nodes.push({ node: node, parent: parent, index: index });
+          if ((node.children || []).length) { visit(node.children, node.clientID, depth + 1); }
+        });
+      }
+      visit(input.tasks, null, 1);
+      if (!nodes.length) { throw new Error("No tasks requested."); }
+      if (receipt) {
+        if (receipt.version !== 1 || receipt.key !== key || receipt.fingerprint !== request.creationFingerprint ||
+            !uuid.test(receipt.previewID || "") || !["prepared", "applying", "completed", "uncertain"].includes(receipt.state) ||
+            !receipt.dates || !receipt.created || typeof receipt.created !== "object") {
+          throw new Error("Creation receipt is incompatible, corrupted, or this key belongs to different intent. Do not reuse the key.");
+        }
+      } else if (!input.previewOnly) {
+        throw new Error("Approved creation receipt is missing. Nothing created. Restore the receipt or review a new preview; never automatically replace an uncertain key.");
+      }
+      if (!input.previewOnly && (!receipt || String(input.approvedPreviewID).toUpperCase() !== receipt.previewID)) {
+        throw new Error("Approval does not match the stored preview. Nothing created.");
+      }
+      const taskMap = io.tasks();
+      const projectMap = io.projects();
+      const tagMap = io.tags();
+      const destination = input.destination || { kind: "inbox" };
+      let container = null;
+      function eligibleTask(task) {
+        for (let current = task; current; current = current.parent) {
+          if (!io.remaining(current)) { throw new Error("Destination has a completed or dropped parent."); }
+        }
+        const project = task.containingProject;
+        if (project && !io.projectRemaining(project)) { throw new Error("Destination project is completed or dropped."); }
+      }
+      function preflightDestination() {
+        if (destination.kind === "inbox") {
+          if (destination.id != null) { throw new Error("Inbox cannot have a destination ID."); }
+        } else if (destination.kind === "project") {
+          container = projectMap[destination.id];
+          if (!container || !io.projectRemaining(container)) { throw new Error("Project destination is missing, completed, or dropped."); }
+        } else if (destination.kind === "parent_task") {
+          container = taskMap[destination.id];
+          if (!container) { throw new Error("Parent task destination not found."); }
+          eligibleTask(container);
+        } else { throw new Error("Unknown destination kind."); }
+        nodes.forEach(entry => (entry.node.tagIDs || []).forEach(id => {
+          if (!tagMap[id]) { throw new Error("Existing tag ID not found: " + id + ". Nothing created."); }
+        }));
+      }
+      function localDate(date, intent, zone) {
+        const dc = Calendar.current.dateComponentsFromDate(date);
+        const pad = value => String(value).padStart(2, "0");
+        return { intent: intent, local: String(dc.year).padStart(4, "0") + "-" + pad(dc.month) + "-" + pad(dc.day) +
+          "T" + pad(dc.hour) + ":" + pad(dc.minute) + ":" + pad(dc.second || 0), timeZoneID: zone, iso8601: date.toISOString() };
+      }
+      function currentZone() {
+        // TimeZone has no documented identifier property. Its documented string
+        // representation contains the identifier; fail closed if unavailable.
+        const match = /^\[object TimeZone: ([^ ]+)(?: \(current\))?\]/.exec(String(Calendar.current.timeZone));
+        if (!match) { throw new Error("Cannot identify Calendar.current.timeZone. No dates resolved or tasks created."); }
+        if (match[1] !== request.userTimeZone) {
+          throw new Error("Server/OmniFocus timezone mismatch: " + request.userTimeZone + " versus " + match[1] + ". Align timezones and preview again.");
+        }
+        return match[1];
+      }
+      function resolveDate(intent, setting, zone) {
+        if (intent == null) { return null; }
+        let date;
+        if (intent.at != null) {
+          if (intent.on != null || intent.time != null || typeof intent.at !== "string" ||
+              !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(intent.at)) {
+            throw new Error("Invalid exact creation date.");
+          }
+          date = new Date(intent.at);
+        } else {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(intent.on || "") || !intent.time || intent.time.policy !== "omnifocus_default") {
+            throw new Error("Date-only creation requires YYYY-MM-DD and omnifocus_default policy.");
+          }
+          if (Calendar.current.identifier !== "gregorian") { throw new Error("Date-only creation currently requires the Gregorian preferred calendar."); }
+          const configured = settings.objectForKey(setting);
+          if (typeof configured !== "string" || !/^\d{2}:\d{2}(?::\d{2})?$/.test(configured)) {
+            throw new Error(setting + " is missing or unsupported. Configure the current OmniFocus default time and preview again.");
+          }
+          const day = intent.on.split("-").map(Number);
+          const time = configured.split(":").map(Number);
+          if (time[0] > 23 || time[1] > 59 || (time[2] || 0) > 59) { throw new Error("Invalid " + setting + "."); }
+          const dc = new DateComponents();
+          dc.year = day[0]; dc.month = day[1]; dc.day = day[2]; dc.hour = time[0]; dc.minute = time[1]; dc.second = time[2] || 0;
+          dc.nanosecond = 0;
+          date = Calendar.current.dateFromDateComponents(dc);
+          const actual = date && Calendar.current.dateComponentsFromDate(date);
+          if (!actual || ["year", "month", "day", "hour", "minute", "second"].some(field => actual[field] !== dc[field])) {
+            throw new Error("Calendar date/time does not exist or normalized across a DST gap. Choose an exact timestamp.");
+          }
+        }
+        if (!date || !Number.isFinite(date.getTime())) { throw new Error("Invalid creation date."); }
+        return localDate(date, intent, zone);
+      }
+      if (!receipt) {
+        preflightDestination();
+        const dates = {};
+        const hasDates = nodes.some(entry => entry.node.due || entry.node.defer);
+        const zone = hasDates ? currentZone() : null;
+        nodes.forEach(entry => { dates[entry.node.clientID] = {
+          due: resolveDate(entry.node.due, "DefaultDueTime", zone),
+          defer: resolveDate(entry.node.defer, "DefaultStartTime", zone)
+        }; });
+        receipt = { version: 1, key: key, fingerprint: request.creationFingerprint,
+          previewID: String(request.creationPreviewID).toUpperCase(), state: "prepared", dates: dates, created: {},
+          saved: false, pending: null,
+          destinationParentID: destination.kind === "project" ? String(container.task.id.primaryKey) : destination.kind === "parent_task" ? destination.id : null };
+        if (!uuid.test(receipt.previewID)) { throw new Error("Invalid preview identity."); }
+        io.write(path, receipt);
+      }
+      function fields(node, task, dates) {
+        const result = {};
+        (input.returnFields || ["name"]).forEach(field => {
+          if (field === "dueDate" || field === "deferDate") {
+            const frozen = dates[field === "dueDate" ? "due" : "defer"];
+            result[field] = task ? (task[field] ? task[field].toISOString() : null) : (frozen ? frozen.iso8601 : null);
+          } else if (field === "tagIDs") {
+            result[field] = task ? Array.from(task.tags).map(tag => String(tag.id.primaryKey)) : (node.tagIDs || []);
+          } else {
+            result[field] = task ? task[field] : (node[field] == null ? (field === "flagged" ? false : field === "note" ? "" : null) : node[field]);
+          }
+        });
+        return result;
+      }
+      function inspect(entry, map) {
+        const node = entry.node;
+        const dates = receipt.dates[node.clientID];
+        if (!dates || !Object.prototype.hasOwnProperty.call(dates, "due") || !Object.prototype.hasOwnProperty.call(dates, "defer")) {
+          throw new Error("Creation receipt is missing frozen dates. Refusing execution.");
+        }
+        const id = receipt.created[node.clientID] || null;
+        const task = id ? map[id] : null;
+        const parentID = task && task.parent ? String(task.parent.id.primaryKey) : null;
+        const parent = task && task.parent;
+        const siblings = task ? (parent ? parent.children : io.inbox()) : [];
+        const order = task ? Array.from(siblings).findIndex(item => String(item.id.primaryKey) === id) : -1;
+        let error = null;
+        if (id && !task) { error = "Recorded task is missing; no replacement will be created."; }
+        if (task) {
+          const expectedParent = entry.parent ? receipt.created[entry.parent] :
+            receipt.destinationParentID;
+          if (parentID !== expectedParent || order < 0) { error = "Native parent/order does not match the approved plan."; }
+          for (const field of ["name", "note", "flagged", "estimatedMinutes"]) {
+            if (node[field] != null && task[field] !== node[field]) { error = field + " did not verify."; }
+          }
+          for (const field of ["due", "defer"]) {
+            if (dates[field] && (!task[field + "Date"] || task[field + "Date"].toISOString() !== dates[field].iso8601)) { error = field + " did not verify."; }
+          }
+          if (node.tagIDs) {
+            const actual = Array.from(task.tags).map(tag => String(tag.id.primaryKey));
+            if (actual.length !== node.tagIDs.length || node.tagIDs.some(tag => !actual.includes(tag))) { error = "Tags did not verify."; }
+          }
+        }
+        const attempted = receipt.state !== "prepared" && (id || receipt.pending === node.clientID);
+        return { clientID: node.clientID, name: node.name, parentClientID: entry.parent, siblingIndex: entry.index, id: id,
+          parentID: parentID, finalOrder: order < 0 ? null : order,
+          status: receipt.state === "prepared" ? "previewed" : task && !error && receipt.saved ? "verified" : attempted ? "unverified" : "not_created",
+          due: dates.due, defer: dates.defer, returnedFields: fields(node, task, dates), message: error };
+      }
+      function result(message) {
+        const map = io.tasks();
+        const results = nodes.map(entry => inspect(entry, map));
+        const previous = {};
+        results.forEach(item => {
+          const group = item.parentClientID || "__destination__";
+          if (item.finalOrder != null) {
+            if (previous[group] != null && item.finalOrder <= previous[group]) {
+              item.status = "unverified"; item.message = "Sibling order did not verify.";
+            }
+            previous[group] = item.finalOrder;
+          }
+        });
+        const complete = results.every(item => item.status === "verified");
+        return { creationKey: key, previewID: receipt.previewID,
+          status: receipt.state === "prepared" ? "previewed" : complete ? "completed" : receipt.pending ? "uncertain" : "partial",
+          destination: destination, results: results, message: message };
+      }
+      if (receipt.state !== "prepared") {
+        // Read-only reconciliation. Even with no recorded IDs, NEVER construct again.
+        return result("Reconciled recorded state without creating or editing any task. Keep this key; inspect any partial/uncertain outcome before taking further action.");
+      }
+      preflightDestination();
+      nodes.forEach(entry => inspect(entry, taskMap)); // validate every frozen record before a write
+      if (input.previewOnly) { return result("Complete plan previewed; OmniFocus is unchanged. Approval must reuse this key, exact intent, and previewID."); }
+      if (nodes.some(entry => entry.node.due || entry.node.defer)) { currentZone(); }
+      receipt.state = "applying";
+      io.write(path, receipt); // durable admission MUST precede the first constructor
+      let stage = "creation";
+      try {
+        const created = {};
+        nodes.forEach(entry => {
+          receipt.pending = entry.node.clientID;
+          io.write(path, receipt); // crash in constructor leaves an explicit unknown target
+          stage = "creation";
+          const task = io.create(entry.node.name, entry.parent ? created[entry.parent] : container);
+          created[entry.node.clientID] = task;
+          receipt.created[entry.node.clientID] = String(task.id.primaryKey);
+          stage = "journal";
+          io.write(path, receipt); // ID before field assignment: partial failures remain recoverable
+          stage = "fields";
+          const node = entry.node;
+          for (const field of ["note", "flagged", "estimatedMinutes"]) { if (node[field] != null) { task[field] = node[field]; } }
+          for (const field of ["due", "defer"]) {
+            const date = receipt.dates[node.clientID][field];
+            if (date) { task[field + "Date"] = new Date(date.iso8601); }
+          }
+          (node.tagIDs || []).forEach(id => task.addTag(tagMap[id]));
+          receipt.pending = null;
+          io.write(path, receipt);
+        });
+        stage = "save";
+        io.save();
+        receipt.saved = true;
+        io.write(path, receipt);
+        stage = "verification";
+        const verified = result("Every requested task was created, saved, and verified.");
+        if (verified.status !== "completed") { throw new Error("Not all native fields/hierarchy/order verified."); }
+        receipt.state = "completed";
+        io.write(path, receipt);
+        return verified;
+      } catch (error) {
+        receipt.state = "uncertain";
+        try { io.write(path, receipt); } catch (journalError) { /* Prior applying/pending tombstone still prohibits constructors. */ }
+        return result("Creation stopped during " + stage + ". " + String(error) + ". No automatic retry or rollback was attempted; reconcile using this same creationKey.");
+      }
+    }
+    // TASK CREATION MODULE END
+
     function inboxTasksArray() {
       const tasks = [];
       inbox.apply(task => tasks.push(task));
@@ -1776,6 +2032,16 @@
       const request = readJSON(requestPath);
         if (request.op === "ping") {
           response.data = { ok: true, plugin: "FocusRelay Bridge", version: FOCUSRELAY_VERSION };
+        } else if (request.op === "add_tasks") {
+          const stateDirectory = basePath.replace(/\/[^/]+$/, "") + "/FocusRelayState/creation-v1";
+          response.data = performTaskCreation(request, {
+            directory: stateDirectory, exists: fileExists, read: readJSON, write: writeJSON,
+            tasks: taskByIDIndex, projects: projectByIDIndex,
+            tags: tagByIDIndex, inbox: inboxTasksArray,
+            remaining: isRemainingStatus,
+            projectRemaining: project => project.status === Project.Status.Active || project.status === Project.Status.OnHold,
+            create: (name, destination) => new Task(name, destination), save: () => save()
+          });
         } else if (request.op === "perform_mutation") {
           const mutation = request.mutation || {};
           const targetType = mutation.targetType;

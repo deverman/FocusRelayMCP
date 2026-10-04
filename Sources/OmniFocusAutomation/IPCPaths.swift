@@ -6,6 +6,11 @@ struct IPCPaths {
     let responsesURL: URL
     let locksURL: URL
     let dispatchURL: URL
+    /// Receipts and tombstones survive request cleanup and binary/plugin upgrades.
+    var creationStateURL: URL {
+        baseURL.deletingLastPathComponent().appendingPathComponent("FocusRelayState", isDirectory: true)
+            .appendingPathComponent("creation-v1", isDirectory: true)
+    }
 
     init(baseURL: URL) {
         self.baseURL = baseURL

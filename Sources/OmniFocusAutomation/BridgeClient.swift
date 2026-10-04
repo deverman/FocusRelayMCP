@@ -428,6 +428,30 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed(message)
     }
 
+    func addTasks(_ creation: TaskCreationRequest) throws -> TaskCreationResponse {
+        try creation.validate()
+        let paths = try requirePaths()
+        return try CreationAdmission.withLock(directory: paths.creationStateURL, key: creation.normalizedCreationKey!) { firstUse in
+            let receipt = paths.creationStateURL.appendingPathComponent(creation.normalizedCreationKey! + ".json")
+            if !firstUse && !fileManager.fileExists(atPath: receipt.path) {
+                throw MutationValidationError("Creation key tombstone exists but its receipt is missing. Refusing dispatch: restore state or explicitly review a new proposal after checking OmniFocus; never automatically retry with a new key.")
+            }
+            var request = BridgeRequest(
+                schemaVersion: 1, requestId: UUID().uuidString, op: "add_tasks",
+                timestamp: ISO8601DateFormatter().string(from: Date()), userTimeZone: TimeZone.current.identifier,
+                id: nil, filter: nil, tagFilter: nil, projectFilter: nil, mutation: nil, fields: nil, page: nil
+            )
+            request.creation = creation
+            request.creationFingerprint = try creation.intentFingerprint()
+            request.creationPreviewID = UUID().uuidString
+            let response: BridgeResponse<TaskCreationResponse> = try sendRequest(request, responseType: TaskCreationResponse.self)
+            guard response.ok, let result = response.data else {
+                throw AutomationError.executionFailed(response.error?.message ?? "Creation response missing. Reconcile with the same creationKey; never blindly submit a new key.")
+            }
+            return result
+        }
+    }
+
     private func ensureDirectories() throws {
         let paths = try requirePaths()
         if !didEnsureDirectories {
