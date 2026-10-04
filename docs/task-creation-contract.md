@@ -1,9 +1,10 @@
-# Task Creation Contract In Development
+# Task Creation Contract
 
 Issue [#82](https://github.com/deverman/FocusRelayMCP/issues/82) owns the
-implementation and validation checklist. This document defines the initial
-contract; it is **not a claim that task creation is available**. No creation
-tool is currently exposed. Validation impact is `mutation`.
+implementation and validation checklist. The candidate exposes `add_tasks`
+and `focusrelay add-tasks`. Availability in a released Homebrew build depends
+on the release version; draft implementation is not release certification.
+Validation impact is `mutation`.
 
 ## Bounded User Journey
 
@@ -20,7 +21,7 @@ need to know how the project was created.
 
 ## Typed Request
 
-The future compact `add_tasks` / `add-tasks` adapters will share one service:
+The compact `add_tasks` / `add-tasks` adapters share one service:
 
 ```json
 {
@@ -57,6 +58,9 @@ The future compact `add_tasks` / `add-tasks` adapters will share one service:
   `approvedPreviewID` from a successful preview; a well-formed UUID alone is not
   proof of approval. The durable receipt must bind it to the exact plan.
 - Normalize UUID casing before lookup so aliases cannot bypass duplicate checks.
+- Names, stable IDs, parent IDs, native order and resolved due/defer values are
+  always returned. `returnFields` defaults to `["name"]` and can additionally
+  select `note`, `flagged`, `estimatedMinutes`, `tagIDs`, `dueDate`, `deferDate`.
 - MCP must reject unknown fields through closed schemas, with paired CLI and
   direct argument/wire coverage. Model decoding alone does not prove this gate.
 
@@ -89,7 +93,7 @@ reconciliation. Transport request IDs remain separate. Retrying with a new key
 is a new creation, not recovery, and must never be suggested as an automatic
 response to uncertainty.
 
-Before enabling writes, implement and test these durable transitions:
+The Bridge uses these durable transitions:
 
 1. Preview preflights every field, tag and destination, then freezes the intent
    fingerprint, resolved dates and hierarchy against an approval ID.
@@ -103,29 +107,60 @@ Before enabling writes, implement and test these durable transitions:
    A crash between constructor and ID journaling may leave an unknown created
    item; disclose that uncertainty instead of claiming no write occurred.
 
-Receipts must not live in `FocusRelayIPC`: startup maintenance purges unknown
+Receipts do not live in `FocusRelayIPC`: startup maintenance purges unknown
 entries and clears temporary protocol files on version changes. Use a separate
-owner-private state directory accessible to the installed Bridge. Minimize
-persisted data to intent fingerprints, approval/date/hierarchy metadata and
-stable IDs; do not retain task names or notes as diagnostics. Specify retention
-and recovery after state loss explicitly—expiring a receipt must not silently
-enable its old key to create again.
+owner-private sibling `FocusRelayState/creation-v1` directory accessible to the
+installed Bridge. Both directory levels are mode `0700`; admission files are
+`0600`. Receipts persist only fingerprints, approval/date metadata, destination
+parent ID and created stable IDs, not task names or notes.
 
-OmniFocus execution/journal admission across distinct MCP processes must be
-tested, not inferred from the server's process-local FIFO. Partial results
+Receipts and admission tombstones are retained indefinitely and are never
+expired by IPC cleanup or upgrades. Same-key admission uses an OS file lock
+across processes, plus synchronous native journal transitions. Lock files are
+never unlinked or replaced. A surviving admission tombstone with a missing
+receipt fails before dispatch, including preview. A failed native preview can
+therefore consume its key without writing a task; review a fresh proposal with
+a fresh key. An approved apply without a receipt always fails.
+
+Do not delete this state directory to troubleshoot IPC. If the entire state
+store is lost, restore it from backup or inspect OmniFocus and explicitly
+review a new proposal; callers must not automatically generate replacement
+keys. No system can recognize old keys after all their durable history is
+deliberately removed.
+
+OmniFocus execution/journal admission across distinct MCP processes is separate
+from the server's process-local FIFO. Partial results
 must distinguish created-but-unverified items from verified success. Prefer
 precise recoverable partial results over an unsupported all-or-nothing claim.
 
 ## Implementation And Validation Boundary
 
-The initial code adds typed requests, strict pure validation, ordered
-traversal, versioned intent fingerprints, and a pure replay-admission policy
-that never permits another apply after `applying`. It does not yet resolve
-native settings, persist receipts, construct
-tasks, or expose `add_tasks`. These are separate implementation checkpoints on
-the same product branch, not satisfied acceptance criteria.
+`add_tasks` uses a closed, bounded schema and the same typed service contract as
+the CLI. Creation is a write, non-destructive (no deletion/rollback), and
+idempotent for repeated identical keyed intent. Unknown fields fail in either
+adapter. Verification is mandatory; there is no unverified-success switch.
 
-Before feature UAT: test production JavaScriptCore fixtures and failures at
+CLI example: save the JSON above as `proposal.json`, then run:
+
+```bash
+focusrelay add-tasks --request-file proposal.json
+```
+
+After the user approves the returned concrete preview, retain the exact same
+proposal, change only `previewOnly` to `false`, add `approvedPreviewID` using the
+returned `previewID`, and run the same command. `--request-json` is an alternative
+to file input. Never use both. Partial/uncertain output is structured JSON with
+a nonzero CLI exit status or MCP `isError=true`.
+
+All reported `verified` tasks have passed field/hierarchy/order readback after
+save. `unverified` means a known created ID or a constructor that may have
+started; `not_created` means that node was not attempted. Save failure does not
+claim persistence even if the task is currently visible. Reconciliation reads
+known state only; it does not repair fields, save again, construct missing
+nodes, or delete partial results. Such recovery needs an explicit reviewed
+follow-up using existing edit tools or native OmniFocus, not blind retry.
+
+Required gates include production JavaScriptCore fixtures and failures at
 constructor, journal, field apply, save and verification; direct MCP arguments
 and annotations; CLI parity; changed preview intent; duplicate/restarted and
 cross-process retries. Then perform reversible live create/verify/cleanup for

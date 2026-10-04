@@ -20,6 +20,7 @@ struct FocusRelayCLI: AsyncParsableCommand {
             ListFolders.self,
             EditTasks.self,
             EditProjects.self,
+            AddTasks.self,
             TaskCounts.self,
             ProjectCounts.self,
             BridgeHealthCheck.self

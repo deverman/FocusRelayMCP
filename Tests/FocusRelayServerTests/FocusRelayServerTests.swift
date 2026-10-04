@@ -159,6 +159,7 @@ func publicMCPToolSurfaceExcludesInternalDiagnostics() {
         "list_folders",
         "edit_tasks",
         "edit_projects",
+        "add_tasks",
         "get_task_counts",
         "get_project_counts"
     ])
@@ -199,7 +200,8 @@ func outputFieldCatalogRejectsUnknownAndMixedFieldsDeterministically() {
 func mutationToolCatalogIsExplicitlySeparatedFromReadTools() {
     #expect(FocusRelayServer.mutationToolNames == [
         "edit_tasks",
-        "edit_projects"
+        "edit_projects",
+        "add_tasks"
     ])
     #expect(FocusRelayServer.mutationToolNames.isSubset(of: Set(FocusRelayServer.publicToolNames)))
     #expect(FocusRelayServer.publicToolNames.count - FocusRelayServer.mutationToolNames.count == 7)
@@ -436,22 +438,31 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
     for name in FocusRelayServer.mutationToolNames {
         let tool = try #require(tools.first { $0["name"] as? String == name })
         let description = try #require(tool["description"] as? String)
+        if name != "add_tasks" {
         #expect(description.contains("Run edit_tasks and edit_projects calls sequentially"))
         #expect(description.contains("wait for each mutation response"))
         #expect(description.contains("bridge_busy or bridge_queue_timeout"))
         #expect(description.contains("wait at least retryAfterMilliseconds"))
         #expect(description.contains("retrying only that request"))
         #expect(description.contains("Do not automatically retry any other mutation failure"))
+        } else {
+            #expect(description.contains("repeat the SAME key"))
+            #expect(description.contains("NEVER use a new key to retry"))
+        }
 
         let annotations = try #require(tool["annotations"] as? [String: Any])
         #expect(annotations["readOnlyHint"] as? Bool == false)
-        #expect(annotations["destructiveHint"] as? Bool == true)
-        #expect(annotations["idempotentHint"] as? Bool == false)
+        #expect(annotations["destructiveHint"] as? Bool == (name != "add_tasks"))
+        #expect(annotations["idempotentHint"] as? Bool == (name == "add_tasks"))
         #expect(annotations["openWorldHint"] as? Bool == false)
 
         let schema = try #require(tool["inputSchema"] as? [String: Any])
         #expect(schema["additionalProperties"] as? Bool == false)
-        #expect((schema["oneOf"] as? [[String: Any]])?.isEmpty == false)
+        if name != "add_tasks" {
+            #expect((schema["oneOf"] as? [[String: Any]])?.isEmpty == false)
+        } else {
+            #expect(schema["required"] as? [String] == ["creationKey", "tasks"])
+        }
     }
 }
 

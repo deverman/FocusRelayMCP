@@ -11,18 +11,21 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
     public let tasks: [TaskCreationNode]
     public let previewOnly: Bool
     public let approvedPreviewID: String?
+    public let returnFields: [String]
 
     public init(creationKey: String, destination: TaskCreationDestination = .init(kind: .inbox),
-                tasks: [TaskCreationNode], previewOnly: Bool = true, approvedPreviewID: String? = nil) {
+                tasks: [TaskCreationNode], previewOnly: Bool = true, approvedPreviewID: String? = nil,
+                returnFields: [String] = ["name"]) {
         self.creationKey = creationKey
         self.destination = destination
         self.tasks = tasks
         self.previewOnly = previewOnly
         self.approvedPreviewID = approvedPreviewID
+        self.returnFields = returnFields
     }
 
     private enum CodingKeys: String, CodingKey {
-        case creationKey, destination, tasks, previewOnly, approvedPreviewID
+        case creationKey, destination, tasks, previewOnly, approvedPreviewID, returnFields
     }
 
     public init(from decoder: Decoder) throws {
@@ -33,6 +36,7 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
         // Missing approval flags must never turn a request into an apply.
         previewOnly = try values.decodeIfPresent(Bool.self, forKey: .previewOnly) ?? true
         approvedPreviewID = try values.decodeIfPresent(String.self, forKey: .approvedPreviewID)
+        returnFields = try values.decodeIfPresent([String].self, forKey: .returnFields) ?? ["name"]
     }
 
     /// The durable journal must normalize UUID casing so aliases cannot bypass replay checks.
@@ -43,7 +47,8 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
     /// changes the digest. Equivalent UUID casing does not change the identity.
     public func intentFingerprint() throws -> String {
         try validate()
-        let normalized = TaskCreationRequest(creationKey: normalizedCreationKey!, destination: destination, tasks: tasks)
+        let normalized = TaskCreationRequest(creationKey: normalizedCreationKey!, destination: destination, tasks: tasks,
+                                             returnFields: returnFields)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = Data("focusrelay-task-creation-v1\0".utf8) + (try encoder.encode(normalized))
@@ -64,6 +69,10 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
             }
         }
         try destination.validate()
+        let allowedFields: Set<String> = ["name", "note", "flagged", "estimatedMinutes", "tagIDs", "dueDate", "deferDate"]
+        guard Set(returnFields).count == returnFields.count, Set(returnFields).isSubset(of: allowedFields) else {
+            throw MutationValidationError("returnFields must contain unique supported creation confirmation fields.")
+        }
         guard !tasks.isEmpty else { throw MutationValidationError("Creation requires at least one task.") }
         var identifiers = Set<String>()
         var count = 0
