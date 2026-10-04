@@ -3,12 +3,21 @@ import Foundation
 /// Success means all requested tasks were saved and verified, not merely constructed.
 public struct TaskCreationResponse: Codable, Sendable, Equatable {
     public enum Status: String, Codable, Sendable { case previewed, completed, partial, uncertain }
-    public let creationKey: String
-    public let previewID: String
     public let status: Status
     public let destination: TaskCreationDestination
     public let results: [TaskCreationResult]
     public let message: String
+    /// A stateless apply payload, with date-only inputs resolved to exact instants.
+    public let applyRequest: TaskCreationRequest?
+
+    public init(status: Status, destination: TaskCreationDestination, results: [TaskCreationResult],
+                message: String, applyRequest: TaskCreationRequest? = nil) {
+        self.status = status
+        self.destination = destination
+        self.results = results
+        self.message = message
+        self.applyRequest = applyRequest
+    }
 }
 
 public struct TaskCreationResult: Codable, Sendable, Equatable {

@@ -715,9 +715,9 @@ public enum FocusRelayServer {
             ),
             Tool(
                 name: "add_tasks",
-                description: "Create approved tasks and ordered subtasks (20 tasks, five levels) in inbox, an existing project, or an existing parent task. Use a fresh UUID creationKey for a new proposal, reused unchanged for preview, approved apply, and every reconciliation. Preview is the default and changes no OmniFocus data. Present the complete hierarchy and resolved local dates to the user; only after approval send previewOnly=false with the returned previewID as approvedPreviewID and otherwise identical intent. Exact dates use {at: ISO8601-with-offset}; date-only uses {on: YYYY-MM-DD, time: {policy: omnifocus_default}} without model-generated UTC offsets. Dates are frozen by preview. Existing tags require stable tagIDs; this does not create projects or missing tags. Always returns names, IDs, parents, order and resolved dates; returnFields controls extra confirmation fields. Completed means every task was created, saved and verified. Partial/uncertain results require user review. After ANY uncertain response, repeat the SAME key and intent to reconcile read-only; NEVER use a new key to retry. Calls are sequential. Rejecting or ignoring a preview leaves OmniFocus unchanged.",
+                description: "Create tasks and ordered subtasks (20 tasks, five levels) in inbox, an existing project, or an existing parent task. Omitted previewOnly performs a write, like edit tools; obtain user approval before applying. Use previewOnly=true to show the complete hierarchy and resolved local dates without changes. After approval submit the returned applyRequest once. Exact dates use {at: ISO8601-with-offset}; date-only uses {on: YYYY-MM-DD, time: {policy: omnifocus_default}} in previews only, where OmniFocus resolves its default times into exact applyRequest timestamps. Existing tags require stable tagIDs; this does not create projects or missing tags. Returns names, IDs, parents, order and resolved dates; returnFields controls extra confirmation fields. Completed means every task was created, saved and verified. Partial or uncertain results require user review in OmniFocus before another creation attempt. Repeating an apply can create duplicates. Calls are sequential. Only known pre-dispatch bridge_busy or bridge_queue_timeout rejections may be retried after the suggested delay; never automatically retry another mutation failure. Ignoring a preview leaves OmniFocus unchanged.",
                 inputSchema: taskCreationSchema(),
-                annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false)
             ),
             Tool(
                 name: "get_task_counts",
@@ -770,7 +770,7 @@ public enum FocusRelayServer {
             tools.filter { mutationToolNames.contains($0.name) }.allSatisfy {
                 $0.annotations.readOnlyHint == false &&
                     $0.annotations.destructiveHint == ($0.name != "add_tasks") &&
-                    $0.annotations.idempotentHint == ($0.name == "add_tasks") &&
+                    $0.annotations.idempotentHint == false &&
                     $0.annotations.openWorldHint == false
             },
             "Mutation tool annotations must truthfully describe write risk."

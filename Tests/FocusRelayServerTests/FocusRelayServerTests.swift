@@ -446,14 +446,14 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
         #expect(description.contains("retrying only that request"))
         #expect(description.contains("Do not automatically retry any other mutation failure"))
         } else {
-            #expect(description.contains("repeat the SAME key"))
-            #expect(description.contains("NEVER use a new key to retry"))
+            #expect(description.contains("Repeating an apply can create duplicates"))
+            #expect(description.contains("never automatically retry another mutation failure"))
         }
 
         let annotations = try #require(tool["annotations"] as? [String: Any])
         #expect(annotations["readOnlyHint"] as? Bool == false)
         #expect(annotations["destructiveHint"] as? Bool == (name != "add_tasks"))
-        #expect(annotations["idempotentHint"] as? Bool == (name == "add_tasks"))
+        #expect(annotations["idempotentHint"] as? Bool == false)
         #expect(annotations["openWorldHint"] as? Bool == false)
 
         let schema = try #require(tool["inputSchema"] as? [String: Any])
@@ -461,7 +461,7 @@ func productionToolsListMatchesGoldenPublicCatalog() throws {
         if name != "add_tasks" {
             #expect((schema["oneOf"] as? [[String: Any]])?.isEmpty == false)
         } else {
-            #expect(schema["required"] as? [String] == ["creationKey", "tasks"])
+            #expect(schema["required"] as? [String] == ["tasks"])
         }
     }
 }

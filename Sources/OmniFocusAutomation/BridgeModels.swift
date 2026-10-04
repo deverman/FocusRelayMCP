@@ -16,8 +16,6 @@ struct BridgeRequest: Codable {
     let page: PageRequest?
     var forecastWindow: ForecastWindow? = nil
     var creation: TaskCreationRequest? = nil
-    var creationFingerprint: String? = nil
-    var creationPreviewID: String? = nil
 }
 
 /// Half-open local calendar day, computed by Foundation rather than JS locale guesses.

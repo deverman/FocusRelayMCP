@@ -4,33 +4,23 @@ import Testing
 
 @Suite("Task creation contract")
 struct TaskCreationModelsTests {
-    let key = "7186bc33-067a-44c6-afab-9a5659c5f953"
-
-    @Test func omittedFlagsDecodeAsPreviewNotWrite() throws {
-        let json = #"{"creationKey":"7186bc33-067a-44c6-afab-9a5659c5f953","tasks":[{"clientID":"one","name":"Capture"}]}"#
+    @Test func omittedFlagsDecodeAsWriteLikeEdits() throws {
+        let json = #"{"tasks":[{"clientID":"one","name":"Capture"}]}"#
         let request = try JSONDecoder().decode(TaskCreationRequest.self, from: Data(json.utf8))
         try request.validate()
-        #expect(request.previewOnly)
+        #expect(!request.previewOnly)
         #expect(request.destination.kind == .inbox)
         #expect(request.tasks[0].children.isEmpty)
-        #expect(request.normalizedCreationKey == key.uppercased())
-        #expect(request.approvedPreviewID == nil)
     }
 
-    @Test func executionRequiresApprovalAndPreviewRejectsExecutionToken() throws {
-        let task = TaskCreationNode(clientID: "one", name: "Capture")
+    @Test func dateOnlyApplyRequiresPreviewButExactApplyIsAllowed() throws {
+        let dateOnly = TaskCreationNode(clientID: "one", name: "Capture", due: .init(on: "2026-10-06", time: .init()))
         #expect(throws: MutationValidationError.self) {
-            try TaskCreationRequest(creationKey: key, tasks: [task], previewOnly: false).validate()
+            try TaskCreationRequest(tasks: [dateOnly]).validate()
         }
-        #expect(throws: MutationValidationError.self) {
-            try TaskCreationRequest(creationKey: key, tasks: [task], approvedPreviewID: key).validate()
-        }
-        try TaskCreationRequest(creationKey: key, tasks: [task], previewOnly: false, approvedPreviewID: key).validate()
-        for invalid in ["", "../requests", "not-a-UUID"] {
-            #expect(throws: MutationValidationError.self) {
-                try TaskCreationRequest(creationKey: invalid, tasks: [task]).validate()
-            }
-        }
+        try TaskCreationRequest(tasks: [dateOnly], previewOnly: true).validate()
+        let exact = TaskCreationNode(clientID: "one", name: "Capture", due: .init(at: "2026-10-06T09:00:00Z"))
+        try TaskCreationRequest(tasks: [exact]).validate()
     }
 
     @Test func heterogeneousHierarchyPreservesSiblingAndConstructorOrder() throws {
@@ -38,7 +28,7 @@ struct TaskCreationModelsTests {
             .init(clientID: "research", name: "Research", flagged: true, tagIDs: ["tag-id"]),
             .init(clientID: "draft", name: "Draft", children: [.init(clientID: "review", name: "Review")])
         ])
-        let request = TaskCreationRequest(creationKey: key, destination: .init(kind: .project, id: "project-id"),
+        let request = TaskCreationRequest(destination: .init(kind: .project, id: "project-id"),
                                           tasks: [parent, .init(clientID: "send", name: "Send", estimatedMinutes: 10)])
         let ordered = try request.orderedNodes()
         #expect(ordered.map(\.clientID) == ["plan", "research", "draft", "review", "send"])
@@ -47,50 +37,6 @@ struct TaskCreationModelsTests {
         #expect(ordered[1].node.flagged == true)
         #expect(ordered.last?.node.estimatedMinutes == 10)
         #expect(try JSONDecoder().decode(TaskCreationRequest.self, from: JSONEncoder().encode(request)) == request)
-    }
-
-    @Test func fingerprintBindsIntentButNotExecutionFlagsOrUUIDCasing() throws {
-        let tasks: [TaskCreationNode] = [.init(clientID: "one", name: "Capture", note: "Private note"),
-                                        .init(clientID: "two", name: "Another", due: .init(on: "2026-10-06", time: .init()))]
-        let preview = TaskCreationRequest(creationKey: key, tasks: tasks)
-        let execute = TaskCreationRequest(creationKey: key.uppercased(), tasks: tasks, previewOnly: false, approvedPreviewID: key)
-        let fingerprint = try preview.intentFingerprint()
-        #expect(fingerprint.count == 64)
-        #expect(try execute.intentFingerprint() == fingerprint)
-        #expect(try TaskCreationRequest(creationKey: key, tasks: tasks.reversed()).intentFingerprint() != fingerprint)
-        #expect(try TaskCreationRequest(creationKey: key, destination: .init(kind: .project, id: "different"), tasks: tasks).intentFingerprint() != fingerprint)
-        for changed in [TaskCreationNode(clientID: "one", name: "Capture", note: "Changed"),
-                        .init(clientID: "one", name: "Renamed", note: "Private note"),
-                        .init(clientID: "one", name: "Capture", note: "Private note", flagged: true),
-                        .init(clientID: "one", name: "Capture", note: "Private note", tagIDs: ["tag"])] {
-            #expect(try TaskCreationRequest(creationKey: key, tasks: [changed, tasks[1]]).intentFingerprint() != fingerprint)
-        }
-    }
-
-    @Test func replayAdmissionNeverAuthorizesAnotherConstructorAfterApplyBegan() throws {
-        let tasks: [TaskCreationNode] = [.init(clientID: "one", name: "Capture")]
-        let preview = TaskCreationRequest(creationKey: key, tasks: tasks)
-        let fingerprint = try preview.intentFingerprint()
-        let execute = TaskCreationRequest(creationKey: key, tasks: tasks, previewOnly: false, approvedPreviewID: key)
-        func decision(_ request: TaskCreationRequest, _ state: TaskCreationReplayPolicy.State) throws -> TaskCreationReplayPolicy.Decision {
-            try TaskCreationReplayPolicy.decision(for: request, storedCreationKey: key.uppercased(),
-                storedFingerprint: fingerprint, storedPreviewID: key.uppercased(), state: state)
-        }
-        #expect(try decision(preview, .prepared) == .reusePreview)
-        #expect(try decision(execute, .prepared) == .applyApprovedPreview)
-        for state in [TaskCreationReplayPolicy.State.applying, .uncertain, .completed] {
-            #expect(try decision(execute, state) == .reconcileOnly)
-            #expect(try decision(preview, state) == .reconcileOnly)
-        }
-        let wrongApproval = TaskCreationRequest(creationKey: key, tasks: tasks, previewOnly: false,
-                                               approvedPreviewID: "149d9457-a82f-41bb-8903-287c16231c4e")
-        #expect(throws: MutationValidationError.self) { try decision(wrongApproval, .prepared) }
-        let changed = TaskCreationRequest(creationKey: key, tasks: [.init(clientID: "one", name: "Changed")])
-        #expect(throws: MutationValidationError.self) { try decision(changed, .prepared) }
-        #expect(throws: MutationValidationError.self) {
-            try TaskCreationReplayPolicy.decision(for: preview, storedCreationKey: "invalid",
-                storedFingerprint: fingerprint, storedPreviewID: key, state: .prepared)
-        }
     }
 
     @Test func destinationsAreExplicitAndBounded() throws {
@@ -116,7 +62,7 @@ struct TaskCreationModelsTests {
         for node in invalidNodes {
             let root = TaskCreationNode(clientID: "root", name: "Valid root", children: [node])
             #expect(throws: MutationValidationError.self) {
-                try TaskCreationRequest(creationKey: key, tasks: [root]).orderedNodes()
+                try TaskCreationRequest(tasks: [root]).orderedNodes()
             }
         }
     }
@@ -125,15 +71,15 @@ struct TaskCreationModelsTests {
         let one = TaskCreationNode(clientID: "one", name: "One")
         let duplicate = TaskCreationNode(clientID: "root", name: "Root", children: [one])
         for tasks in [[], [one, duplicate], (0...20).map({ TaskCreationNode(clientID: "id-\($0)", name: "Task") })] {
-            #expect(throws: MutationValidationError.self) { try TaskCreationRequest(creationKey: key, tasks: tasks).validate() }
+            #expect(throws: MutationValidationError.self) { try TaskCreationRequest(tasks: tasks).validate() }
         }
         let limit = (0..<20).map { TaskCreationNode(clientID: "id-\($0)", name: "Task") }
-        try TaskCreationRequest(creationKey: key, tasks: limit).validate()
+        try TaskCreationRequest(tasks: limit).validate()
         var tree = one
         for level in 1...4 { tree = .init(clientID: "parent-\(level)", name: "Parent", children: [tree]) }
-        try TaskCreationRequest(creationKey: key, tasks: [tree]).validate()
+        try TaskCreationRequest(tasks: [tree]).validate()
         tree = .init(clientID: "too-deep", name: "Parent", children: [tree])
-        #expect(throws: MutationValidationError.self) { try TaskCreationRequest(creationKey: key, tasks: [tree]).validate() }
+        #expect(throws: MutationValidationError.self) { try TaskCreationRequest(tasks: [tree]).validate() }
     }
 
     @Test(arguments: ["2026-08-18T09:00:00Z", "2026-08-18T17:00:00+08:00", "2026-08-18T09:00:00.123Z", "2024-02-29T00:00:00-05:00"])
