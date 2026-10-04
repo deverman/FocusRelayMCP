@@ -7,6 +7,18 @@ import Testing
 
 @Suite("Task creation MCP wire boundary")
 struct TaskCreationWireTests {
+    @Test(arguments: ["__proto__", "__destination__"])
+    func specialButValidClientIDsReachSharedService(identifier: String) async throws {
+        try await withCreationClient { client, service in
+            let call: RequestContext<CallTool.Result> = try await client.callTool(name: "add_tasks", arguments: [
+                "creationKey": .string("00000000-0000-0000-0000-000000000001"),
+                "tasks": .array([.object(["clientID": .string(identifier), "name": .string("Synthetic")])])
+            ])
+            #expect(try await call.value.isError != true)
+            #expect(await service.requests.first?.tasks.first?.clientID == identifier)
+        }
+    }
+
     @Test func sparsePreviewAndApprovedApplyReachSharedService() async throws {
         try await withCreationClient { client, service in
             let arguments: [String: Value] = [

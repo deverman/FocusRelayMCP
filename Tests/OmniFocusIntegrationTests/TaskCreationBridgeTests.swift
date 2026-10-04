@@ -5,6 +5,32 @@ import OmniFocusCore
 
 @Suite("Task creation native boundary contracts")
 struct TaskCreationBridgeTests {
+    @Test(arguments: ["__proto__", "__destination__", "constructor", "toString", "hasOwnProperty", "normal"], ["root", "child"])
+    func allValidClientIDsSurviveReceiptRoundTripAndOrderVerification(identifier: String, position: String) throws {
+        let result = try runCreationFixture("""
+        request.creation.tasks[0].clientID='\(position)' === 'root' ? '\(identifier)' : 'parent';
+        request.creation.tasks[0].children[0].clientID='\(position)' === 'child' ? '\(identifier)' : 'child_\(identifier)';
+        request.creation.tasks[0].due={on:'2026-12-31',time:{policy:'omnifocus_default'}};
+        const preview=performTaskCreation(request,io);
+        const before=creations;
+        request.creation.previewOnly=false;request.creation.approvedPreviewID=preview.previewID;
+        const applied=performTaskCreation(request,io);
+        const replay=performTaskCreation(request,io);
+        JSON.stringify({before,applied,replay,creations,saves,ledger});
+        """)
+        #expect(result["before"] as? Int == 0)
+        #expect(result["creations"] as? Int == 3)
+        #expect(result["saves"] as? Int == 1)
+        let applied = try JSONDecoder().decode(TaskCreationResponse.self, from: JSONSerialization.data(withJSONObject: try #require(result["applied"])))
+        let replay = try JSONDecoder().decode(TaskCreationResponse.self, from: JSONSerialization.data(withJSONObject: try #require(result["replay"])))
+        #expect(applied.status == .completed)
+        #expect(replay.status == .completed)
+        #expect(applied.results.map(\.id) == replay.results.map(\.id))
+        #expect(applied.results.map(\.parentID) == [nil, "new-1", nil])
+        #expect(applied.results.map(\.finalOrder) == [1, 0, 2])
+        #expect(applied.results.first?.due?.iso8601 == "2026-12-31T17:45:00.000Z")
+    }
+
     @Test func previewApplyAndReplayVerifyHierarchyWithoutDuplicates() throws {
         let result = try runCreationFixture("""
         const preview = performTaskCreation(request, io);
