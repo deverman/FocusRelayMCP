@@ -6,75 +6,76 @@ import OmniFocusCore
 @Suite("Task creation native boundary contracts")
 struct TaskCreationBridgeTests {
     @Test(arguments: ["__proto__", "__destination__", "constructor", "toString", "hasOwnProperty", "normal"], ["root", "child"])
-    func allValidClientIDsSurviveReceiptRoundTripAndOrderVerification(identifier: String, position: String) throws {
+    func allValidClientIDsPreserveHierarchyAndOrder(identifier: String, position: String) throws {
         let result = try runCreationFixture("""
         request.creation.tasks[0].clientID='\(position)' === 'root' ? '\(identifier)' : 'parent';
         request.creation.tasks[0].children[0].clientID='\(position)' === 'child' ? '\(identifier)' : 'child_\(identifier)';
         request.creation.tasks[0].due={on:'2026-12-31',time:{policy:'omnifocus_default'}};
         const preview=performTaskCreation(request,io);
         const before=creations;
-        request.creation.previewOnly=false;request.creation.approvedPreviewID=preview.previewID;
+        request.creation = preview.applyRequest;
         const applied=performTaskCreation(request,io);
-        const replay=performTaskCreation(request,io);
-        JSON.stringify({before,applied,replay,creations,saves,ledger});
+        JSON.stringify({before,applied,creations,saves,writes});
         """)
         #expect(result["before"] as? Int == 0)
         #expect(result["creations"] as? Int == 3)
         #expect(result["saves"] as? Int == 1)
         let applied = try JSONDecoder().decode(TaskCreationResponse.self, from: JSONSerialization.data(withJSONObject: try #require(result["applied"])))
-        let replay = try JSONDecoder().decode(TaskCreationResponse.self, from: JSONSerialization.data(withJSONObject: try #require(result["replay"])))
         #expect(applied.status == .completed)
-        #expect(replay.status == .completed)
-        #expect(applied.results.map(\.id) == replay.results.map(\.id))
         #expect(applied.results.map(\.parentID) == [nil, "new-1", nil])
         #expect(applied.results.map(\.finalOrder) == [1, 0, 2])
         #expect(applied.results.first?.due?.iso8601 == "2026-12-31T17:45:00.000Z")
     }
 
-    @Test func previewApplyAndReplayVerifyHierarchyWithoutDuplicates() throws {
+    @Test func repeatedApplyCreatesDistinctBatchesWithoutHistory() throws {
         let result = try runCreationFixture("""
         const preview = performTaskCreation(request, io);
-        const before = creations;
-        request.creation.previewOnly = false;
-        request.creation.approvedPreviewID = preview.previewID;
-        const applied = performTaskCreation(request, io);
-        const replay = performTaskCreation(request, io);
-        JSON.stringify({preview, before, applied, replay, creations, saves, ledger});
+        const before = {creations, saves, writes};
+        request.creation = preview.applyRequest;
+        const first = performTaskCreation(request, io);
+        const second = performTaskCreation(request, io);
+        JSON.stringify({before, first, second, creations, saves, writes});
         """)
-        #expect(result["before"] as? Int == 0)
-        #expect(result["creations"] as? Int == 3)
-        #expect(result["saves"] as? Int == 1)
-        let applied = try #require(result["applied"] as? [String: Any])
-        let encoded = try JSONSerialization.data(withJSONObject: applied)
-        let response = try JSONDecoder().decode(TaskCreationResponse.self, from: encoded)
-        #expect(response.status == .completed)
-        #expect(response.results.map(\.finalOrder) == [1, 0, 2])
-        #expect(response.results.map(\.parentID) == [nil, "new-1", nil])
-        #expect(response.results.allSatisfy { $0.status == .verified })
-        #expect((result["replay"] as? [String: Any])?["status"] as? String == "completed")
-        let ledger = try #require(result["ledger"] as? [String: Any])
-        let stored = String(data: try JSONSerialization.data(withJSONObject: ledger), encoding: .utf8)!
-        #expect(!stored.contains("Synthetic parent"))
-        #expect(!stored.contains("Private synthetic note"))
+        let before = try #require(result["before"] as? [String: Int])
+        #expect(before == ["creations": 0, "saves": 0, "writes": 0])
+        #expect(result["creations"] as? Int == 6)
+        #expect(result["saves"] as? Int == 2)
+        #expect(result["writes"] as? Int == 0)
+        let first = try JSONDecoder().decode(TaskCreationResponse.self,
+            from: JSONSerialization.data(withJSONObject: try #require(result["first"])))
+        let second = try JSONDecoder().decode(TaskCreationResponse.self,
+            from: JSONSerialization.data(withJSONObject: try #require(result["second"])))
+        #expect(first.status == .completed)
+        #expect(second.status == .completed)
+        #expect(Set(first.results.compactMap(\.id)).isDisjoint(with: second.results.compactMap(\.id)))
     }
 
-    @Test(arguments: ["constructor", "fields", "save", "verification", "journal"])
-    func partialFailureNeverAdmitsAnotherConstructor(stage: String) throws {
+    @Test(arguments: ["constructor", "fields", "save", "verification"])
+    func partialFailureStopsTheAttemptAndReportsKnownIDs(stage: String) throws {
         let result = try runCreationFixture("""
         const preview = performTaskCreation(request, io);
-        request.creation.previewOnly = false;
-        request.creation.approvedPreviewID = preview.previewID;
+        request.creation = preview.applyRequest;
         failure = '\(stage)';
         const first = performTaskCreation(request, io);
         const count = creations;
-        failure = null;
-        const replay = performTaskCreation(request, io);
-        JSON.stringify({first, replay, count, creations, saves});
+        JSON.stringify({first, count, creations, saves});
         """)
         #expect(result["count"] as? Int == result["creations"] as? Int)
         #expect((result["first"] as? [String: Any])?["status"] as? String != "completed")
+        let response = try JSONDecoder().decode(TaskCreationResponse.self,
+            from: JSONSerialization.data(withJSONObject: try #require(result["first"])))
+        #expect(response.results.count == 3)
+        if stage == "constructor" {
+            #expect(result["creations"] as? Int == 2)
+            #expect(response.results.map(\.status) == [.unverified, .unverified, .notCreated])
+            #expect(response.results.map(\.id) == ["new-1", nil, nil])
+        }
+        if stage == "fields" {
+            #expect(result["creations"] as? Int == 1)
+            #expect(response.results.map(\.status) == [.unverified, .notCreated, .notCreated])
+        }
         if stage == "save" {
-            #expect((result["replay"] as? [String: Any])?["status"] as? String != "completed")
+            #expect(response.results.allSatisfy { $0.status == .unverified })
         }
     }
 
@@ -99,12 +100,23 @@ struct TaskCreationBridgeTests {
         request.creation.tasks[0].defer = {on:'2026-12-30', time:{policy:'omnifocus_default'}};
         const preview = performTaskCreation(request, io);
         configured.DefaultDueTime = '22:00'; configured.DefaultStartTime = '11:00';
-        request.creation.previewOnly = false; request.creation.approvedPreviewID = preview.previewID;
+        request.creation = preview.applyRequest;
         const applied = performTaskCreation(request, io);
         JSON.stringify({preview, applied, settingReads, creations});
         """)
         let preview = try #require(result["preview"] as? [String: Any])
         let applied = try #require(result["applied"] as? [String: Any])
+        let response = try JSONDecoder().decode(TaskCreationResponse.self,
+            from: JSONSerialization.data(withJSONObject: preview))
+        let applyRequest = try #require(response.applyRequest)
+        try applyRequest.validate()
+        #expect(!applyRequest.previewOnly)
+        #expect(applyRequest.tasks[0].due?.at == "2026-12-31T17:45:00.000Z")
+        #expect(applyRequest.tasks[0].defer?.at == "2026-12-30T08:15:00.000Z")
+        #expect(applyRequest.tasks[0].note == "Private synthetic note")
+        #expect(applyRequest.tasks[0].tagIDs == ["tag"])
+        #expect(applyRequest.tasks[0].children[0].clientID == "child")
+        #expect(applyRequest.tasks[1].clientID == "sibling")
         let item = try #require((preview["results"] as? [[String: Any]])?.first)
         #expect((item["due"] as? [String: Any])?["iso8601"] as? String == "2026-12-31T17:45:00.000Z")
         #expect((item["defer"] as? [String: Any])?["iso8601"] as? String == "2026-12-30T08:15:00.000Z")
@@ -132,7 +144,7 @@ struct TaskCreationBridgeTests {
         #expect(result["creations"] as? Int == 0)
     }
 
-    @Test func nonexistentDSTWallTimeFailsBeforeJournalOrConstructor() throws {
+    @Test func nonexistentDSTWallTimeFailsBeforeWrites() throws {
         let result = try runCreationFixture("""
         configured.DefaultDueTime='02:30';
         request.creation.tasks[0].due={on:'2026-03-08',time:{policy:'omnifocus_default'}};
@@ -159,42 +171,6 @@ struct TaskCreationBridgeTests {
         #expect(result["writes"] as? Int == 0)
     }
 
-    @Test func missingReceiptAndChangedIntentDoNotCreate() throws {
-        let result = try runCreationFixture("""
-        const preview = performTaskCreation(request, io);
-        request.creation.previewOnly=false; request.creation.approvedPreviewID=preview.previewID;
-        request.creationFingerprint='b'.repeat(64);
-        let changed=null; try {performTaskCreation(request,io);} catch(e){changed=String(e);}
-        ledger={}; request.creationFingerprint='a'.repeat(64);
-        let missing=null; try {performTaskCreation(request,io);} catch(e){missing=String(e);}
-        JSON.stringify({changed,missing,creations});
-        """)
-        #expect(result["changed"] as? String != nil)
-        #expect(result["missing"] as? String != nil)
-        #expect(result["creations"] as? Int == 0)
-    }
-
-    @Test(arguments: ["missing", "parent", "order", "field"])
-    func completedReplayReconcilesNativeDriftWithoutWriting(kind: String) throws {
-        let result = try runCreationFixture("""
-        const preview = performTaskCreation(request, io);
-        request.creation.previewOnly = false; request.creation.approvedPreviewID = preview.previewID;
-        performTaskCreation(request, io);
-        const before = {creations, saves, writes};
-        if ('\(kind)' === 'missing') delete map['new-1'];
-        if ('\(kind)' === 'parent') map['new-2'].parent = existing;
-        if ('\(kind)' === 'order') inboxItems.reverse();
-        if ('\(kind)' === 'field') map['new-1'].name = 'Changed externally';
-        const replay = performTaskCreation(request, io);
-        JSON.stringify({before, creations, saves, writes, replay});
-        """)
-        let before = try #require(result["before"] as? [String: Int])
-        #expect(result["creations"] as? Int == before["creations"])
-        #expect(result["saves"] as? Int == before["saves"])
-        #expect(result["writes"] as? Int == before["writes"])
-        #expect((result["replay"] as? [String: Any])?["status"] as? String == "partial")
-    }
-
     @Test(arguments: ["project", "parent_task"])
     func stableDestinationIDsPreserveExistingChildren(kind: String) throws {
         let result = try runCreationFixture("""
@@ -202,7 +178,7 @@ struct TaskCreationBridgeTests {
         io.projects = () => ({project:{id:{primaryKey:'project'},task:existing}});
         request.creation.destination = {kind:'\(kind)', id:'\(kind)' === 'project' ? 'project' : 'existing'};
         const preview = performTaskCreation(request, io);
-        request.creation.previewOnly = false; request.creation.approvedPreviewID = preview.previewID;
+        request.creation = preview.applyRequest;
         const applied = performTaskCreation(request, io);
         JSON.stringify({applied, prior:existing.children[0].id.primaryKey});
         """)
@@ -223,7 +199,7 @@ private func runCreationFixture(_ body: String, calendarTimeZone: String? = nil)
     var exception: String?
     context.exceptionHandler = { _, value in exception = value?.toString() }
     let setup = """
-    var ledger={}, creations=0, saves=0, writes=0, failure=null, settingReads=0;
+    var creations=0, saves=0, writes=0, failure=null, settingReads=0;
     var configured={DefaultDueTime:'17:45',DefaultStartTime:'08:15'};
     var settings={objectForKey:key=>{settingReads++;return configured[key];},defaultObjectForKey:()=>{throw Error('factory setting forbidden');}};
     function DateComponents() {}
@@ -232,8 +208,9 @@ private func runCreationFixture(_ body: String, calendarTimeZone: String? = nil)
       dateFromDateComponents:c=>new Date(Date.UTC(c.year,c.month-1,c.day,c.hour,c.minute,c.second))}};
     var existing={id:{primaryKey:'existing'},name:'Existing',parent:null,children:[],tags:[]};
     var map={existing}, inboxItems=[existing];
-    var io={directory:'/state',exists:p=>Object.prototype.hasOwnProperty.call(ledger,p),read:p=>JSON.parse(JSON.stringify(ledger[p])),
-      write:(p,value)=>{writes++;if(failure==='journal' && creations===1)throw Error('injected journal failure');ledger[p]=JSON.parse(JSON.stringify(value));},
+    var io={exists:()=>{throw Error('history read forbidden');},
+      read:()=>{throw Error('history read forbidden');},
+      write:()=>{writes++;throw Error('history write forbidden');},
       tasks:()=>map,projects:()=>({}),tags:()=>({tag:{id:{primaryKey:'tag'}}}),inbox:()=>inboxItems,
       remaining:t=>!t.completed,projectRemaining:()=>true,
       create:(name,parent)=>{creations++;if(failure==='constructor' && creations===2)throw Error('injected constructor failure');
@@ -243,8 +220,8 @@ private func runCreationFixture(_ body: String, calendarTimeZone: String? = nil)
         if(failure==='verification')t.name='Mismatch';
         map[t.id.primaryKey]=t;(parent?parent.children:inboxItems).push(t);return t;},
       save:()=>{saves++;if(failure==='save')throw Error('injected save failure');}};
-    var request={creationFingerprint:'a'.repeat(64),creationPreviewID:'00000000-0000-0000-0000-000000000002',userTimeZone:'UTC',
-      creation:{creationKey:'00000000-0000-0000-0000-000000000001',previewOnly:true,destination:{kind:'inbox'},
+    var request={userTimeZone:'UTC',
+      creation:{previewOnly:true,destination:{kind:'inbox'},
         tasks:[{clientID:'parent',name:'Synthetic parent',note:'Private synthetic note',tagIDs:['tag'],children:[{clientID:'child',name:'Synthetic child'}]},
           {clientID:'sibling',name:'Synthetic sibling'}]}};
     """

@@ -1,31 +1,30 @@
 # Task Creation Contract
 
 Issue [#82](https://github.com/deverman/FocusRelayMCP/issues/82) owns the
-implementation and validation checklist. The candidate exposes `add_tasks`
-and `focusrelay add-tasks`. Availability in a released Homebrew build depends
-on the release version; draft implementation is not release certification.
-Validation impact is `mutation`.
+implementation and validation evidence. The candidate exposes `add_tasks`
+and `focusrelay add-tasks`; a tested PR is not release certification.
+Validation impact: `transport-reliability`.
 
-## Bounded User Journey
+## User Journey
 
-An assistant proposes ordered tasks or subtasks in the inbox, an existing
-project, or beneath an existing task. Preview validates the entire hierarchy
-and resolves dates to concrete local and UTC values. The user approves that
-preview. Execution creates, saves and verifies IDs, parent/destination, native
-sibling order, and requested fields. Unapproved plans leave OmniFocus unchanged.
+The client previews ordered tasks and subtasks in the inbox, an existing
+project, or beneath an existing task. It shows the hierarchy and resolved
+dates to the user. After approval, it submits the returned `applyRequest`
+once. FocusRelay creates, saves, and verifies the tasks.
 
-Project creation/conversion (#83), missing tags (#128), and unrestricted or
-ordinal natural-language date parsing are outside this slice. Existing projects
-returned by #83 can later use the same project-ID destination; #82 does not
-need to know how the project was created.
+Approval belongs to the client, like the edit tools. Omitted `previewOnly`
+means **apply**, not preview. An explicit preview creates and saves nothing.
+Ignoring a preview leaves OmniFocus unchanged.
 
-## Typed Request
+Project creation/conversion (#83), missing tag creation (#128), and unrestricted
+natural-language date parsing are outside this feature.
 
-The compact `add_tasks` / `add-tasks` adapters share one service:
+## Request
+
+MCP and CLI share the same closed request contract:
 
 ```json
 {
-  "creationKey": "7186bc33-067a-44c6-afab-9a5659c5f953",
   "destination": {"kind": "parent_task", "id": "existing-task-id"},
   "previewOnly": true,
   "tasks": [
@@ -45,129 +44,104 @@ The compact `add_tasks` / `add-tasks` adapters share one service:
 ```
 
 - Destination defaults to inbox. Project and parent-task destinations require
-  a stable ID, never a guessed name; existence and eligibility are Bridge
-  preflight checks.
-- Task arrays preserve requested sibling order and append to the destination's
-  existing children. Constructor traversal is preorder, parents before children.
-- A request contains at most 20 tasks including descendants and five hierarchy
-  levels. Every node has a globally unique `clientID` within that request, using
-  1–64 ASCII letters, digits, underscores or hyphens.
-- Fields are name, optional note, local flag, non-negative estimate, existing
-  tag IDs, due/defer intent, and children. No planned-date write is introduced.
-- Missing `previewOnly` means preview. Execution requires a UUID
-  `approvedPreviewID` from a successful preview; a well-formed UUID alone is not
-  proof of approval. The durable receipt must bind it to the exact plan.
-- Normalize UUID casing before lookup so aliases cannot bypass duplicate checks.
-- Names, stable IDs, parent IDs, native order and resolved due/defer values are
-  always returned. `returnFields` defaults to `["name"]` and can additionally
-  select `note`, `flagged`, `estimatedMinutes`, `tagIDs`, `dueDate`, `deferDate`.
-- MCP must reject unknown fields through closed schemas, with paired CLI and
-  direct argument/wire coverage. Model decoding alone does not prove this gate.
+  existing stable IDs; the Bridge preflights eligibility and every tag reference
+  before the first constructor.
+- Arrays preserve sibling order and append to existing children. Parents are
+  created before descendants.
+- Requests contain at most 20 total tasks and five hierarchy levels.
+  Each node requires a unique `clientID`: 1–64 ASCII letters, digits,
+  underscores, or hyphens.
+- Supported fields are name, note, flag, non-negative estimated minutes,
+  existing tag IDs, due/defer dates, and children.
+- `returnFields` defaults to `["name"]`; optional confirmation fields are
+  `note`, `flagged`, `estimatedMinutes`, `tagIDs`, `dueDate`, and `deferDate`.
+- Unknown fields are rejected. There are no creation keys or approval tokens.
 
-## Dates And Frozen Approval
+## Dates And Apply Request
 
-An exact date uses `{"at":"2026-10-06T17:00:00+08:00"}`. A date-only intent uses
-`{"on":"2026-10-06","time":{"policy":"omnifocus_default"}}`. Exactly one
-form is required. Date-only strings are real Gregorian `YYYY-MM-DD` dates;
-normalization of nonexistent dates, overflowing times, or implicit timezone
-guesses is rejected.
-Exact timestamps support at most millisecond precision, matching JavaScript
-Date storage; excess precision is rejected rather than silently rounded.
+Exact dates use `{"at":"2026-10-06T17:00:00+08:00"}`. Date-only inputs use
+`{"on":"2026-10-06","time":{"policy":"omnifocus_default"}}`.
+Exactly one form is required. Exact timestamps require seconds, an explicit
+offset or Z, and at most millisecond precision. Invalid or normalized calendar
+dates and overflowing times are rejected.
 
-During Bridge preview, date-only intent reads the current
-`settings.objectForKey("DefaultDueTime")` or `DefaultStartTime` and uses
-documented `Calendar.current` and `DateComponents`. Missing or invalid settings
-fail; there is no invented noon/midnight fallback. Check timezone consistency
-with the server's propagated identifier and validate component round trips
-across DST. Return the original intent, local date/time, timezone, and UTC
-timestamp. No additional bridge call is needed solely to resolve a date.
+Date-only values are accepted **only in previews**. The Bridge reads current
+`DefaultDueTime` or `DefaultStartTime` through documented settings APIs and
+uses `Calendar.current` and `DateComponents`. Missing settings, timezone
+mismatches, and nonexistent DST wall times fail without creating tasks.
+There is no invented default time.
 
-Approved execution must use the frozen preview timestamps, not resolve them
-again from a changed clock, setting, or timezone. If the exact plan cannot be
-preserved, fail rather than silently changing the approved result.
+A preview returns original date intent, resolved local time, timezone, UTC
+timestamp, and a complete `applyRequest`. That request preserves destination,
+task fields, hierarchy, order, and return fields while replacing date-only
+values with exact `at` timestamps and setting `previewOnly: false`.
+Submit it after user approval; do not calculate offsets or reconstruct the
+tree with the model. Changed OmniFocus defaults cannot change those exact
+instants.
 
-## Duplicate-Safe Execution Design
+Direct apply is allowed when dates are absent or exact. An apply containing
+date-only values is rejected before dispatch. The apply payload is ordinary
+request data, not server-side proof of prior preview or approval.
 
-`creationKey` is a caller-supplied UUID reused across preview, apply and
-reconciliation. Transport request IDs remain separate. Retrying with a new key
-is a new creation, not recovery, and must never be suggested as an automatic
-response to uncertainty.
+## One Attempt, Verified Results
 
-The Bridge uses these durable transitions:
+Creation retains no persistent history, receipts, retry window, or replay
+store. Existing development history files are neither used nor automatically
+deleted. Ordinary temporary Bridge IPC maintenance remains unchanged.
 
-1. Preview preflights every field, tag and destination, then freezes the intent
-   fingerprint, resolved dates and hierarchy against an approval ID.
-2. Apply validates the matching approval and plan, rechecks destination/tag
-   eligibility, and durably enters `applying` **before the first constructor**.
-3. Record each created stable ID immediately. Only report success after save
-   and full readback verification, including native order.
-4. Completed replay reads and verifies known IDs; it never invokes constructors.
-5. An incomplete, damaged or uncertain receipt never authorizes another apply.
-   Return known IDs, what was verified, and actionable reconciliation guidance.
-   A crash between constructor and ID journaling may leave an unknown created
-   item; disclose that uncertainty instead of claiming no write occurred.
+An apply is dispatched at most once. Creation apply disables both stranded
+redispatch and late redispatch recovery; other operations retain their existing
+recovery behavior. The server still waits for the original response within its
+normal deadline.
 
-Receipts do not live in `FocusRelayIPC`: startup maintenance purges unknown
-entries and clears temporary protocol files on version changes. Use a separate
-owner-private sibling `FocusRelayState/creation-v1` directory accessible to the
-installed Bridge. Both directory levels are mode `0700`; admission files are
-`0600`. Receipts persist only fingerprints, approval/date metadata, destination
-parent ID and created stable IDs, not task names or notes.
+**Repeating an apply may create duplicates.** If a response is lost or cannot
+be confirmed, check OmniFocus before submitting another creation request.
+Neither server nor client should automatically repeat an uncertain write.
+Known pre-dispatch busy/queue rejections remain distinct and may be retried
+after their suggested delay.
 
-Receipts and admission tombstones are retained indefinitely and are never
-expired by IPC cleanup or upgrades. Same-key admission uses an OS file lock
-across processes, plus synchronous native journal transitions. Lock files are
-never unlinked or replaced. A surviving admission tombstone with a missing
-receipt fails before dispatch, including preview. A failed native preview can
-therefore consume its key without writing a task; review a fresh proposal with
-a fresh key. An approved apply without a receipt always fails.
+`completed` means every task was created, saved, and read back successfully,
+including fields, parent IDs, and relative sibling order. Verification is
+mandatory. Failures stop the attempt without automatic repair, rollback,
+or another constructor pass.
 
-Do not delete this state directory to troubleshoot IPC. If the entire state
-store is lost, restore it from backup or inspect OmniFocus and explicitly
-review a new proposal; callers must not automatically generate replacement
-keys. No system can recognize old keys after all their durable history is
-deliberately removed.
+Results distinguish `verified`, `unverified`, and `not_created`.
+Known created IDs are returned when available. A constructor may have started
+without producing a known ID; disclose uncertainty rather than claiming no
+write occurred. Save failure never claims verified persistence.
+A lost transport response returns `uncertain` with no invented IDs.
 
-OmniFocus execution/journal admission across distinct MCP processes is separate
-from the server's process-local FIFO. Partial results
-must distinguish created-but-unverified items from verified success. Prefer
-precise recoverable partial results over an unsupported all-or-nothing claim.
+## CLI And MCP
 
-## Implementation And Validation Boundary
-
-`add_tasks` uses a closed, bounded schema and the same typed service contract as
-the CLI. Creation is a write, non-destructive (no deletion/rollback), and
-idempotent for repeated identical keyed intent. Unknown fields fail in either
-adapter. Verification is mandatory; there is no unverified-success switch.
-
-CLI example: save the JSON above as `proposal.json`, then run:
+Save the preview JSON as `proposal.json`:
 
 ```bash
 focusrelay add-tasks --request-file proposal.json
 ```
 
-After the user approves the returned concrete preview, retain the exact same
-proposal, change only `previewOnly` to `false`, add `approvedPreviewID` using the
-returned `previewID`, and run the same command. `--request-json` is an alternative
-to file input. Never use both. Partial/uncertain output is structured JSON with
-a nonzero CLI exit status or MCP `isError=true`.
+After approval, save the returned `applyRequest` as `apply.json` and submit once:
 
-All reported `verified` tasks have passed field/hierarchy/order readback after
-save. `unverified` means a known created ID or a constructor that may have
-started; `not_created` means that node was not attempted. Save failure does not
-claim persistence even if the task is currently visible. Reconciliation reads
-known state only; it does not repair fields, save again, construct missing
-nodes, or delete partial results. Such recovery needs an explicit reviewed
-follow-up using existing edit tools or native OmniFocus, not blind retry.
+```bash
+focusrelay add-tasks --request-file apply.json
+```
 
-Required gates include production JavaScriptCore fixtures and failures at
-constructor, journal, field apply, save and verification; direct MCP arguments
-and annotations; CLI parity; changed preview intent; duplicate/restarted and
-cross-process retries. Then perform reversible live create/verify/cleanup for
-inbox, project and parent-task destinations, ordered multi-level hierarchies,
-and date-only input at a non-default configured due/defer time. Run Kimi and
-comparison-model journeys. The final release candidate retains realistic
-validation.
+`--request-json` is an alternative; never supply both input options.
+Partial/uncertain output is structured JSON with nonzero CLI exit status or
+MCP `isError=true`. MCP annotations identify creation as a non-destructive,
+non-idempotent write.
+
+## Validation
+
+Required coverage includes model and CLI defaults; direct MCP decoding,
+closed fields and annotations; production JavaScriptCore hierarchy, dates,
+special client IDs, and constructor/field/save/verification failures;
+single-dispatch transport faults; and unchanged query recovery.
+
+Live UAT must preview, approve, apply once, independently verify, and remove
+disposable fixtures across inbox, project, and parent-task destinations.
+Exercise date-only values, ordered descendants, ignored previews, and
+controlled lost-response handling through actual MCP clients. A targeted
+ten-minute preview/query smoke precedes the separate frozen release gate.
 
 Documented references:
 

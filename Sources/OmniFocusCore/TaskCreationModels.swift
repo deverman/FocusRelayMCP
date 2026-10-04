@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Creation is separate from homogeneous edits: siblings can have different fields.
@@ -6,68 +5,34 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
     public static let maximumTaskCount = 20
     public static let maximumDepth = 5
 
-    public let creationKey: String
     public let destination: TaskCreationDestination
     public let tasks: [TaskCreationNode]
     public let previewOnly: Bool
-    public let approvedPreviewID: String?
     public let returnFields: [String]
 
-    public init(creationKey: String, destination: TaskCreationDestination = .init(kind: .inbox),
-                tasks: [TaskCreationNode], previewOnly: Bool = true, approvedPreviewID: String? = nil,
+    public init(destination: TaskCreationDestination = .init(kind: .inbox),
+                tasks: [TaskCreationNode], previewOnly: Bool = false,
                 returnFields: [String] = ["name"]) {
-        self.creationKey = creationKey
         self.destination = destination
         self.tasks = tasks
         self.previewOnly = previewOnly
-        self.approvedPreviewID = approvedPreviewID
         self.returnFields = returnFields
     }
 
     private enum CodingKeys: String, CodingKey {
-        case creationKey, destination, tasks, previewOnly, approvedPreviewID, returnFields
+        case destination, tasks, previewOnly, returnFields
     }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        creationKey = try values.decode(String.self, forKey: .creationKey)
         destination = try values.decodeIfPresent(TaskCreationDestination.self, forKey: .destination) ?? .init(kind: .inbox)
         tasks = try values.decode([TaskCreationNode].self, forKey: .tasks)
-        // Missing approval flags must never turn a request into an apply.
-        previewOnly = try values.decodeIfPresent(Bool.self, forKey: .previewOnly) ?? true
-        approvedPreviewID = try values.decodeIfPresent(String.self, forKey: .approvedPreviewID)
+        // Match the edit tools: approval is the client's responsibility.
+        previewOnly = try values.decodeIfPresent(Bool.self, forKey: .previewOnly) ?? false
         returnFields = try values.decodeIfPresent([String].self, forKey: .returnFields) ?? ["name"]
     }
 
-    /// The durable journal must normalize UUID casing so aliases cannot bypass replay checks.
-    public var normalizedCreationKey: String? { UUID(uuidString: creationKey)?.uuidString }
-
-    /// Durable receipts bind the exact intent without retaining names or notes.
-    /// Execution flags/token are excluded; changing any task, order, field or destination
-    /// changes the digest. Equivalent UUID casing does not change the identity.
-    public func intentFingerprint() throws -> String {
-        try validate()
-        let normalized = TaskCreationRequest(creationKey: normalizedCreationKey!, destination: destination, tasks: tasks,
-                                             returnFields: returnFields)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let data = Data("focusrelay-task-creation-v1\0".utf8) + (try encoder.encode(normalized))
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
     public func validate() throws {
-        guard normalizedCreationKey != nil else {
-            throw MutationValidationError("creationKey must be a UUID reused for preview, approved execution, and reconciliation.")
-        }
-        if previewOnly {
-            guard approvedPreviewID == nil else {
-                throw MutationValidationError("Preview requests must not contain approvedPreviewID.")
-            }
-        } else {
-            guard let approvedPreviewID, UUID(uuidString: approvedPreviewID) != nil else {
-                throw MutationValidationError("Creation requires the approvedPreviewID returned by a successful preview.")
-            }
-        }
         try destination.validate()
         let allowedFields: Set<String> = ["name", "note", "flagged", "estimatedMinutes", "tagIDs", "dueDate", "deferDate"]
         guard Set(returnFields).count == returnFields.count, Set(returnFields).isSubset(of: allowedFields) else {
@@ -86,6 +51,9 @@ public struct TaskCreationRequest: Codable, Sendable, Equatable {
                     throw MutationValidationError("Creation supports at most \(Self.maximumTaskCount) tasks including subtasks.")
                 }
                 try node.validateFields()
+                if !previewOnly && (node.due?.on != nil || node.defer?.on != nil) {
+                    throw MutationValidationError("Preview date-only values first, then submit the returned applyRequest.")
+                }
                 guard identifiers.insert(node.clientID).inserted else {
                     throw MutationValidationError("Every created task must have a unique clientID within the request.")
                 }

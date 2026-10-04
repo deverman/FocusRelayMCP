@@ -37,15 +37,13 @@ func taskCreationSchema() -> Value {
                         "required": .array([.string("clientID"), .string("name")])])
     }
     return closingObjectSchemas(.object([
-        "type": .string("object"), "required": .array([.string("creationKey"), .string("tasks")]),
+        "type": .string("object"), "required": .array([.string("tasks")]),
         "properties": .object([
-            "creationKey": .object(["type": .string("string"), "format": .string("uuid")]),
             "destination": .object(["type": .string("object"), "required": .array([.string("kind")]), "properties": .object([
                 "kind": .object(["type": .string("string"), "enum": .array([.string("inbox"), .string("project"), .string("parent_task")])]), "id": string
             ])]),
             "tasks": .object(["type": .string("array"), "items": node(depth: 1), "minItems": .int(1), "maxItems": .int(20)]),
-            "previewOnly": .object(["type": .string("boolean"), "default": .bool(true)]),
-            "approvedPreviewID": .object(["type": .string("string"), "format": .string("uuid")]),
+            "previewOnly": .object(["type": .string("boolean"), "default": .bool(false)]),
             "returnFields": .object(["type": .string("array"), "uniqueItems": .bool(true), "items": .object([
                 "type": .string("string"), "enum": .array(["name", "note", "flagged", "estimatedMinutes", "tagIDs", "dueDate", "deferDate"].map(Value.string))
             ])])

@@ -8,7 +8,7 @@ struct AddTasks: AsyncParsableCommand {
     static let configuration = CommandConfiguration(commandName: "add-tasks",
         abstract: "Preview or apply approved task creation using the same JSON contract as MCP add_tasks.", aliases: ["add_tasks"])
 
-    @Option(name: .customLong("request-json"), help: "Complete creation request JSON. Preview is the default; apply requires the returned approval ID.")
+    @Option(name: .customLong("request-json"), help: "Complete creation request JSON. Omitted previewOnly performs a write. Preview date-only values first and submit the returned applyRequest.")
     var requestJSON: String?
 
     @Option(name: .customLong("request-file"), help: "Read complete creation request JSON from a UTF-8 file instead of a shell argument.")
