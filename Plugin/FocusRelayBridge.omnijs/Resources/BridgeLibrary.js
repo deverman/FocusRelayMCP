@@ -1797,6 +1797,9 @@
             !receipt.dates || !receipt.created || typeof receipt.created !== "object") {
           throw new Error("Creation receipt is incompatible, corrupted, or this key belongs to different intent. Do not reuse the key.");
         }
+        // JSON decoding restores Object.prototype. Client IDs are arbitrary valid
+        // strings, so normalize this writable dictionary before recording IDs.
+        receipt.created = Object.assign(Object.create(null), receipt.created);
       } else if (!input.previewOnly) {
         throw new Error("Approved creation receipt is missing. Nothing created. Restore the receipt or review a new preview; never automatically replace an uncertain key.");
       }
@@ -1881,7 +1884,7 @@
       }
       if (!receipt) {
         preflightDestination();
-        const dates = {};
+        const dates = Object.create(null);
         const hasDates = nodes.some(entry => entry.node.due || entry.node.defer);
         const zone = hasDates ? currentZone() : null;
         nodes.forEach(entry => { dates[entry.node.clientID] = {
@@ -1889,7 +1892,7 @@
           defer: resolveDate(entry.node.defer, "DefaultStartTime", zone)
         }; });
         receipt = { version: 1, key: key, fingerprint: request.creationFingerprint,
-          previewID: String(request.creationPreviewID).toUpperCase(), state: "prepared", dates: dates, created: {},
+          previewID: String(request.creationPreviewID).toUpperCase(), state: "prepared", dates: dates, created: Object.create(null),
           saved: false, pending: null,
           destinationParentID: destination.kind === "project" ? String(container.task.id.primaryKey) : destination.kind === "parent_task" ? destination.id : null };
         if (!uuid.test(receipt.previewID)) { throw new Error("Invalid preview identity."); }
@@ -1911,11 +1914,11 @@
       }
       function inspect(entry, map) {
         const node = entry.node;
-        const dates = receipt.dates[node.clientID];
+        const dates = Object.prototype.hasOwnProperty.call(receipt.dates, node.clientID) ? receipt.dates[node.clientID] : null;
         if (!dates || !Object.prototype.hasOwnProperty.call(dates, "due") || !Object.prototype.hasOwnProperty.call(dates, "defer")) {
           throw new Error("Creation receipt is missing frozen dates. Refusing execution.");
         }
-        const id = receipt.created[node.clientID] || null;
+        const id = Object.prototype.hasOwnProperty.call(receipt.created, node.clientID) ? receipt.created[node.clientID] : null;
         const task = id ? map[id] : null;
         const parentID = task && task.parent ? String(task.parent.id.primaryKey) : null;
         const parent = task && task.parent;
@@ -1947,14 +1950,15 @@
       function result(message) {
         const map = io.tasks();
         const results = nodes.map(entry => inspect(entry, map));
-        const previous = {};
+        const previous = new Map();
         results.forEach(item => {
-          const group = item.parentClientID || "__destination__";
+          // Null denotes the destination; it cannot collide with a client ID.
+          const group = item.parentClientID;
           if (item.finalOrder != null) {
-            if (previous[group] != null && item.finalOrder <= previous[group]) {
+            if (previous.has(group) && item.finalOrder <= previous.get(group)) {
               item.status = "unverified"; item.message = "Sibling order did not verify.";
             }
-            previous[group] = item.finalOrder;
+            previous.set(group, item.finalOrder);
           }
         });
         const complete = results.every(item => item.status === "verified");
@@ -1974,7 +1978,7 @@
       io.write(path, receipt); // durable admission MUST precede the first constructor
       let stage = "creation";
       try {
-        const created = {};
+        const created = Object.create(null);
         nodes.forEach(entry => {
           receipt.pending = entry.node.clientID;
           io.write(path, receipt); // crash in constructor leaves an explicit unknown target
