@@ -56,11 +56,6 @@ struct BenchmarkTimeoutProcessSnapshot: Codable {
     let rssKB: Int?
 }
 
-struct BenchmarkTimeoutBridgeHealthSnapshot: Codable {
-    let ok: Bool
-    let detail: String
-}
-
 struct BenchmarkTimeoutDiagnostic: Codable {
     let timestamp: String
     let transport: String
@@ -73,7 +68,6 @@ struct BenchmarkTimeoutDiagnostic: Codable {
     let queue: BenchmarkTimeoutQueueSnapshot?
     let omniFocus: BenchmarkTimeoutProcessSnapshot
     let focusrelay: BenchmarkTimeoutProcessSnapshot
-    let bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot?
 }
 
 func validateBenchmarkArguments(
@@ -130,12 +124,8 @@ func runCountBenchmarkCall<Counts: Codable>(
     } catch {
         let latencyMs = Date().timeIntervalSince(started) * 1000
         let timeout = isBenchmarkTimeout(error)
-        try await enforceBenchmarkInterval(started: started, intervalMS: intervalMS)
-        if cooldownMS > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
-        }
         if timeout {
-            let diagnostic = await captureBenchmarkTimeoutDiagnostic(
+            let diagnostic = captureBenchmarkTimeoutDiagnostic(
                 scenario: scenario,
                 phase: phase,
                 callIndex: callIndex,
@@ -143,6 +133,10 @@ func runCountBenchmarkCall<Counts: Codable>(
                 errorMessage: error.localizedDescription
             )
             try? appendBenchmarkJSONLine(diagnostic, to: timeoutDiagnosticsURL)
+        }
+        try await enforceBenchmarkInterval(started: started, intervalMS: intervalMS)
+        if cooldownMS > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
         }
         return CountBenchmarkEvent(
             timestamp: benchmarkISO8601Now(),
@@ -238,15 +232,6 @@ func startBenchmarkMemorySampling(memoryURL: URL, intervalSeconds: Int) -> Task<
             try? await Task.sleep(nanoseconds: UInt64(intervalSeconds) * 1_000_000_000)
         }
     }
-}
-
-func runBenchmarkTimeoutRecoveryGate() async {
-    let environment = ProcessInfo.processInfo.environment
-    let recoveryMS = max(0, environment["FOCUS_RELAY_TIMEOUT_RECOVERY_MS"].flatMap(Int.init) ?? 10_000)
-    if recoveryMS > 0 {
-        try? await Task.sleep(nanoseconds: UInt64(recoveryMS) * 1_000_000)
-    }
-    _ = try? await OmniFocusBridgeService().healthCheck()
 }
 
 func enforceBenchmarkInterval(started: Date, intervalMS: Int) async throws {
@@ -379,11 +364,12 @@ func captureBenchmarkTimeoutDiagnostic(
     callIndex: Int,
     latencyMs: Double,
     errorMessage: String
-) async -> BenchmarkTimeoutDiagnostic {
+) -> BenchmarkTimeoutDiagnostic {
+    let timestamp = benchmarkISO8601Now()
     let requestID = extractBenchmarkRequestID(from: errorMessage)
     guard let baseURL = try? IPCEnvironment.defaultBaseURL() else {
         return BenchmarkTimeoutDiagnostic(
-            timestamp: benchmarkISO8601Now(),
+            timestamp: timestamp,
             transport: benchmarkTransport,
             scenario: scenario,
             phase: phase,
@@ -397,33 +383,29 @@ func captureBenchmarkTimeoutDiagnostic(
                 process: "focusrelay",
                 pid: ProcessInfo.processInfo.processIdentifier,
                 rssKB: nil
-            ),
-            bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot(
-                ok: false,
-                detail: "OmniFocus 4 container not found; IPC diagnostics unavailable"
             )
         )
     }
     let requestsURL = baseURL.appendingPathComponent("requests", isDirectory: true)
     let locksURL = baseURL.appendingPathComponent("locks", isDirectory: true)
     let responsesURL = baseURL.appendingPathComponent("responses", isDirectory: true)
+    let queue = BenchmarkTimeoutQueueSnapshot(
+        basePath: baseURL.path,
+        requestsCount: benchmarkDirectoryEntryCount(requestsURL),
+        locksCount: benchmarkDirectoryEntryCount(locksURL),
+        responsesCount: benchmarkDirectoryEntryCount(responsesURL),
+        requestExists: requestID.map { FileManager.default.fileExists(atPath: requestsURL.appendingPathComponent("\($0).json").path) },
+        lockExists: requestID.map { FileManager.default.fileExists(atPath: locksURL.appendingPathComponent("\($0).lock").path) },
+        responseExists: requestID.map { FileManager.default.fileExists(atPath: responsesURL.appendingPathComponent("\($0).json").path) },
+        sampleRequests: benchmarkDirectoryEntrySamples(requestsURL),
+        sampleLocks: benchmarkDirectoryEntrySamples(locksURL),
+        sampleResponses: benchmarkDirectoryEntrySamples(responsesURL)
+    )
     let omniPID = currentOmniFocusPID()
     let benchmarkPID = ProcessInfo.processInfo.processIdentifier
-    let bridgeHealth: BenchmarkTimeoutBridgeHealthSnapshot
-    if let result = try? await OmniFocusBridgeService().healthCheck() {
-        bridgeHealth = BenchmarkTimeoutBridgeHealthSnapshot(
-            ok: result.ok,
-            detail: "plugin=\(result.plugin ?? "unknown") version=\(result.version ?? "unknown")"
-        )
-    } else {
-        bridgeHealth = BenchmarkTimeoutBridgeHealthSnapshot(
-            ok: false,
-            detail: "bridge-health-check failed after timeout"
-        )
-    }
 
     return BenchmarkTimeoutDiagnostic(
-        timestamp: benchmarkISO8601Now(),
+        timestamp: timestamp,
         transport: benchmarkTransport,
         scenario: scenario,
         phase: phase,
@@ -431,18 +413,7 @@ func captureBenchmarkTimeoutDiagnostic(
         latencyMs: latencyMs,
         error: errorMessage,
         requestId: requestID,
-        queue: BenchmarkTimeoutQueueSnapshot(
-            basePath: baseURL.path,
-            requestsCount: benchmarkDirectoryEntryCount(requestsURL),
-            locksCount: benchmarkDirectoryEntryCount(locksURL),
-            responsesCount: benchmarkDirectoryEntryCount(responsesURL),
-            requestExists: requestID.map { FileManager.default.fileExists(atPath: requestsURL.appendingPathComponent("\($0).json").path) },
-            lockExists: requestID.map { FileManager.default.fileExists(atPath: locksURL.appendingPathComponent("\($0).lock").path) },
-            responseExists: requestID.map { FileManager.default.fileExists(atPath: responsesURL.appendingPathComponent("\($0).json").path) },
-            sampleRequests: benchmarkDirectoryEntrySamples(requestsURL),
-            sampleLocks: benchmarkDirectoryEntrySamples(locksURL),
-            sampleResponses: benchmarkDirectoryEntrySamples(responsesURL)
-        ),
+        queue: queue,
         omniFocus: BenchmarkTimeoutProcessSnapshot(
             process: "OmniFocus",
             pid: omniPID,
@@ -452,8 +423,7 @@ func captureBenchmarkTimeoutDiagnostic(
             process: "focusrelay",
             pid: benchmarkPID,
             rssKB: benchmarkRSSKilobytes(pid: benchmarkPID)
-        ),
-        bridgeHealth: bridgeHealth
+        )
     )
 }
 
