@@ -529,6 +529,43 @@ func countBenchmarkArtifactKeepsHistoricalKeys() throws {
 }
 
 @Test
+func timeoutDiagnosticArtifactContainsPassiveQueueAndProcessStateOnly() throws {
+    let diagnostic = BenchmarkTimeoutDiagnostic(
+        timestamp: "2026-08-18T00:00:00.000Z",
+        transport: benchmarkTransport,
+        scenario: "default",
+        phase: "measured",
+        callIndex: 7,
+        latencyMs: 45_000,
+        error: "requestId=ABC-123 timed out",
+        requestId: "ABC-123",
+        queue: BenchmarkTimeoutQueueSnapshot(
+            basePath: "/tmp/focusrelay",
+            requestsCount: 1,
+            locksCount: 1,
+            responsesCount: 0,
+            requestExists: true,
+            lockExists: true,
+            responseExists: false,
+            sampleRequests: ["ABC-123.json"],
+            sampleLocks: ["ABC-123.lock"],
+            sampleResponses: []
+        ),
+        omniFocus: BenchmarkTimeoutProcessSnapshot(process: "OmniFocus", pid: 42, rssKB: 1_024),
+        focusrelay: BenchmarkTimeoutProcessSnapshot(process: "focusrelay", pid: 43, rssKB: 512)
+    )
+    let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(diagnostic)) as? [String: Any])
+    let queue = try #require(object["queue"] as? [String: Any])
+
+    #expect(queue["requestExists"] as? Bool == true)
+    #expect(queue["lockExists"] as? Bool == true)
+    #expect(queue["responseExists"] as? Bool == false)
+    #expect(object["omniFocus"] != nil)
+    #expect(object["focusrelay"] != nil)
+    #expect(object["bridgeHealth"] == nil)
+}
+
+@Test
 func listBenchmarkArtifactKeepsHistoricalKeys() throws {
     let event = ListTaskEvent(
         timestamp: "2026-07-18T00:00:00.000Z",

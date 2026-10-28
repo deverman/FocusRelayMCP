@@ -64,21 +64,21 @@ case "$PROFILE" in
     : "${TOTAL_HOURS:=0.5}"
     : "${WARMUP_CALLS:=10}"
     : "${INTERVAL_MS:=2000}"
-    : "${COOLDOWN_MS:=3000}"
+    : "${COOLDOWN_MS:=13000}"
     : "${MEMORY_INTERVAL_SECONDS:=60}"
     ;;
   release)
     : "${TOTAL_HOURS:=1.5}"
     : "${WARMUP_CALLS:=10}"
     : "${INTERVAL_MS:=5000}"
-    : "${COOLDOWN_MS:=5000}"
+    : "${COOLDOWN_MS:=15000}"
     : "${MEMORY_INTERVAL_SECONDS:=60}"
     ;;
   stress)
     : "${TOTAL_HOURS:=3}"
     : "${WARMUP_CALLS:=20}"
     : "${INTERVAL_MS:=1500}"
-    : "${COOLDOWN_MS:=3000}"
+    : "${COOLDOWN_MS:=13000}"
     : "${MEMORY_INTERVAL_SECONDS:=30}"
     ;;
   *)

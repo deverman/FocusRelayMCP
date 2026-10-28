@@ -21,7 +21,7 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
     var intervalMS: Int = 1200
 
     @Option(name: .customLong("cooldown-ms"), help: "Cooldown delay after failed/timeout calls in milliseconds.")
-    var cooldownMS: Int = 5000
+    var cooldownMS: Int = 13_000
 
     @Option(name: .customLong("memory-interval-seconds"), help: "RSS sample interval in seconds.")
     var memoryIntervalSeconds: Int = 30
@@ -78,9 +78,6 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
                     try await service.getProjectCounts(filter: scenario.filter)
                 }
                 try appendBenchmarkJSONLine(event, to: rawURL)
-                if event.timeout {
-                    await runBenchmarkTimeoutRecoveryGate()
-                }
             }
         }
 
@@ -112,9 +109,6 @@ struct BenchmarkProjectCounts: AsyncParsableCommand {
                 overall: &overallStats,
                 scenarios: &scenarioStats
             )
-            if event.timeout {
-                await runBenchmarkTimeoutRecoveryGate()
-            }
         }
 
         let summary = renderCountBenchmarkSummary(

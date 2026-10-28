@@ -21,7 +21,7 @@ struct BenchmarkListTasks: AsyncParsableCommand {
     var intervalMS: Int = 1500
 
     @Option(name: .customLong("cooldown-ms"), help: "Cooldown delay after failed/timeout calls in milliseconds.")
-    var cooldownMS: Int = 3000
+    var cooldownMS: Int = 13_000
 
     @Option(name: .customLong("completed-after"), help: "Fixed ISO8601 anchor for completed-date scenario.")
     var completedAfter: String = "2020-01-01T00:00:00Z"
@@ -52,7 +52,7 @@ struct BenchmarkListTasks: AsyncParsableCommand {
         if warmupCalls > 0 {
             for index in 0..<warmupCalls {
                 let scenario = scenarios[benchmarkScenarioIndex(callIndex: index, scenarioCount: scenarios.count)]
-                let event = try await listTaskBenchCall(
+                _ = try await listTaskBenchCall(
                     scenario: scenario,
                     phase: "warmup",
                     service: service,
@@ -62,9 +62,6 @@ struct BenchmarkListTasks: AsyncParsableCommand {
                     callIndex: &callIndex,
                     rawURL: rawURL
                 )
-                if event.timeout {
-                    await runBenchmarkTimeoutRecoveryGate()
-                }
             }
         }
 
@@ -89,9 +86,6 @@ struct BenchmarkListTasks: AsyncParsableCommand {
             var stats = scenarioStats[event.scenario] ?? BenchmarkStats()
             stats.ingest(ok: event.ok, timeout: event.timeout, latencyMs: event.latencyMs)
             scenarioStats[event.scenario] = stats
-            if event.timeout {
-                await runBenchmarkTimeoutRecoveryGate()
-            }
         }
 
         let scenarioNames = scenarios.map(\.name)
@@ -203,12 +197,8 @@ private func listTaskBenchCall(
     } catch {
         let latencyMs = Date().timeIntervalSince(started) * 1000
         let timeout = isBenchmarkTimeout(error)
-        try await enforceBenchmarkInterval(started: started, intervalMS: intervalMS)
-        if cooldownMS > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
-        }
         if timeout {
-            let diagnostic = await captureBenchmarkTimeoutDiagnostic(
+            let diagnostic = captureBenchmarkTimeoutDiagnostic(
                 scenario: scenario.name,
                 phase: phase,
                 callIndex: callIndex,
@@ -216,6 +206,10 @@ private func listTaskBenchCall(
                 errorMessage: error.localizedDescription
             )
             try? appendBenchmarkJSONLine(diagnostic, to: timeoutDiagnosticsURL)
+        }
+        try await enforceBenchmarkInterval(started: started, intervalMS: intervalMS)
+        if cooldownMS > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(cooldownMS) * 1_000_000)
         }
         let event = ListTaskEvent(
             timestamp: benchmarkISO8601Now(),
