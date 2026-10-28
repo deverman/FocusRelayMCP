@@ -1,0 +1,33 @@
+{
+  "manifest_version": "0.3",
+  "name": "focusrelay",
+  "display_name": "FocusRelay",
+  "version": "0.10.0-beta",
+  "description": "Connect AI tools to OmniFocus on macOS to find, review, and safely update tasks and projects.",
+  "long_description": "FocusRelay is a fast, native Swift MCP server and CLI that helps AI assistants read and safely update OmniFocus using documented OmniFocus APIs. It exposes tools for finding tasks, reviewing projects, and safely updating existing tasks and projects with preview and verification support.",
+  "author": {
+    "name": "Brent Simmons",
+    "url": "https://deverman.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deverman/FocusRelayMCP.git"
+  },
+  "homepage": "https://github.com/deverman/FocusRelayMCP",
+  "documentation": "https://github.com/deverman/FocusRelayMCP#readme",
+  "support": "https://github.com/deverman/FocusRelayMCP/issues",
+  "license": "MIT",
+  "keywords": ["omnifocus", "productivity", "tasks", "gtd", "macos"],
+  "compatibility": {
+    "platforms": ["darwin"],
+    "runtimes": {}
+  },
+  "server": {
+    "type": "binary",
+    "entry_point": "focusrelay",
+    "mcp_config": {
+      "command": "${__dirname}/focusrelay",
+      "args": ["serve"]
+    }
+  }
+}
