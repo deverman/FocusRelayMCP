@@ -3,10 +3,20 @@
   "name": "io.github.deverman/focusrelay",
   "title": "FocusRelay",
   "description": "Connect AI tools to OmniFocus on macOS to find, review, and safely update tasks and projects.",
-  "version": "0.10.0-beta",
+  "version": "0.12.0-beta",
   "websiteUrl": "https://github.com/deverman/FocusRelayMCP#install-the-omnifocus-mcp-server-with-homebrew",
   "repository": {
     "url": "https://github.com/deverman/FocusRelayMCP",
     "source": "github"
-  }
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/deverman/FocusRelayMCP/releases/download/v0.12.0-beta/focusrelay-0.12.0-beta.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
 }
