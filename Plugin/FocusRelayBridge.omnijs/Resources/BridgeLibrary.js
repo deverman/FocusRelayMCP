@@ -1800,15 +1800,15 @@
         if (destination.kind === "inbox") {
           if (destination.id != null) { throw new Error("Inbox cannot have a destination ID."); }
         } else if (destination.kind === "project") {
-          container = projectMap[destination.id];
+          container = Object.prototype.hasOwnProperty.call(projectMap, destination.id) ? projectMap[destination.id] : null;
           if (!container || !io.projectRemaining(container)) { throw new Error("Project destination is missing, completed, or dropped."); }
         } else if (destination.kind === "parent_task") {
-          container = taskMap[destination.id];
+          container = Object.prototype.hasOwnProperty.call(taskMap, destination.id) ? taskMap[destination.id] : null;
           if (!container) { throw new Error("Parent task destination not found."); }
           eligibleTask(container);
         } else { throw new Error("Unknown destination kind."); }
         nodes.forEach(entry => (entry.node.tagIDs || []).forEach(id => {
-          if (!tagMap[id]) { throw new Error("Existing tag ID not found: " + id + ". Nothing created."); }
+          if (!Object.prototype.hasOwnProperty.call(tagMap, id) || !tagMap[id]) { throw new Error("Existing tag ID not found: " + id + ". Nothing created."); }
         }));
       }
       function localDate(date, intent, zone) {

@@ -5,6 +5,23 @@ import OmniFocusCore
 
 @Suite("Task creation native boundary contracts")
 struct TaskCreationBridgeTests {
+    @Test(arguments: ["constructor", "toString", "hasOwnProperty", "__proto__"], ["tag", "project", "parent_task"])
+    func inheritedReferencesFailBeforeAnyMutation(identifier: String, kind: String) throws {
+        for preview in [true, false] {
+            let result = try runCreationFixture("""
+            request.creation.previewOnly = \(preview);
+            if ('\(kind)' === 'tag') request.creation.tasks[1].tagIDs = ['\(identifier)'];
+            else request.creation.destination = {kind:'\(kind)', id:'\(identifier)'};
+            let error = null; try {performTaskCreation(request, io);} catch(e) {error=String(e);}
+            JSON.stringify({error, creations, saves, writes});
+            """)
+            #expect(result["error"] as? String != nil)
+            #expect(result["creations"] as? Int == 0)
+            #expect(result["saves"] as? Int == 0)
+            #expect(result["writes"] as? Int == 0)
+        }
+    }
+
     @Test(arguments: ["__proto__", "__destination__", "constructor", "toString", "hasOwnProperty", "normal"], ["root", "child"])
     func allValidClientIDsPreserveHierarchyAndOrder(identifier: String, position: String) throws {
         let result = try runCreationFixture("""

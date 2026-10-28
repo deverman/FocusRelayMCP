@@ -4,6 +4,16 @@ import Testing
 
 @Suite("Benchmark coverage detection")
 struct BenchmarkCoverageTests {
+    @Test func creationRequiresItsOwnBenchmarkEvidence() {
+        let assessment = BenchmarkCoverage.assess(changedFiles: [
+            "Sources/FocusRelayCLI/AddTasks.swift",
+            "Sources/OmniFocusCore/TaskCreationModels.swift"
+        ])
+        #expect(assessment.touchedTools == ["add_tasks"])
+        #expect(assessment.uncovered == ["add_tasks"])
+        #expect(assessment.hasCoverageGap)
+    }
+
     @Test func changedToolWithoutABenchmarkIsFlagged() {
         // The #88 case: list_projects has no benchmark in the suite.
         let assessment = BenchmarkCoverage.assess(changedFiles: [
@@ -53,8 +63,8 @@ struct BenchmarkCoverageTests {
     }
 
     @Test func mostPublicToolsAreStillUnbenchmarked() {
-        // Records the current state honestly: 3 of 9 covered.
+        // Records the current state honestly: 3 of 10 covered.
         #expect(BenchmarkCoverage.benchmarkedTools.count == 3)
-        #expect(BenchmarkCoverage.publicTools.count == 9)
+        #expect(BenchmarkCoverage.publicTools.count == 10)
     }
 }
