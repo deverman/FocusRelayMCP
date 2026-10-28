@@ -52,7 +52,7 @@ This PR prepares FocusRelay for publication to the official MCP Registry. The ch
    ```bash
    # macOS/Linux
    curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher && sudo mv mcp-publisher /usr/local/bin/
-   
+
    # Or via Homebrew
    brew install mcp-publisher
    ```

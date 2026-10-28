@@ -12,7 +12,7 @@ FocusRelay is distributed as an MCPB (MCP Bundle) package via GitHub Releases. T
    ```bash
    # macOS/Linux
    curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher && sudo mv mcp-publisher /usr/local/bin/
-   
+
    # Or via Homebrew
    brew install mcp-publisher
    ```
@@ -31,7 +31,7 @@ FocusRelay is distributed as an MCPB (MCP Bundle) package via GitHub Releases. T
    git tag v1.0.0
    git push origin v1.0.0
    ```
-   
+
    Or use the manual workflow dispatch in GitHub Actions.
 
 2. The release workflow will automatically:
@@ -115,7 +115,7 @@ mcp-publisher publish
 ```
 
 This will:
-1. Validate `server.json` 
+1. Validate `server.json`
 2. Verify namespace ownership (via your GitHub authentication)
 3. Verify the package exists at the specified URL
 4. Publish the metadata to the official registry

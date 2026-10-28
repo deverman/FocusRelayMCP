@@ -38,7 +38,7 @@ jobs:
           hash -r
           swift --version
           swift --version | grep -F "Swift version $(tr -d '[:space:]' < .swift-version)"
-        
+
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
@@ -46,7 +46,7 @@ jobs:
           key: ${{ runner.os }}-swift-${{ hashFiles('.swift-version') }}-spm-${{ hashFiles('Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-swift-${{ hashFiles('.swift-version') }}-spm-
-            
+
       - name: Build Release
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
@@ -57,7 +57,7 @@ jobs:
           ./scripts/set-version.sh "$VERSION"
           swift build -c release --product focusrelay
           ./scripts/check-bridge-only-architecture.sh .build/release/focusrelay
-        
+
       - name: Package Release
         id: package
         run: |
@@ -72,12 +72,12 @@ jobs:
           PACKAGE_OUTPUT_FILE="$RUNNER_TEMP/focusrelay-package-output.txt"
           ./scripts/package-release.sh "$VERSION" "$PWD" | tee "$PACKAGE_OUTPUT_FILE"
           ./scripts/write-github-package-outputs.sh "$PACKAGE_OUTPUT_FILE" "$GITHUB_OUTPUT"
-          
+
           # Package MCPB bundle
           MCPB_OUTPUT_FILE="$RUNNER_TEMP/focusrelay-mcpb-output.txt"
           ./scripts/package-mcpb.sh "$VERSION" "$PWD" | tee "$MCPB_OUTPUT_FILE"
           ./scripts/write-github-package-outputs.sh "$MCPB_OUTPUT_FILE" "$GITHUB_OUTPUT"
-          
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
