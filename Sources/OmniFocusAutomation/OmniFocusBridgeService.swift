@@ -260,6 +260,26 @@ public final class OmniFocusBridgeService: OmniFocusService {
         )
     }
 
+    public func addTasks(_ request: TaskCreationRequest) async throws -> TaskCreationResponse {
+        try request.validate()
+        // Invalidating before dispatch is conservative even when a response is lost.
+        // It also avoids treating an uncertain write as a cache-preserving failure.
+        if !request.previewOnly { await cache.invalidateAll() }
+        do {
+            return try await runtime.submit(
+                category: request.previewOnly ? .mutationPreview : .mutationApply,
+                bridge: { try self.client.addTasks(request) },
+                finalize: { result in
+                    if !request.previewOnly { await self.cache.invalidateAll() }
+                    return result
+                }
+            )
+        } catch {
+            if !request.previewOnly { await cache.invalidateAll() }
+            throw error
+        }
+    }
+
     public func healthCheck() async throws -> BridgeHealthResult {
         try await runtime.submit(category: .health) {
             let response = try self.client.ping()

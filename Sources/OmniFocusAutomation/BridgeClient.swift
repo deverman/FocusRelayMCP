@@ -428,6 +428,35 @@ final class BridgeClient: @unchecked Sendable {
         throw AutomationError.executionFailed(message)
     }
 
+    func addTasks(_ creation: TaskCreationRequest) throws -> TaskCreationResponse {
+        try creation.validate()
+        var request = BridgeRequest(
+                schemaVersion: 1, requestId: UUID().uuidString, op: "add_tasks",
+                timestamp: ISO8601DateFormatter().string(from: Date()), userTimeZone: TimeZone.current.identifier,
+                id: nil, filter: nil, tagFilter: nil, projectFilter: nil, mutation: nil, fields: nil, page: nil
+            )
+        request.creation = creation
+        var dispatchAttempted = false
+        let response: BridgeResponse<TaskCreationResponse>
+        do {
+            response = try sendRequest(request, responseType: TaskCreationResponse.self,
+                allowRedispatch: creation.previewOnly, onDispatchAttempt: { dispatchAttempted = true })
+        } catch {
+            guard !creation.previewOnly, dispatchAttempted else { throw error }
+            return TaskCreationResponse(status: .uncertain, destination: creation.destination, results: [],
+                message: "Creation may have succeeded, but its result could not be confirmed. Check OmniFocus before creating these tasks again. Do not automatically repeat this request.")
+        }
+        guard response.ok else {
+            throw AutomationError.executionFailed(response.error?.message ?? "Creation was rejected by the Bridge.")
+        }
+        guard let result = response.data else {
+            if creation.previewOnly { throw AutomationError.executionFailed("Creation preview response missing.") }
+            return TaskCreationResponse(status: .uncertain, destination: creation.destination, results: [],
+                message: "Creation may have succeeded, but its result could not be confirmed. Check OmniFocus before creating these tasks again. Do not automatically repeat this request.")
+        }
+        return result
+    }
+
     private func ensureDirectories() throws {
         let paths = try requirePaths()
         if !didEnsureDirectories {
@@ -491,7 +520,8 @@ final class BridgeClient: @unchecked Sendable {
         try process.run()
     }
 
-    private func sendRequest<T: Decodable>(_ request: BridgeRequest, responseType: T.Type) throws -> BridgeResponse<T> {
+    private func sendRequest<T: Decodable>(_ request: BridgeRequest, responseType: T.Type,
+        allowRedispatch: Bool = true, onDispatchAttempt: (() -> Void)? = nil) throws -> BridgeResponse<T> {
         try ensureDirectories()
         let paths = try requirePaths()
         let responseURL = paths.responsesURL.appendingPathComponent("\(request.requestId).json")
@@ -500,6 +530,7 @@ final class BridgeClient: @unchecked Sendable {
         do {
             try writeRequest(request, requestId: request.requestId)
             try writeDispatchRequestId(request.requestId)
+            onDispatchAttempt?()
             try triggerOmniFocus(requestId: request.requestId)
             let response = try waitForResponse(
                 at: responseURL,
@@ -507,7 +538,8 @@ final class BridgeClient: @unchecked Sendable {
                 lockURL: lockURL,
                 requestId: request.requestId,
                 timeout: configuration.responseTimeout,
-                responseType: responseType
+                responseType: responseType,
+                allowRedispatch: allowRedispatch
             )
             // Response payloads carry task data; remove them as soon as they
             // are consumed. Request and lock are belt-and-braces: the plugin
@@ -538,7 +570,8 @@ final class BridgeClient: @unchecked Sendable {
         lockURL: URL,
         requestId: String,
         timeout: TimeInterval,
-        responseType: T.Type
+        responseType: T.Type,
+        allowRedispatch: Bool
     ) throws -> BridgeResponse<T> {
         let start = Date()
         var lastReadError: Error?
@@ -553,7 +586,7 @@ final class BridgeClient: @unchecked Sendable {
                 }
             }
 
-            if !hasRedispatchedStrandedRequest,
+            if allowRedispatch, !hasRedispatchedStrandedRequest,
                shouldRedispatchStrandedRequest(
                 elapsed: Date().timeIntervalSince(start),
                 timeout: timeout,
@@ -584,7 +617,7 @@ final class BridgeClient: @unchecked Sendable {
         let responseExists = fileManager.fileExists(atPath: url.path)
         let lockExists = fileManager.fileExists(atPath: lockURL.path)
 
-        if shouldAttemptLateStrandedRecovery(
+        if allowRedispatch && shouldAttemptLateStrandedRecovery(
             requestExists: requestExists,
             responseExists: responseExists,
             lockExists: lockExists

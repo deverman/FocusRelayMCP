@@ -18,13 +18,14 @@ public enum BenchmarkCoverage {
     /// Every public model-facing tool.
     public static let publicTools: Set<String> = [
         "list_tasks", "get_task", "list_projects", "list_tags", "list_folders",
-        "edit_tasks", "edit_projects", "get_task_counts", "get_project_counts"
+        "edit_tasks", "edit_projects", "add_tasks", "get_task_counts", "get_project_counts"
     ]
 
     /// Source markers that imply a tool's request path may have changed.
     /// Deliberately broad: a false "you should benchmark this" costs a
     /// conversation, a false "nothing to see here" costs what #88 cost.
     private static let toolMarkers: [String: [String]] = [
+        "add_tasks": ["addtasks", "add_tasks", "taskcreation"],
         "list_tasks": ["listtasks", "list_tasks", "taskfilter", "taskidselection"],
         "get_task": ["gettask", "get_task"],
         "list_projects": ["listprojects", "list_projects", "projectfilter", "batchnameresolution"],

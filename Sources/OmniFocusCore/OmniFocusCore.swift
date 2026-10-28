@@ -493,4 +493,11 @@ public protocol OmniFocusService: Sendable {
     func getTaskCounts(filter: TaskFilter) async throws -> TaskCounts
     func getProjectCounts(filter: TaskFilter) async throws -> ProjectCounts
     func performMutation(_ request: MutationRequest) async throws -> MutationResponse
+    func addTasks(_ request: TaskCreationRequest) async throws -> TaskCreationResponse
+}
+
+extension OmniFocusService {
+    public func addTasks(_ request: TaskCreationRequest) async throws -> TaskCreationResponse {
+        throw MutationValidationError("This service does not implement task creation.")
+    }
 }
