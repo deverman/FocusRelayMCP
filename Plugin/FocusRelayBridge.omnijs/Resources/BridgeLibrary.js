@@ -1784,10 +1784,8 @@
       }
       visit(input.tasks, null, 1);
       if (!nodes.length) { throw new Error("No tasks requested."); }
-      const taskMap = io.tasks();
-      const projectMap = io.projects();
-      const tagMap = io.tags();
       const destination = input.destination || { kind: "inbox" };
+      const tagMap = Object.create(null);
       let container = null;
       function eligibleTask(task) {
         for (let current = task; current; current = current.parent) {
@@ -1800,14 +1798,15 @@
         if (destination.kind === "inbox") {
           if (destination.id != null) { throw new Error("Inbox cannot have a destination ID."); }
         } else if (destination.kind === "project") {
-          container = Object.prototype.hasOwnProperty.call(projectMap, destination.id) ? projectMap[destination.id] : null;
+          container = io.project(destination.id);
           if (!container || !io.projectRemaining(container)) { throw new Error("Project destination is missing, completed, or dropped."); }
         } else if (destination.kind === "parent_task") {
-          container = Object.prototype.hasOwnProperty.call(taskMap, destination.id) ? taskMap[destination.id] : null;
+          container = io.task(destination.id);
           if (!container) { throw new Error("Parent task destination not found."); }
           eligibleTask(container);
         } else { throw new Error("Unknown destination kind."); }
         nodes.forEach(entry => (entry.node.tagIDs || []).forEach(id => {
+          if (!Object.prototype.hasOwnProperty.call(tagMap, id)) { tagMap[id] = io.tag(id); }
           if (!Object.prototype.hasOwnProperty.call(tagMap, id) || !tagMap[id]) { throw new Error("Existing tag ID not found: " + id + ". Nothing created."); }
         }));
       }
@@ -1921,7 +1920,8 @@
           due: dates.due, defer: dates.defer, returnedFields: fields(node, task, dates), message: error };
       }
       function result(message) {
-        const map = io.tasks();
+        // Previews contain no created IDs. Applies must resolve fresh post-save state.
+        const map = preview ? Object.create(null) : io.tasks();
         const results = nodes.map(entry => inspect(entry, map));
         const previous = new Map();
         results.forEach(item => {
@@ -2006,8 +2006,9 @@
           response.data = { ok: true, plugin: "FocusRelay Bridge", version: FOCUSRELAY_VERSION };
         } else if (request.op === "add_tasks") {
           response.data = performTaskCreation(request, {
-            tasks: taskByIDIndex, projects: projectByIDIndex,
-            tags: tagByIDIndex, inbox: inboxTasksArray,
+            task: id => Task.byIdentifier(id),
+            project: id => Project.byIdentifier(id), tag: id => Tag.byIdentifier(id),
+            tasks: taskByIDIndex, inbox: inboxTasksArray,
             remaining: isRemainingStatus,
             projectRemaining: project => project.status === Project.Status.Active || project.status === Project.Status.OnHold,
             create: (name, destination) => new Task(name, destination), save: () => save()

@@ -5,6 +5,97 @@ import OmniFocusCore
 
 @Suite("Task creation native boundary contracts")
 struct TaskCreationBridgeTests {
+    @Test(arguments: ["tag", "project", "parent_task"])
+    func applyRevalidatesReferencesAfterPreview(kind: String) throws {
+        let result = try runCreationFixture("""
+        io.project=id=>id==='project' ? {task:existing} : null;
+        if ('\(kind)' !== 'tag') {
+          request.creation.destination={kind:'\(kind)',id:'\(kind)'==='project' ? 'project' : 'existing'};
+        }
+        const preview=performTaskCreation(request,io);
+        request.creation=preview.applyRequest;
+        if ('\(kind)'==='tag') io.tag=()=>null;
+        if ('\(kind)'==='project') io.project=()=>null;
+        if ('\(kind)'==='parent_task') io.task=()=>null;
+        let error=null;try{performTaskCreation(request,io);}catch(e){error=String(e);}
+        JSON.stringify({preview:preview.status,error,creations,saves});
+        """)
+        #expect(result["preview"] as? String == "previewed")
+        #expect(result["error"] as? String != nil)
+        #expect(result["creations"] as? Int == 0)
+        #expect(result["saves"] as? Int == 0)
+    }
+
+    @Test func applyVerifiesUsingFreshPostSaveTaskIndex() throws {
+        let result = try runCreationFixture("""
+        let taskReads=0, readsBeforeSave=0;
+        io.tasks=()=>{taskReads++;if(!saves)readsBeforeSave++;return Object.assign({},map);};
+        request.creation.previewOnly=false;
+        const response=performTaskCreation(request,io);
+        JSON.stringify({status:response.status,taskReads,readsBeforeSave,creations,saves});
+        """)
+        #expect(result["status"] as? String == "completed")
+        #expect(result["taskReads"] as? Int == 1)
+        #expect(result["readsBeforeSave"] as? Int == 0)
+        #expect(result["creations"] as? Int == 3)
+        #expect(result["saves"] as? Int == 1)
+    }
+
+    @Test func repeatedTagsResolveOncePerAttempt() throws {
+        let result = try runCreationFixture("""
+        let tagReads=0;
+        io.tag=id=>{tagReads++;return id==='tag' ? {id:{primaryKey:'tag'}} : null;};
+        request.creation.tasks[0].children[0].tagIDs=['tag'];
+        const first=performTaskCreation(request,io);
+        const second=performTaskCreation(request,io);
+        JSON.stringify({first:first.status,second:second.status,tagReads,creations,saves});
+        """)
+        #expect(result["first"] as? String == "previewed")
+        #expect(result["second"] as? String == "previewed")
+        #expect(result["tagReads"] as? Int == 2)
+        #expect(result["creations"] as? Int == 0)
+        #expect(result["saves"] as? Int == 0)
+    }
+
+    @Test func descendantTagsArePreflightedBeforeCreation() throws {
+        let result = try runCreationFixture("""
+        let tagReads=0;
+        request.creation.tasks[0].tagIDs=[];
+        request.creation.tasks[0].children[0].tagIDs=['missing'];
+        request.creation.previewOnly=false;
+        io.tag=id=>{tagReads++;return null;};
+        let error=null;try{performTaskCreation(request,io);}catch(e){error=String(e);}
+        JSON.stringify({error,tagReads,creations,saves});
+        """)
+        #expect(result["error"] as? String != nil)
+        #expect(result["tagReads"] as? Int == 1)
+        #expect(result["creations"] as? Int == 0)
+        #expect(result["saves"] as? Int == 0)
+    }
+
+    @Test(arguments: ["inbox", "project", "parent_task"])
+    func previewLoadsOnlyReferencedCatalogs(kind: String) throws {
+        let result = try runCreationFixture("""
+        let taskReads=0, parentReads=0, projectReads=0, tagReads=0;
+        io.tasks=()=>{taskReads++;return map;};
+        io.task=id=>{parentReads++;return id==='existing' ? existing : null;};
+        io.project=id=>{projectReads++;return id==='project' ? {task:existing} : null;};
+        io.tag=id=>{tagReads++;return null;};
+        request.creation.tasks=[{clientID:'one',name:'Synthetic'}];
+        request.creation.destination={kind:'\(kind)'};
+        if ('\(kind)' !== 'inbox') request.creation.destination.id='\(kind)' === 'project' ? 'project' : 'existing';
+        const response=performTaskCreation(request,io);
+        JSON.stringify({status:response.status,taskReads,parentReads,projectReads,tagReads,creations,saves});
+        """)
+        #expect(result["status"] as? String == "previewed")
+        #expect(result["taskReads"] as? Int == 0)
+        #expect(result["parentReads"] as? Int == (kind == "parent_task" ? 1 : 0))
+        #expect(result["projectReads"] as? Int == (kind == "project" ? 1 : 0))
+        #expect(result["tagReads"] as? Int == 0)
+        #expect(result["creations"] as? Int == 0)
+        #expect(result["saves"] as? Int == 0)
+    }
+
     @Test(arguments: ["constructor", "toString", "hasOwnProperty", "__proto__"], ["tag", "project", "parent_task"])
     func inheritedReferencesFailBeforeAnyMutation(identifier: String, kind: String) throws {
         for preview in [true, false] {
@@ -192,7 +283,7 @@ struct TaskCreationBridgeTests {
     func stableDestinationIDsPreserveExistingChildren(kind: String) throws {
         let result = try runCreationFixture("""
         existing.children = [{id:{primaryKey:'prior'},parent:existing}];
-        io.projects = () => ({project:{id:{primaryKey:'project'},task:existing}});
+        io.project = id => id==='project' ? {id:{primaryKey:'project'},task:existing} : null;
         request.creation.destination = {kind:'\(kind)', id:'\(kind)' === 'project' ? 'project' : 'existing'};
         const preview = performTaskCreation(request, io);
         request.creation = preview.applyRequest;
@@ -228,7 +319,8 @@ private func runCreationFixture(_ body: String, calendarTimeZone: String? = nil)
     var io={exists:()=>{throw Error('history read forbidden');},
       read:()=>{throw Error('history read forbidden');},
       write:()=>{writes++;throw Error('history write forbidden');},
-      tasks:()=>map,projects:()=>({}),tags:()=>({tag:{id:{primaryKey:'tag'}}}),inbox:()=>inboxItems,
+      task:id=>Object.prototype.hasOwnProperty.call(map,id) ? map[id] : null,
+      tasks:()=>map,project:()=>null,tag:id=>id==='tag' ? {id:{primaryKey:'tag'}} : null,inbox:()=>inboxItems,
       remaining:t=>!t.completed,projectRemaining:()=>true,
       create:(name,parent)=>{creations++;if(failure==='constructor' && creations===2)throw Error('injected constructor failure');
         parent = parent && parent.task ? parent.task : parent;
