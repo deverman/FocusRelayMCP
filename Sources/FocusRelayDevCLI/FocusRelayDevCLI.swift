@@ -13,6 +13,7 @@ struct FocusRelayDevCLI: AsyncParsableCommand {
             CheckMarkdownLinks.self,
             Benchmark.self,
             BridgeBurst.self,
+            CreationBenchmark.self,
             ReleasePlan.self,
             ReleaseVerify.self,
             WorkspaceReport.self

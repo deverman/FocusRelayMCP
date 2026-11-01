@@ -92,6 +92,24 @@ swift run focusrelay-dev bridge-burst \
 
 The sanitized artifact records the selected deadline in milliseconds.
 
+Task creation has a separate sequential, preview-only benchmark. After semantic
+gates and creation UAT pass in the same ready session, run:
+
+```bash
+swift run focusrelay-dev creation-benchmark --profile canary \
+  --project-id "$DISPOSABLE_PROJECT_ID" --parent-id "$DISPOSABLE_TASK_ID" \
+  --output-dir .build/benchmarks/creation-canary
+```
+
+`canary` rotates all three destinations three times; `smoke` runs for ten
+minutes. `--tag-id` adds an existing tag to the preview. Output directories must
+be new. The command uses the Swift stdio MCP transport, sends only explicit
+previews, streams progress, and stops on the first failure without retrying.
+Artifacts contain timings/classifications, not task payloads. Record the binary,
+plugin, and source fingerprints alongside results when comparing candidates.
+This measures preview response latency, not apply throughput, and does not
+replace reversible mutation UAT or the frozen-candidate release suite.
+
 ## 4. Release Flow
 
 1. Merge independently validated vertical PRs.
