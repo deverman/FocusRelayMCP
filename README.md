@@ -1,7 +1,5 @@
 # FocusRelay — Fast Swift OmniFocus MCP Server and CLI for macOS
 
-[![deverman/FocusRelayMCP MCP server](https://glama.ai/mcp/servers/deverman/FocusRelayMCP/badges/score.svg)](https://glama.ai/mcp/servers/deverman/FocusRelayMCP)
-
 ## Plan your day and keep OmniFocus up to date with AI
 
 FocusRelay is a fast, native Swift MCP server and CLI that helps AI assistants
@@ -415,3 +413,7 @@ must follow the documented
 ## License
 
 FocusRelay is available under the [MIT License](LICENSE).
+
+---
+
+[![deverman/FocusRelayMCP MCP server](https://glama.ai/mcp/servers/deverman/FocusRelayMCP/badges/score.svg)](https://glama.ai/mcp/servers/deverman/FocusRelayMCP)
