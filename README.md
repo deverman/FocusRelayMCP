@@ -413,3 +413,7 @@ must follow the documented
 ## License
 
 FocusRelay is available under the [MIT License](LICENSE).
+
+---
+
+[![deverman/FocusRelayMCP MCP server](https://glama.ai/mcp/servers/deverman/FocusRelayMCP/badges/score.svg)](https://glama.ai/mcp/servers/deverman/FocusRelayMCP)
